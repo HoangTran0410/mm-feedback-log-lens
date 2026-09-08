@@ -1,0 +1,14 @@
+{
+  "manifest_version": 3,
+  "name": "Feedback Log Lens",
+  "version": "1.0.0",
+  "description": "Gom nhóm lỗi, thống kê, lọc và dựng timeline cho trang xem log feedback nội bộ.",
+  "content_scripts": [
+    {
+      "_comment": "Khớp cả host chứ không riêng trang detail: WebAdmin là SPA, nếu vào trang khác trước rồi bấm sang feedback thì content script không được inject lại lần nào nữa.",
+      "matches": ["https://adminapp.momocdn.net/*"],
+      "js": ["lens.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+# Log feedback tai ve — KHONG BAO GIO commit: chua du lieu that cua nguoi dung
+*.log
+*.yml
+*.yaml
+*.har
+
+# Anh chup man hinh admin — de lo ca noi dung log
+*.png
+*.jpg
+*.jpeg
+*.gif
+
+.DS_Store
+node_modules/

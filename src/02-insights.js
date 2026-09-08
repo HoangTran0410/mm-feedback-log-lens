@@ -1,0 +1,447 @@
+/*
+File: src/02-insights.js
+Created At: 2026-09-08 16:00:00 +07:00
+Created By: AI
+AI Agent: Claude Code
+Model: claude-opus-5
+*/
+// AI-GENERATED START — lop phan tich thu hai: thoi luong, ID lien ket, phien app, metadata cua feedback
+// Chay sau analyzeLog tren cung mang entries. Tach rieng de 01-analyzer.js khong phinh qua 500 dong.
+
+// Vai cho trong log ghi nham epoch vao truong duration= (vi du duration=1788836518693),
+// nen bo moi gia tri vuot nguong nay thay vi tin mu.
+const MAX_PLAUSIBLE_DURATION_MS = 600000;
+const MAX_DURATION_ROWS = 80;
+
+const DURATION_PATTERNS = [
+  { kind: 'duration', re: /\bduration=(\d+)\b/ },
+  { kind: 'KMM', re: /\bduration KMM:\s*(\d+)\s?ms/ },
+  { kind: 'elapsed', re: /\bin (\d+)\s?ms\b/ },
+  { kind: 'write', re: /\bwrite=(\d+)\s?ms/ },
+  { kind: 'waited', re: /\btotalWaited[A-Za-z]*\s*[:=]\s*(\d+)/ },
+  { kind: 'took', re: /\btook (\d+)\s?ms\b/ },
+];
+// Co y KHONG bat pattern chung chung kieu /(\d+)\s?ms/: no an ca gia tri cau hinh
+// (vi du mot module khai bao cua so cho 5000ms) va day len dau bang nhu the la thao tac cham.
+
+const CORRELATION_PATTERNS = [
+  { key: 'cmdId', re: /"cmdId"\s*:\s*"([^"]{6,})"/g },
+  { key: 'cmdId', re: /\bcmdId=([A-Za-z0-9_-]{6,})/g },
+  { key: 'request_id', re: /"request_id"\s*:\s*"([^"]{6,})"/g },
+  { key: 'riskId', re: /\briskId=([A-Za-z0-9_]{6,})/g },
+  { key: 'traceId', re: /\btraceId["\s]*[:=]\s*"?([A-Za-z0-9-]{6,})/g },
+];
+
+const METADATA_LABELS = ['AgentID', 'Device OS', 'Network', 'App Info', 'Entry Point', 'MiniApp', 'Feature',
+  'ScreenID', 'Version'];
+
+function extractDurations(entries) {
+  const rows = [];
+  entries.forEach((entry) => {
+    if (!entry.message) return;
+    // Sang loc bang indexOf truoc: dai da so dong khong he co so do thoi gian, khong can chay 6 regex.
+    if (entry.message.indexOf('ms') < 0 && entry.message.indexOf('duration=') < 0 &&
+      entry.message.indexOf('Waited') < 0) return;
+    for (let i = 0; i < DURATION_PATTERNS.length; i += 1) {
+      const hit = DURATION_PATTERNS[i].re.exec(entry.message);
+      if (!hit) continue;
+      const ms = Number(hit[1]);
+      if (!ms || ms > MAX_PLAUSIBLE_DURATION_MS) continue;
+      rows.push({
+        domIndex: entry.domIndex,
+        lineNo: entry.lineNo,
+        ms,
+        kind: DURATION_PATTERNS[i].kind,
+        module: entry.module,
+        time: entry.time,
+        message: entry.message,
+      });
+      return;
+    }
+  });
+  return rows.sort((a, b) => b.ms - a.ms).slice(0, MAX_DURATION_ROWS);
+}
+
+// Mot cmdId xuat hien o nhieu dong = mot request di qua nhieu lop. Gom lai la dung duoc ca luong.
+function buildCorrelations(entries) {
+  const byValue = new Map();
+  entries.forEach((entry) => {
+    entry.correlationIds = [];
+    if (!entry.raw) return;
+    // Cung ly do: quet 5 regex toan cuc tren 1.2MB text la vo ich khi dong do khong chua ten ID nao.
+    if (entry.raw.indexOf('cmdId') < 0 && entry.raw.indexOf('request_id') < 0 &&
+      entry.raw.indexOf('riskId') < 0 && entry.raw.indexOf('traceId') < 0) return;
+    CORRELATION_PATTERNS.forEach((pattern) => {
+      pattern.re.lastIndex = 0;
+      let hit = pattern.re.exec(entry.raw);
+      while (hit) {
+        const value = hit[1];
+        let bucket = byValue.get(value);
+        if (!bucket) {
+          bucket = { key: pattern.key, value, indices: [] };
+          byValue.set(value, bucket);
+        }
+        if (bucket.indices[bucket.indices.length - 1] !== entry.domIndex) bucket.indices.push(entry.domIndex);
+        if (!entry.correlationIds.some((item) => item.value === value)) {
+          entry.correlationIds.push({ key: pattern.key, value });
+        }
+        hit = pattern.re.exec(entry.raw);
+      }
+    });
+  });
+  return Array.from(byValue.values())
+    .filter((bucket) => bucket.indices.length > 1)
+    .sort((a, b) => b.indices.length - a.indices.length);
+}
+
+function buildSessions(entries) {
+  const sessions = [];
+  entries.forEach((entry) => {
+    if (!entry.level) return;
+    let session = sessions[entry.session - 1];
+    if (!session) {
+      session = { index: entry.session, firstIndex: entry.domIndex, startTs: entry.ts, endTs: entry.ts, lineCount: 0,
+        errorCount: 0 };
+      sessions[entry.session - 1] = session;
+    }
+    session.lineCount += 1;
+    if (entry.level === 'ERROR') session.errorCount += 1;
+    if (entry.ts) {
+      if (!session.startTs || entry.ts < session.startTs) session.startTs = entry.ts;
+      if (!session.endTs || entry.ts > session.endTs) session.endTs = entry.ts;
+    }
+  });
+  return sessions.filter(Boolean);
+}
+
+// Metadata cua feedback nam ngay tren trang duoi dang <span class="ant-tag">Nhan: gia tri</span>.
+// Current Context dung truoc Error Context trong DOM nen lay lan xuat hien dau tien la dung cai dang co hieu luc.
+function readFeedbackContext() {
+  const context = {};
+  document.querySelectorAll('span[class*="ant-tag"]').forEach((el) => {
+    const hit = /^([A-Za-z][A-Za-z ]*):\s*(.+)$/.exec((el.textContent || '').trim());
+    if (!hit) return;
+    const label = hit[1].trim();
+    const value = hit[2].trim();
+    if (METADATA_LABELS.indexOf(label) < 0 || context[label] || value === 'N/A') return;
+    context[label] = value;
+  });
+  const timeEl = document.querySelector('[class*="serverTime"]');
+  const timeHit = timeEl && /Time:\s*([\d/]+)\s*-\s*(\d{1,2}:\d{2})/.exec(timeEl.textContent || '');
+  if (timeHit) context.submittedAt = timeHit[1] + ' ' + timeHit[2];
+  return context;
+}
+
+// Tra ve ca vi tri bat dau/ket thuc: nguoi goi con phai doc tiep phan dang sau khoi JSON nay.
+function extractJsonBlock(text) {
+  const start = text.search(/[{[]/);
+  if (start < 0) return null;
+  const open = text[start];
+  const close = open === '{' ? '}' : ']';
+  let depth = 0;
+  let isInString = false;
+  let isEscaped = false;
+  for (let i = start; i < text.length; i += 1) {
+    const char = text[i];
+    if (isInString) {
+      if (isEscaped) isEscaped = false;
+      else if (char === '\\') isEscaped = true;
+      else if (char === '"') isInString = false;
+      continue;
+    }
+    if (char === '"') isInString = true;
+    else if (char === open) depth += 1;
+    else if (char === close) {
+      depth -= 1;
+      if (depth === 0) return { text: text.slice(start, i + 1), start, end: i + 1 };
+    }
+  }
+  return null;
+}
+
+// Log che gia tri nhay cam truoc khi gui len server, va che theo hai kieu:
+//   {"userId":"0","****","****","sessionKey":""}   — chuoi "****" tro troi
+//   {"userId":12345678,****,"balance":"..."}      — **** tran, khong co nhay
+// Ca hai deu lam JSON.parse hong. Quet co phan biet trong/ngoai chuoi de khong dung nham
+// nhung gia tri ma chinh no chua dau sao, vi du "accountNo":"**** **** **32".
+function findMaskedSpans(block) {
+  const spans = [];
+  let isInString = false;
+  let isEscaped = false;
+  let stringStart = -1;
+  for (let i = 0; i < block.length; i += 1) {
+    const char = block[i];
+    if (isInString) {
+      if (isEscaped) isEscaped = false;
+      else if (char === '\\') isEscaped = true;
+      else if (char === '"') {
+        isInString = false;
+        // Chuoi toan dau sao va khong theo sau boi ':' thi khong phai ten truong — no la cho bi che.
+        if (/^\*{2,}$/.test(block.slice(stringStart + 1, i)) && nextNonSpaceChar(block, i + 1) !== ':') {
+          spans.push([stringStart, i + 1]);
+        }
+      }
+      continue;
+    }
+    if (char === '"') {
+      isInString = true;
+      stringStart = i;
+    } else if (char === '*') {
+      let end = i;
+      while (block[end] === '*') end += 1;
+      if (end - i >= 2) spans.push([i, end]);
+      i = end - 1;
+    }
+  }
+  return spans;
+}
+
+function nextNonSpaceChar(text, from) {
+  for (let i = from; i < text.length; i += 1) if (!/\s/.test(text[i])) return text[i];
+  return '';
+}
+
+function lastNonSpaceIndex(text, from) {
+  for (let i = from; i >= 0; i -= 1) if (!/\s/.test(text[i])) return i;
+  return -1;
+}
+
+function firstNonSpaceIndex(text, from) {
+  for (let i = from; i < text.length; i += 1) if (!/\s/.test(text[i])) return i;
+  return text.length;
+}
+
+// Sua tu cuoi ve dau de chi so cua cac cho con lai khong bi lech.
+function repairMaskedJson(block) {
+  const spans = findMaskedSpans(block);
+  if (!spans.length) return block;
+  let out = block;
+  let maskedKeyCount = 0;
+  for (let i = spans.length - 1; i >= 0; i -= 1) {
+    const start = spans[i][0];
+    const end = spans[i][1];
+    const before = lastNonSpaceIndex(out, start - 1);
+    const after = firstNonSpaceIndex(out, end);
+    if (before >= 0 && out[before] === ':') {
+      // Gia tri bi che: giu lai de nguoi doc van thay truong do ton tai, chi boc them cap nhay.
+      out = out.slice(0, start) + '"****"' + out.slice(end);
+    } else if (out[after] === '{' || out[after] === '[' || out[after] === '"') {
+      // Cho che an ca TEN truong, con gia tri thi khong: ,****{"displayName":...}
+      // Danh so de hai cho bi che trong cung mot object khong de len nhau lam mat du lieu.
+      maskedKeyCount += 1;
+      out = out.slice(0, start) + '"****#' + maskedKeyCount + '":' + out.slice(end);
+    } else if (before >= 0 && out[before] === ',') {
+      out = out.slice(0, before) + out.slice(end);
+    } else if (out[after] === ',') {
+      out = out.slice(0, start) + out.slice(after + 1);
+    } else {
+      out = out.slice(0, start) + out.slice(end);
+    }
+  }
+  return out;
+}
+
+function parseJsonMaybeMasked(block) {
+  try {
+    return { pretty: JSON.stringify(JSON.parse(block), null, 2), isParsed: true, isRepaired: false };
+  } catch (error) {
+    // Roi vao day gan nhu luon la vi cho bi che; thu don rieng nhung cho do roi parse lai.
+  }
+  const repaired = repairMaskedJson(block);
+  if (repaired !== block) {
+    try {
+      return { pretty: JSON.stringify(JSON.parse(repaired), null, 2), isParsed: true, isRepaired: true };
+    } catch (error) {
+      // Hong vi ly do khac (thuong la log cat bot payload dai): tra nguyen van.
+    }
+  }
+  return { pretty: block, isParsed: false, isRepaired: false };
+}
+
+// Dong HTTP goi payload theo dang "--ten: gia tri" noi duoi nhau tren cung mot dong:
+//   [RequestPayload: --encrypted: false --body: {...} --encryptedBody:  --header: {...}]--exception: none
+// Doc tung truong mot, va khi gia tri la JSON thi nhay thang qua het khoi do — nho vay
+// mot chuoi "--x:" nam ben trong JSON khong bi tuong nham la truong moi.
+const PAYLOAD_FIELD_RE = /--([A-Za-z][A-Za-z0-9_]*)\s*:/g;
+const BODY_LABEL_RE = /(?:responseBody|requestBody|body|payload)\s*:/i;
+
+function countChar(text, char) {
+  let total = 0;
+  for (let i = 0; i < text.length; i += 1) if (text[i] === char) total += 1;
+  return total;
+}
+
+// Truong cuoi thuong dinh theo dau ] dong khoi [RequestPayload: ...]. Chi cat khi that su thua.
+function trimPayloadScalar(text) {
+  let value = text.trim();
+  while (value.slice(-1) === ']' && countChar(value, ']') > countChar(value, '[')) {
+    value = value.slice(0, -1).trim();
+  }
+  return value;
+}
+
+function splitPayloadFields(raw) {
+  const fields = [];
+  let cursor = 0;
+  for (;;) {
+    PAYLOAD_FIELD_RE.lastIndex = cursor;
+    const hit = PAYLOAD_FIELD_RE.exec(raw);
+    if (!hit) break;
+    const valueStart = hit.index + hit[0].length;
+    const rest = raw.slice(valueStart);
+    const lead = /^\s*/.exec(rest)[0].length;
+    let value = null;
+    let end = 0;
+    if (rest[lead] === '{' || rest[lead] === '[') {
+      const block = extractJsonBlock(rest);
+      if (block && block.start === lead) {
+        value = block.text;
+        end = valueStart + block.end;
+      }
+    }
+    if (value === null) {
+      PAYLOAD_FIELD_RE.lastIndex = valueStart;
+      const next = PAYLOAD_FIELD_RE.exec(raw);
+      end = next ? next.index : raw.length;
+      value = trimPayloadScalar(raw.slice(valueStart, end));
+    }
+    fields.push({ name: hit[1], value });
+    cursor = end;
+  }
+  return fields;
+}
+
+// Nhieu dong khong log JSON ma log thang Map.toString() cua Kotlin/Java:
+//   {stage=sync_step, location={lat=0.0, long=0.0}, locationString={"lat":0.0}}
+// JSON.parse chiu thua nhung day van la du lieu co cau truc, doc duoi dang cay de hon nhieu.
+const KV_MAP_HEAD_RE = /^\{\s*[A-Za-z_][\w.-]*\s*=/;
+
+// Cat theo dau phay o do sau 0 de gia tri long nhau khong bi xe doi.
+function splitTopLevel(body) {
+  const parts = [];
+  let depth = 0;
+  let start = 0;
+  for (let i = 0; i < body.length; i += 1) {
+    const char = body[i];
+    if (char === '{' || char === '[') depth += 1;
+    else if (char === '}' || char === ']') depth -= 1;
+    else if (char === ',' && depth === 0) {
+      parts.push(body.slice(start, i));
+      start = i + 1;
+    }
+  }
+  parts.push(body.slice(start));
+  return parts;
+}
+
+function parseKeyValueMap(text) {
+  if (!KV_MAP_HEAD_RE.test(text) || text.slice(-1) !== '}') return null;
+  const result = {};
+  let count = 0;
+  splitTopLevel(text.slice(1, -1)).forEach((part) => {
+    const at = part.indexOf('=');
+    if (at < 0) return;
+    const key = part.slice(0, at).trim();
+    const value = part.slice(at + 1).trim();
+    count += 1;
+    if (KV_MAP_HEAD_RE.test(value)) {
+      result[key] = parseKeyValueMap(value) || value;
+      return;
+    }
+    if (value.charAt(0) === '{' || value.charAt(0) === '[') {
+      try {
+        result[key] = JSON.parse(value);
+        return;
+      } catch (error) {
+        // Khong phai JSON that: giu nguyen van.
+      }
+    }
+    result[key] = value;
+  });
+  return count ? result : null;
+}
+
+function buildJsonSection(name, text) {
+  const block = extractJsonBlock(text);
+  if (!block) {
+    // Log cat bot payload qua dai ("... exceeds 50KB"), khoi JSON khong bao gio dong lai.
+    const start = text.search(/[{[]/);
+    if (start < 0) return null;
+    return { name, kind: 'json', pretty: text.slice(start), isParsed: false, isRepaired: false,
+      isTruncated: true, isMap: false, bytes: text.length - start };
+  }
+  const parsed = parseJsonMaybeMasked(block.text);
+  // bytes do tren nguyen van trong log, khong do tren ban pretty-print: nguoi doc muon biet
+  // request nang bao nhieu, khong phai ban da them thut le nang bao nhieu.
+  if (parsed.isParsed) {
+    return { name, kind: 'json', pretty: parsed.pretty, isParsed: true, isRepaired: parsed.isRepaired,
+      isTruncated: false, isMap: false, bytes: block.text.length };
+  }
+  const map = parseKeyValueMap(block.text);
+  if (map) {
+    return { name, kind: 'json', pretty: JSON.stringify(map, null, 2), isParsed: true, isRepaired: false,
+      isTruncated: false, isMap: true, bytes: block.text.length };
+  }
+  return { name, kind: 'json', pretty: parsed.pretty, isParsed: false, isRepaired: false,
+    isTruncated: false, isMap: false, bytes: block.text.length };
+}
+
+// Tra ve danh sach truong de tam truot ve tung khoi mot, thay vi chi mot khoi JSON duy nhat.
+function buildPayloadSections(raw) {
+  const sections = [];
+  splitPayloadFields(raw).forEach((field) => {
+    if (field.value.charAt(0) === '{' || field.value.charAt(0) === '[') {
+      const section = buildJsonSection(field.name, field.value);
+      if (section) sections.push(section);
+      return;
+    }
+    sections.push({ name: field.name, kind: 'text', pretty: field.value, isParsed: true,
+      isRepaired: false, isTruncated: false, isMap: false, bytes: field.value.length });
+  });
+  if (sections.length) return sections;
+
+  // Dong khong theo dang "--ten:" (vi du "@@SomeService :: responseBody: {...}") van co the
+  // chua mot khoi JSON tro troi. Uu tien cat sau nhan body/payload de khong vo phai [Module: HTTP].
+  const label = BODY_LABEL_RE.exec(raw);
+  const tail = label ? raw.slice(label.index + label[0].length) : raw.slice(raw.indexOf('{'));
+  if (raw.indexOf('{') < 0 && !label) return sections;
+  const section = buildJsonSection(label ? label[0].replace(/\s*:\s*$/, '') : 'JSON', tail);
+  if (section) sections.push(section);
+  return sections;
+}
+
+// Moi thu phu thuoc "dang nhin nhung dong nao". Goi mot lan cho ca file luc quet,
+// va goi lai tren tap da loc moi khi bo loc doi — do duoc 2.5ms cho 4085 dong, 0.4ms cho tap ~850 dong.
+function deriveStats(entries) {
+  const levels = {};
+  LEVEL_ORDER.forEach((level) => {
+    levels[level] = 0;
+  });
+  entries.forEach((entry) => {
+    if (levels[entry.level] !== undefined) levels[entry.level] += 1;
+  });
+  const httpCalls = buildHttpCalls(entries);
+  return {
+    scopedEntries: entries,
+    levels,
+    groups: buildIssueGroups(entries),
+    httpCalls,
+    badHttpCalls: httpCalls.filter(isBadHttpCall),
+    durations: extractDurations(entries),
+    modules: countBy(entries, (entry) => entry.module),
+    tags: countBy(entries, (entry) => entry.tag),
+    flows: countBy(entries, (entry) => entry.flow),
+    events: countBy(entries, (entry) => entry.event),
+  };
+}
+
+function attachInsights(data) {
+  // Correlation KHONG scope theo bo loc: mot cmdId la mot chuoi request, xem chuoi thi phai xem tron ven
+  // ke ca nhung dong dang bi bo loc giau di.
+  data.correlations = buildCorrelations(data.entries);
+  data.correlationValueSet = new Set(data.correlations.map((bucket) => bucket.value));
+  data.sessions = buildSessions(data.entries);
+  data.feedback = readFeedbackContext();
+  return data;
+}
+// AI-GENERATED END
