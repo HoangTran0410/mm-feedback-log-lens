@@ -31,19 +31,19 @@ function closeSheet() {
   lensState.el.sheet = null;
 }
 
-const PAYLOAD_TAG = {
-  repaired: ['ok', 'đã bỏ **** để parse'],
-  map: ['ok', 'map k=v'],
-  truncated: ['warn', 'log cắt bớt — JSON không đóng'],
-  failed: ['warn', 'không parse được'],
-};
-
-function payloadSectionTag(section) {
-  if (section.isTruncated) return PAYLOAD_TAG.truncated;
-  if (!section.isParsed) return PAYLOAD_TAG.failed;
-  if (section.isRepaired) return PAYLOAD_TAG.repaired;
-  if (section.isMap) return PAYLOAD_TAG.map;
-  return null;
+// Mot khoi co the vua bi cat vua bi che, nen tra ve danh sach nhan chu khong phai mot nhan.
+function payloadSectionTags(section) {
+  const tags = [];
+  if (section.isTruncated) {
+    tags.push(section.isParsed
+      ? ['warn', 'log cắt bớt — mất ' + section.lostChars + ' ký tự cuối, đã đóng ngoặc để đọc']
+      : ['warn', 'log cắt bớt — không đóng lại được']);
+  } else if (!section.isParsed) {
+    tags.push(['warn', 'không parse được']);
+  }
+  if (section.isRepaired) tags.push(['ok', 'đã bỏ **** để parse']);
+  if (section.isMap) tags.push(['ok', 'map k=v']);
+  return tags;
 }
 
 // To mau bang cach quet token roi escape TUNG manh — escape truoc rooi mau sau se an ca the <i>,
@@ -75,12 +75,14 @@ function renderPayloadSection(section, index) {
       '<span class="fll-pay-v">' + (section.pretty ? escapeHtml(section.pretty) : '(rỗng)') +
       '</span></div></div>';
   }
-  const tag = payloadSectionTag(section);
+  const tags = payloadSectionTags(section)
+    .map((tag) => '<span class="fll-pay-tag ' + tag[0] + '">' + tag[1] + '</span>')
+    .join('');
   const blockId = 'fll-json-' + index;
   const text = section.pretty.slice(0, SHEET_MAX_RAW_LENGTH) +
     (section.pretty.length > SHEET_MAX_RAW_LENGTH ? '\n… (đã cắt bớt để hiển thị)' : '');
   return '<div class="fll-pay"><div class="fll-pay-hd"><b>' + name + '</b>' +
-    (tag ? '<span class="fll-pay-tag ' + tag[0] + '">' + tag[1] + '</span>' : '') +
+    tags +
     '<div class="fll-hd-sp"></div>' +
     '<button class="fll-btn fll-mini" data-act="copyJson" data-value="' + blockId + '">Copy</button>' +
     '</div><pre class="fll-code' + (payloadSheetState.isWrapped ? ' fll-wrap' : '') + '" id="' + blockId +

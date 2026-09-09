@@ -113,8 +113,18 @@ Ba thứ hay làm `JSON.parse` chết đã xử lý sẵn (đo trên log 4085 d�
 - **`Map.toString()` của Kotlin/Java** (`{stage=sync_step, location={lat=0.0}}`) — 585 khối,
   chiếm đa số. Không phải JSON, trước đây hiện nguyên văn kèm cảnh báo sai ("do bị che ****").
   Nay đọc thành cây, gắn nhãn *map k=v*. Giá trị giữ nguyên dạng chuỗi vì bản thân log không có kiểu.
-- **Payload bị chính logger cắt** (`… exceeds 50KB`) — 19 khối, không cứu được: hiện nguyên văn,
-  gắn nhãn *log cắt bớt*.
+- **Payload bị chính logger cắt** — 19 khối. Logger của app cắt message dài
+  (`... Log message truncated; exceeds 10000 characters.`) nên khối JSON không bao giờ đóng lại.
+  Tool tìm **điểm cắt an toàn gần nhất** — ngay sau một giá trị hoàn chỉnh, sau dấu mở ngoặc, hoặc
+  ngay trước dấu phẩy — rồi tự đóng nốt các ngoặc còn mở. 17/17 khối trong log mẫu đọc được,
+  16 khối giữ được 98–100% nội dung. Nhãn ghi rõ mất bao nhiêu ký tự cuối.
+
+  Hai chỗ dễ làm sai, đã xử lý:
+
+  - **Số bị cắt không được nhận là giá trị.** `1788464400000` cắt còn `1788` vẫn parse được nhưng là
+    số SAI. Thà bỏ hẳn còn hơn đưa ra một con số bịa.
+  - **Cắt giữa một chuỗi** (`"payload":"[{\"id\":…`) thì đóng chuỗi lại và thêm `…` vào cuối giá trị
+    đó, thay vì vứt cả trường. Không có bước này thì có khối chỉ đọc được 1% nội dung.
 
 **Ô tìm trong tab HTTP.** Tìm theo URL / method / status, **và cả nội dung payload** — phần lớn lúc cần
 là dò theo một `cmdId` hay `request_id` nhìn thấy ở dòng khác mà giá trị đó chỉ nằm trong body.

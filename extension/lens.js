@@ -470,6 +470,101 @@ function extractJsonBlock(text) {
   return null;
 }
 
+// Logger cua app cat bot message qua dai ("... exceeds 10000 characters."), nen khoi JSON khong
+// bao gio dong lai va JSON.parse chiu thua. Nhung phan da co van la du lieu doc duoc: cat den diem
+// an toan gan nhat roi tu dong not cac ngoac con mo.
+//
+// "Diem an toan" = vi tri ma cat o do van con la JSON hop le: ngay sau mot GIA TRI hoan chinh,
+// ngay sau dau mo ngoac, hoac ngay TRUOC mot dau phay. Co y KHONG nhan diem an toan sau mot so
+// chua co dau phan cach dang sau: 1788464400000 bi cat thanh 1788 van parse duoc nhung la so SAI —
+// tha bo han con hon dua ra mot con so bia.
+// Nhan luon cum **** la mot 'gia tri': cho bi che van la du lieu that, de repairMaskedJson don sau.
+const JSON_LITERAL_RE = /^(-?\d+(\.\d+)?([eE][-+]?\d+)?|true|false|null|\*{2,})$/;
+
+function findSafeJsonCut(text, start) {
+  const frames = [];
+  let safeCut = -1;
+  let safeFrames = null;
+  let isInString = false;
+  let isEscaped = false;
+  let stringStart = -1;
+  let literalStart = -1;
+
+  const markSafe = (index) => {
+    safeCut = index;
+    safeFrames = frames.map((frame) => frame.type);
+  };
+  const closeValue = (index) => {
+    if (frames.length) frames[frames.length - 1].hasKey = false;
+    markSafe(index);
+  };
+
+  for (let i = start; i < text.length; i += 1) {
+    const char = text[i];
+    if (isInString) {
+      if (isEscaped) isEscaped = false;
+      else if (char === '\\') isEscaped = true;
+      else if (char === '"') {
+        isInString = false;
+        const frame = frames[frames.length - 1];
+        // Trong object, chuoi dau tien cua moi cap la TEN truong — cat ngay sau no la hong.
+        if (frame && frame.type === '{' && !frame.hasKey) frame.hasKey = true;
+        else closeValue(i + 1);
+      }
+      continue;
+    }
+    if (literalStart >= 0 && /[\s,}\]]/.test(char)) {
+      if (!JSON_LITERAL_RE.test(text.slice(literalStart, i))) break;
+      closeValue(i);
+      literalStart = -1;
+    }
+    if (char === '"') {
+      isInString = true;
+      stringStart = i;
+    } else if (char === '{' || char === '[') {
+      frames.push({ type: char, hasKey: false });
+      markSafe(i + 1);
+    } else if (char === '}' || char === ']') {
+      frames.pop();
+      if (!frames.length) return { cut: i + 1, closers: '' };
+      closeValue(i + 1);
+    } else if (char === ',') {
+      markSafe(i);
+    } else if (literalStart < 0 && !/[\s:]/.test(char)) {
+      // Ky tu khong the mo dau mot gia tri JSON = da het phan du lieu, phan sau la chu cua logger
+      // ("... Log message truncated; exceeds 10000 characters."). Dung han, dung nuot no lam gia tri.
+      if (!/[-0-9tfn*]/.test(char)) break;
+      literalStart = i;
+    }
+  }
+  // Het text khi dang o giua mot chuoi (vi du "payload":"[{\\"id\\":...): dong chuoi lai de giu phan
+  // da doc duoc, thay vi vut ca truong. Them dau … de nhin la biet gia tri nay bi cat giua chung.
+  if (isInString && frames.length && stringStart > safeCut) {
+    const frame = frames[frames.length - 1];
+    if (frame.type !== '{' || frame.hasKey) {
+      // Khi cho cat nam giua chuoi, dong chu cua logger bi ket luon BEN TRONG gia tri — cat no ra.
+      const marker = /\.{3}\s*Log message truncated[^"]*$/.exec(text);
+      let cut = marker ? marker.index : text.length;
+      let slashes = 0;
+      while (text[cut - 1 - slashes] === '\\') slashes += 1;
+      if (slashes % 2 === 1) cut -= 1;
+      const halfEscape = /\\u[0-9a-fA-F]{0,3}$/.exec(text.slice(stringStart, cut));
+      if (halfEscape) cut -= halfEscape[0].length;
+      markSafe(cut);
+      return { cut, closers: '…"' + closersFor(safeFrames), lostChars: text.length - cut, isCutInString: true };
+    }
+  }
+  if (safeCut < 0 || !safeFrames || !safeFrames.length) return null;
+  return { cut: safeCut, closers: closersFor(safeFrames), lostChars: text.length - safeCut };
+}
+
+function closersFor(types) {
+  return types
+    .map((type) => (type === '{' ? '}' : ']'))
+    .reverse()
+    .join('');
+}
+
 // Log che gia tri nhay cam truoc khi gui len server, va che theo hai kieu:
 //   {"userId":"0","****","****","sessionKey":""}   — chuoi "****" tro troi
 //   {"userId":12345678,****,"balance":"..."}      — **** tran, khong co nhay
@@ -675,11 +770,19 @@ function parseKeyValueMap(text) {
 function buildJsonSection(name, text) {
   const block = extractJsonBlock(text);
   if (!block) {
-    // Log cat bot payload qua dai ("... exceeds 50KB"), khoi JSON khong bao gio dong lai.
     const start = text.search(/[{[]/);
     if (start < 0) return null;
-    return { name, kind: 'json', pretty: text.slice(start), isParsed: false, isRepaired: false,
-      isTruncated: true, isMap: false, bytes: text.length - start };
+    const raw = text.slice(start);
+    const safe = findSafeJsonCut(text, start);
+    if (safe) {
+      const closed = parseJsonMaybeMasked(text.slice(start, safe.cut) + safe.closers);
+      if (closed.isParsed) {
+        return { name, kind: 'json', pretty: closed.pretty, isParsed: true, isRepaired: closed.isRepaired,
+          isTruncated: true, isMap: false, bytes: raw.length, lostChars: safe.lostChars };
+      }
+    }
+    return { name, kind: 'json', pretty: raw, isParsed: false, isRepaired: false,
+      isTruncated: true, isMap: false, bytes: raw.length };
   }
   const parsed = parseJsonMaybeMasked(block.text);
   // bytes do tren nguyen van trong log, khong do tren ban pretty-print: nguoi doc muon biet
@@ -2113,19 +2216,19 @@ function closeSheet() {
   lensState.el.sheet = null;
 }
 
-const PAYLOAD_TAG = {
-  repaired: ['ok', 'đã bỏ **** để parse'],
-  map: ['ok', 'map k=v'],
-  truncated: ['warn', 'log cắt bớt — JSON không đóng'],
-  failed: ['warn', 'không parse được'],
-};
-
-function payloadSectionTag(section) {
-  if (section.isTruncated) return PAYLOAD_TAG.truncated;
-  if (!section.isParsed) return PAYLOAD_TAG.failed;
-  if (section.isRepaired) return PAYLOAD_TAG.repaired;
-  if (section.isMap) return PAYLOAD_TAG.map;
-  return null;
+// Mot khoi co the vua bi cat vua bi che, nen tra ve danh sach nhan chu khong phai mot nhan.
+function payloadSectionTags(section) {
+  const tags = [];
+  if (section.isTruncated) {
+    tags.push(section.isParsed
+      ? ['warn', 'log cắt bớt — mất ' + section.lostChars + ' ký tự cuối, đã đóng ngoặc để đọc']
+      : ['warn', 'log cắt bớt — không đóng lại được']);
+  } else if (!section.isParsed) {
+    tags.push(['warn', 'không parse được']);
+  }
+  if (section.isRepaired) tags.push(['ok', 'đã bỏ **** để parse']);
+  if (section.isMap) tags.push(['ok', 'map k=v']);
+  return tags;
 }
 
 // To mau bang cach quet token roi escape TUNG manh — escape truoc rooi mau sau se an ca the <i>,
@@ -2157,12 +2260,14 @@ function renderPayloadSection(section, index) {
       '<span class="fll-pay-v">' + (section.pretty ? escapeHtml(section.pretty) : '(rỗng)') +
       '</span></div></div>';
   }
-  const tag = payloadSectionTag(section);
+  const tags = payloadSectionTags(section)
+    .map((tag) => '<span class="fll-pay-tag ' + tag[0] + '">' + tag[1] + '</span>')
+    .join('');
   const blockId = 'fll-json-' + index;
   const text = section.pretty.slice(0, SHEET_MAX_RAW_LENGTH) +
     (section.pretty.length > SHEET_MAX_RAW_LENGTH ? '\n… (đã cắt bớt để hiển thị)' : '');
   return '<div class="fll-pay"><div class="fll-pay-hd"><b>' + name + '</b>' +
-    (tag ? '<span class="fll-pay-tag ' + tag[0] + '">' + tag[1] + '</span>' : '') +
+    tags +
     '<div class="fll-hd-sp"></div>' +
     '<button class="fll-btn fll-mini" data-act="copyJson" data-value="' + blockId + '">Copy</button>' +
     '</div><pre class="fll-code' + (payloadSheetState.isWrapped ? ' fll-wrap' : '') + '" id="' + blockId +
