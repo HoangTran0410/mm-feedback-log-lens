@@ -744,7 +744,10 @@ function renderConfigValue(item, value, isLatest) {
 // nhau moi la thu can nhin, gap lai chi con "gia tri cuoi" thi mat luon.
 function renderConfigRow(item) {
   const many = item.values.length > 1
-    ? '<i class="fll-cfg-chg">' + item.values.length + ' giá trị khác nhau</i>'
+    ? '<i class="fll-cfg-chg" title="Khoá này ghi ra ' + item.values.length + ' giá trị khác nhau. ' +
+      'Có thể là cấu hình đổi giữa phiên — thứ dễ làm bug chỉ tái hiện được một lần. Cũng có thể chỉ ' +
+      'vì payload mang theo id hoặc thời điểm khác nhau mỗi lần: bấm từng dòng dưới đây mà so.">' +
+      item.values.length + ' giá trị khác nhau</i>'
     : '';
   const note = item.note ? '<i class="fll-cfg-note">' + escapeHtml(item.note) + '</i>' : '';
   const shown = item.values.slice(-4);
@@ -773,20 +776,18 @@ function renderConfigSection(source, rows) {
 function renderConfigCallSection(cfg, view) {
   if (!cfg.calls.length) return '';
   return '<div class="fll-sec">Call BE xin cấu hình — ' + cfg.calls.length + '</div>' +
-    '<div class="fll-hint" style="margin-bottom:8px">Call có chữ <code>config</code> trên đường dẫn ' +
-    '(đã bỏ query, nên <code>?displayConfig=</code> của API khác không lọt vào đây). Bấm ' +
-    '<code>{ }</code> để xem giá trị BE trả về.</div>' +
+    '<div class="fll-hint" style="margin-bottom:8px">Call có chữ <code>config</code> trên đường dẫn. ' +
+    'Bấm <code>{ }</code> để xem BE trả về.</div>' +
     cfg.calls.map((call) => renderHttpCall(call, view)).join('');
 }
 
 function renderConfigTab() {
   const view = getView();
   const cfg = view.configs;
-  const header = '<div class="fll-hint" style="margin-bottom:10px">Mọi giá trị cấu hình app <b>nhận được</b> ' +
-    'hoặc <b>áp dụng</b> trong log này, gom theo khóa. Một khóa ghi nhiều lần cùng giá trị thì chỉ hiện ' +
-    'một hàng; ghi ra giá trị <b>khác</b> thì cả các giá trị đó cùng hiện và hàng lên đầu bảng. ' +
-    'Nhiều giá trị có thể là cấu hình đổi giữa phiên (thứ dễ làm bug chỉ tái hiện được một lần), ' +
-    'cũng có thể chỉ vì payload mang theo id/thời điểm khác nhau mỗi lần — bấm từng dòng mà so.</div>';
+  // Doan nay tung dai bon cau, giai thich bang loi nhung thu chinh giao dien da noi. Nay mot dong;
+  // phan can canh bao (nhieu gia tri khong chac la cau hinh doi) nam trong title cua chinh cai nhan do.
+  const header = '<div class="fll-hint" style="margin-bottom:10px">Cấu hình app <b>nhận được</b> ' +
+    'hoặc <b>áp dụng</b>, gom theo khóa. Bấm một dòng để nhảy tới dòng log.</div>';
   if (!cfg.hasAny) {
     return header + '<div class="fll-empty">Log này không có dòng cấu hình nào đọc được.</div>';
   }

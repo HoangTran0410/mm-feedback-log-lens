@@ -1838,32 +1838,28 @@ const CONFIG_SOURCE_ORDER = ['ab', 'be', 'wa', 'cdn', 'app', 'oth'];
 const CONFIG_SOURCE_META = {
   ab: {
     label: 'A/B testing',
-    hint: 'Namespace và nhánh (tag) mà máy này rơi vào. Đây là thứ hay bị bỏ sót nhất khi tái hiện bug: ' +
-      'cùng một bản app nhưng hai người ở hai nhánh thì chạy hai đoạn code khác nhau. ' +
-      '<code>DEFAULT_GROUP</code> kèm <code>exp_name</code> rỗng nghĩa là máy này KHÔNG nằm trong thí nghiệm.',
+    hint: 'Nhánh máy này rơi vào — hai máy khác nhánh chạy hai đoạn code khác nhau. ' +
+      '<code>DEFAULT_GROUP</code> = không nằm trong thí nghiệm.',
   },
   be: {
     label: 'BE trả về',
-    hint: 'Dòng log tự nói là nhận từ server (<code>response</code>, <code>responseBody</code>, ' +
-      '<code>Persist ... raw=</code>).',
+    hint: 'Dòng log tự nói là nhận từ server.',
   },
   wa: {
     label: 'Webadmin',
-    hint: 'Dòng log có chữ <code>webadmin</code>, hoặc là danh sách feature do webadmin đẩy xuống ' +
-      '(<code>AppFeatureUpdater</code>, <code>OMEGA FEATURE TESTINGS</code>).',
+    hint: 'Feature và giá trị webadmin đẩy xuống.',
   },
   cdn: {
     label: 'File JSON trên CDN',
-    hint: 'App tải cấu hình dạng file tĩnh. Bấm để nhảy tới dòng tải; muốn xem nội dung thì mở url.',
+    hint: 'Cấu hình dạng file tĩnh. Muốn xem nội dung thì mở url.',
   },
   app: {
     label: 'App đã áp dụng',
-    hint: 'Giá trị app tự ghi lại sau khi đã dựng xong — đem so với khối "BE trả về" ở trên để thấy ' +
-      'cái nhận được và cái thực sự chạy có khớp nhau không.',
+    hint: 'Giá trị app tự ghi sau khi dựng xong — so với khối "BE trả về" xem có khớp không.',
   },
   oth: {
     label: 'Chưa rõ nguồn',
-    hint: 'Dòng tự gọi mình là config và có kèm JSON, nhưng bản thân dòng đó không nói lấy từ đâu.',
+    hint: 'Tự gọi mình là config nhưng không nói lấy từ đâu.',
   },
 };
 
@@ -4468,7 +4464,10 @@ function renderConfigValue(item, value, isLatest) {
 // nhau moi la thu can nhin, gap lai chi con "gia tri cuoi" thi mat luon.
 function renderConfigRow(item) {
   const many = item.values.length > 1
-    ? '<i class="fll-cfg-chg">' + item.values.length + ' giá trị khác nhau</i>'
+    ? '<i class="fll-cfg-chg" title="Khoá này ghi ra ' + item.values.length + ' giá trị khác nhau. ' +
+      'Có thể là cấu hình đổi giữa phiên — thứ dễ làm bug chỉ tái hiện được một lần. Cũng có thể chỉ ' +
+      'vì payload mang theo id hoặc thời điểm khác nhau mỗi lần: bấm từng dòng dưới đây mà so.">' +
+      item.values.length + ' giá trị khác nhau</i>'
     : '';
   const note = item.note ? '<i class="fll-cfg-note">' + escapeHtml(item.note) + '</i>' : '';
   const shown = item.values.slice(-4);
@@ -4497,20 +4496,18 @@ function renderConfigSection(source, rows) {
 function renderConfigCallSection(cfg, view) {
   if (!cfg.calls.length) return '';
   return '<div class="fll-sec">Call BE xin cấu hình — ' + cfg.calls.length + '</div>' +
-    '<div class="fll-hint" style="margin-bottom:8px">Call có chữ <code>config</code> trên đường dẫn ' +
-    '(đã bỏ query, nên <code>?displayConfig=</code> của API khác không lọt vào đây). Bấm ' +
-    '<code>{ }</code> để xem giá trị BE trả về.</div>' +
+    '<div class="fll-hint" style="margin-bottom:8px">Call có chữ <code>config</code> trên đường dẫn. ' +
+    'Bấm <code>{ }</code> để xem BE trả về.</div>' +
     cfg.calls.map((call) => renderHttpCall(call, view)).join('');
 }
 
 function renderConfigTab() {
   const view = getView();
   const cfg = view.configs;
-  const header = '<div class="fll-hint" style="margin-bottom:10px">Mọi giá trị cấu hình app <b>nhận được</b> ' +
-    'hoặc <b>áp dụng</b> trong log này, gom theo khóa. Một khóa ghi nhiều lần cùng giá trị thì chỉ hiện ' +
-    'một hàng; ghi ra giá trị <b>khác</b> thì cả các giá trị đó cùng hiện và hàng lên đầu bảng. ' +
-    'Nhiều giá trị có thể là cấu hình đổi giữa phiên (thứ dễ làm bug chỉ tái hiện được một lần), ' +
-    'cũng có thể chỉ vì payload mang theo id/thời điểm khác nhau mỗi lần — bấm từng dòng mà so.</div>';
+  // Doan nay tung dai bon cau, giai thich bang loi nhung thu chinh giao dien da noi. Nay mot dong;
+  // phan can canh bao (nhieu gia tri khong chac la cau hinh doi) nam trong title cua chinh cai nhan do.
+  const header = '<div class="fll-hint" style="margin-bottom:10px">Cấu hình app <b>nhận được</b> ' +
+    'hoặc <b>áp dụng</b>, gom theo khóa. Bấm một dòng để nhảy tới dòng log.</div>';
   if (!cfg.hasAny) {
     return header + '<div class="fll-empty">Log này không có dòng cấu hình nào đọc được.</div>';
   }

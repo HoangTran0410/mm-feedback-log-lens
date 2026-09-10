@@ -20,32 +20,28 @@ const CONFIG_SOURCE_ORDER = ['ab', 'be', 'wa', 'cdn', 'app', 'oth'];
 const CONFIG_SOURCE_META = {
   ab: {
     label: 'A/B testing',
-    hint: 'Namespace và nhánh (tag) mà máy này rơi vào. Đây là thứ hay bị bỏ sót nhất khi tái hiện bug: ' +
-      'cùng một bản app nhưng hai người ở hai nhánh thì chạy hai đoạn code khác nhau. ' +
-      '<code>DEFAULT_GROUP</code> kèm <code>exp_name</code> rỗng nghĩa là máy này KHÔNG nằm trong thí nghiệm.',
+    hint: 'Nhánh máy này rơi vào — hai máy khác nhánh chạy hai đoạn code khác nhau. ' +
+      '<code>DEFAULT_GROUP</code> = không nằm trong thí nghiệm.',
   },
   be: {
     label: 'BE trả về',
-    hint: 'Dòng log tự nói là nhận từ server (<code>response</code>, <code>responseBody</code>, ' +
-      '<code>Persist ... raw=</code>).',
+    hint: 'Dòng log tự nói là nhận từ server.',
   },
   wa: {
     label: 'Webadmin',
-    hint: 'Dòng log có chữ <code>webadmin</code>, hoặc là danh sách feature do webadmin đẩy xuống ' +
-      '(<code>AppFeatureUpdater</code>, <code>OMEGA FEATURE TESTINGS</code>).',
+    hint: 'Feature và giá trị webadmin đẩy xuống.',
   },
   cdn: {
     label: 'File JSON trên CDN',
-    hint: 'App tải cấu hình dạng file tĩnh. Bấm để nhảy tới dòng tải; muốn xem nội dung thì mở url.',
+    hint: 'Cấu hình dạng file tĩnh. Muốn xem nội dung thì mở url.',
   },
   app: {
     label: 'App đã áp dụng',
-    hint: 'Giá trị app tự ghi lại sau khi đã dựng xong — đem so với khối "BE trả về" ở trên để thấy ' +
-      'cái nhận được và cái thực sự chạy có khớp nhau không.',
+    hint: 'Giá trị app tự ghi sau khi dựng xong — so với khối "BE trả về" xem có khớp không.',
   },
   oth: {
     label: 'Chưa rõ nguồn',
-    hint: 'Dòng tự gọi mình là config và có kèm JSON, nhưng bản thân dòng đó không nói lấy từ đâu.',
+    hint: 'Tự gọi mình là config nhưng không nói lấy từ đâu.',
   },
 };
 
