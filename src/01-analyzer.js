@@ -172,6 +172,8 @@ function parseEntry(rawText, domIndex, lineNo, el) {
     // Dat true cho dong DAU TIEN cua moi chum moc khoi dong. Tab Dien bien doc co nay chu khong
     // do lai regex, neu khong mot lan mo app se ve ra ba moc "App khoi dong" chong nhau.
     isSessionStart: false,
+    // Nam trong khoi bi lap lai nguyen xi (xem src/02h-duplicate.js).
+    isDuplicate: false,
   };
 
   const head = RE_HEAD.exec(rawText);
@@ -374,6 +376,9 @@ function analyzeLog(gapThresholdMs) {
     previousTs = entry.ts;
   });
 
+  // Danh dau khoi lap TRUOC khi tinh thong ke: bo loc "bo khoi lap" doc co nay.
+  const duplicate = markDuplicateEntries(entries);
+
   const timeline = buildGaps(entries, gapThresholdMs);
 
   // Phan phu thuoc tap dong (levels/groups/http/modules/...) nam trong deriveStats, dung chung voi
@@ -383,6 +388,7 @@ function analyzeLog(gapThresholdMs) {
     entries,
     container: getLogScrollContainer(rowEls[0]),
     sessionCount: Math.max(1, sessionCount),
+    duplicate,
     outOfOrder,
     batchCount: entries.filter((entry) => entry.kind === 'batch').length,
     gaps: timeline.gaps,

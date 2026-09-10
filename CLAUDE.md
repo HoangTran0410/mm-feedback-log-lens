@@ -55,6 +55,18 @@ giữa chừng. Tab có hay không là tính chất của cả log; nội dung b
 **Chữ hướng dẫn trên giao diện: một câu.** Giải thích dài để trong chú giải của chính phần tử nó nói
 về. Panel chỉ rộng 480px, mỗi câu thừa đẩy nội dung thật xuống dưới màn.
 
+**Log có thể bị nối đôi — kiểm trước khi tin bất kỳ con số nào.** Một log feedback production thật
+(`autoId=45490371`) dài 4222 dòng hoá ra là 2111 dòng đầu **lặp lại nguyên xi**: `md5` hai nửa bằng
+nhau, chỗ nối ngay sau một dòng `LOGGER: END OF BATCH`. Đo bằng chính tool sau khi bỏ khối lặp: call
+HTTP `104 → 53`, `ops_receive_be` `232 → 116`, mỗi nhóm lỗi `2 → 1` và `10 → 5`. Số **nhóm** thì không
+đổi (chữ ký vẫn thế), chỉ số **lần** trong mỗi nhóm gấp đôi — nên nhìn danh sách nhóm sẽ không thấy gì
+bất thường. `src/02h-duplicate.js` bỏ phiếu theo độ lệch giữa hai lần một dòng xuất hiện, rồi xác minh
+bằng chuỗi liên tiếp dài nhất. Hai điều đã học khi làm:
+- **Dòng ngắn phải trung tính**, không được cắt đứt chuỗi: coi dòng trống là cắt đứt thì khối 2111 dòng
+  chỉ nhận ra được **491** dòng.
+- **Không tự động bỏ khối lặp.** Báo trước, để người đọc bấm — khử nhầm một khối không lặp thì số liệu
+  cũng sai, chỉ là sai theo hướng khác và lúc đó không còn dấu hiệu nào để nhận ra.
+
 **Đặt tên một bước hành trình: đi theo bậc, không lấy một trường duy nhất.** `pickJourneyLabel()`
 lấy trường đầu tiên không rỗng theo thứ tự *"càng riêng cho bước này và càng giống thứ user nhìn thấy
 thì càng ưu tiên"*: (1) chữ user thật sự đọc được — `title`, `button_name`; (2) tên thành phần do dev

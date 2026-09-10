@@ -522,6 +522,15 @@ function handleLensClick(event) {
     renderMinimap();
     return undefined;
   }
+  if (action === 'tglSkipDuplicate') {
+    lensState.filter.skipDuplicate = !lensState.filter.skipDuplicate;
+    applyFilter(true);
+    return renderTab();
+  }
+  if (action === 'jumpDuplicate') {
+    const block = lensState.data.duplicate;
+    return block ? jumpToIndex(block.from) : undefined;
+  }
   if (action === 'tglSec') return toggleSection(hit);
   if (action === 'rescan') return rescan();
   if (action === 'minimize') return showPill();

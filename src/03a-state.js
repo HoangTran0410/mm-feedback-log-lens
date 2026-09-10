@@ -62,6 +62,9 @@ const lensState = {
     timeFrom: null,
     timeTo: null,
     session: null,
+    // Bo qua khoi dong bi lap lai nguyen xi. Mac dinh TAT: bao truoc roi de nguoi doc bam, vi khu nham
+    // mot khoi khong lap thi so lieu cung sai — chi la sai theo huong khac va khong con dau hieu nao.
+    skipDuplicate: false,
   },
   // Muc dang di chuot qua, de biet luc nao phai ve lai mui ten len minimap (va luc nao thi thoi).
   aimEl: null,

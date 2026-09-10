@@ -16,7 +16,7 @@ Model: claude-opus-5
 function hasAnyFilterFacet() {
   const filter = lensState.filter;
   return !!(filter.levels.size || filter.modules.size || filter.text || filter.session ||
-    filter.timeFrom !== null || filter.timeTo !== null);
+    filter.timeFrom !== null || filter.timeTo !== null || filter.skipDuplicate);
 }
 
 // Mot lan ghi class len container thay cho hang nghin lan ghi len tung dong.
@@ -97,6 +97,7 @@ function compileFilter() {
     levels: filter.levels,
     modules: filter.modules,
     session: filter.session,
+    skipDuplicate: filter.skipDuplicate,
     timeFrom: filter.timeFrom,
     timeTo: filter.timeTo,
     text: filter.text,
@@ -110,6 +111,7 @@ function compileFilter() {
 // Do la cach dem cho cac chip trong tab Loc: mot facet khong duoc tu dem theo chinh no,
 // neu khong thi chon ERROR xong chip WARNING ve 0 va khong con duong noi rong lai.
 function entryMatches(entry, compiled, skipFacetId) {
+  if (skipFacetId !== 'duplicate' && compiled.skipDuplicate && entry.isDuplicate) return false;
   if (skipFacetId !== 'levels' && compiled.levels.size && !compiled.levels.has(entry.level)) return false;
   if (skipFacetId !== 'modules' && compiled.modules.size && !compiled.modules.has(entry.module)) return false;
   if (skipFacetId !== 'session' && compiled.session && entry.session !== compiled.session) return false;

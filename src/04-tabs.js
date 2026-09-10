@@ -79,6 +79,27 @@ function renderWindowChips(includeAllChip) {
 /* ---------------------------------------------------------------- Tổng quan */
 
 // Log duoc chup dung luc user bam gui feedback, nen mep phai cua truc thoi gian chinh la thoi diem xay ra van de.
+// Mot log production that (autoId 45490371) dai 4222 dong hoa ra la 2111 dong dau lap lai y het.
+// Khong bao thi tool dem gap doi moi thu ma khong ai nhan ra — "loi nay 4 lan" that ra la 2 lan.
+function renderDuplicateBanner(data) {
+  const block = data.duplicate;
+  if (!block) return '';
+  const isSkipping = lensState.filter.skipDuplicate;
+  const share = ((block.length / data.entries.length) * 100).toFixed(0);
+  return '<div class="fll-note' + (isSkipping ? ' ok' : '') + '">' +
+    '<span>' + (isSkipping ? '&#10003;' : '&#9888;') + '</span><div>' +
+    (isSkipping
+      ? '<b>Đang bỏ ' + block.length + ' dòng lặp.</b> Mọi con số bên dưới tính trên phần còn lại.'
+      : '<b>File này có ' + block.length + ' dòng lặp lại nguyên xi</b> (' + share + '% cả log): ' +
+        'dòng ' + block.sourceLineFrom + ' trở đi xuất hiện lại ở dòng ' + block.lineFrom + '–' +
+        block.lineTo + '. <b>Mọi con số bên dưới đang tính cả hai lần.</b>') +
+    '<div class="fll-row" style="margin-top:8px">' +
+    '<button class="fll-btn' + (isSkipping ? '' : ' pri') + '" data-act="tglSkipDuplicate">' +
+    (isSkipping ? 'Tính lại cả phần lặp' : 'Bỏ khối lặp, tính lại') + '</button>' +
+    '<button class="fll-btn" data-act="jumpDuplicate">Tới chỗ nối</button></div>' +
+    '</div></div>';
+}
+
 function renderFeedbackBanner() {
   const data = lensState.data;
   const context = data.feedback || {};
@@ -125,6 +146,9 @@ function renderSummaryTab() {
     statCard(data.badHttpCalls.length, 'HTTP bất thường', LEVEL_COLOR.ERROR, 'data-act="gotoHttp"',
       isScoped ? full.badHttpCalls.length : null) +
     '</div>';
+
+  // Bang nay phai dung TREN moi con so, vi neu log bi noi doi thi moi con so ben duoi deu gap doi.
+  html += renderDuplicateBanner(full);
 
   if (full.outOfOrder > 0) {
     html += '<div class="fll-note" data-tip="Logger flush theo lô (' + full.batchCount +

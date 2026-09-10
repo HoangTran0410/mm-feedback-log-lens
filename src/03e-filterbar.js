@@ -59,6 +59,7 @@ function getActiveFilterFacets() {
   if (filter.timeFrom !== null || filter.timeTo !== null) {
     facets.push({ id: 'window', label: formatWindowLabel() });
   }
+  if (filter.skipDuplicate) facets.push({ id: 'duplicate', label: 'bỏ khối lặp' });
   if (filter.session) facets.push({ id: 'session', label: 'Phiên ' + filter.session });
   if (filter.levels.size) facets.push({ id: 'levels', label: Array.from(filter.levels).join(' + ') });
   if (filter.modules.size) {
@@ -76,6 +77,7 @@ function clearFilterFacet(facetId) {
     filter.timeFrom = null;
     filter.timeTo = null;
   }
+  else if (facetId === 'duplicate') filter.skipDuplicate = false;
   else if (facetId === 'session') filter.session = null;
   else if (facetId === 'levels') filter.levels.clear();
   else if (facetId === 'modules') filter.modules.clear();
@@ -116,6 +118,7 @@ function resetFilter() {
   lensState.filter.timeFrom = null;
   lensState.filter.timeTo = null;
   lensState.filter.session = null;
+  lensState.filter.skipDuplicate = false;
   // Moi dieu kien da rong nen luot nay chi cham vao dung nhung dong dang bi an.
   computeFilteredIndices();
   if (lensState.el.lastHit) lensState.el.lastHit.classList.remove('fll-hit');

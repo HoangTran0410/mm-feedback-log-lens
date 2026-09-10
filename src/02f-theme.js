@@ -337,6 +337,7 @@ const PANEL_CSS = [
   '.fll-note{display:flex;gap:10px;padding:12px 13px;border-radius:11px;font-size:11.5px;line-height:1.55;',
   'background:rgba(255,182,72,.09);border:1px solid rgba(255,182,72,.28);color:#ffd79a;margin-bottom:6px}',
   '.fll-note b{color:#fff;font-weight:650}',
+  '.fll-note.ok{background:rgba(61,220,151,.09);border-color:rgba(61,220,151,.28);color:#a9f0cf}',
 
   /* ---------- thanh ty le muc do ---------- */
   '.fll-lvbar{display:flex;height:10px;border-radius:5px;overflow:hidden;margin-bottom:10px;background:var(--bg3)}',

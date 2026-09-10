@@ -74,7 +74,7 @@ function loadLens() {
     'renderTimelineTab,renderConfigTab,buildConfigs,tabUiState,lensState,TAB_DEFS,' +
     'applyFilter,aimIndicesFor,sectionKey,isSectionOpen,setSectionOpen,loadOpenSections,' +
     'buildTimelineEvents,formatDuration,renderTimelineList,TIMELINE_KIND_ORDER,TIMELINE_KINDS,' +
-    'canZoomFurther,minimapBounds,pickJourneyLabel};';
+    'canZoomFurther,minimapBounds,pickJourneyLabel,findDuplicateBlock,entryMatches,compileFilter};';
   const wired = src.replace(/\n\}\)\(\);\s*$/, '\n' + exportLine + '\n})();\n');
   if (wired === src) throw new Error('khong chen duoc dong export vao IIFE cua extension/lens.js');
   (0, eval)(wired);
@@ -756,6 +756,62 @@ check('nhan buoc: cat bot nhan qua dai', () => {
   eq(L.pickJourneyLabel(['null', '', 'undefined', 'ten_that'], '?'), 'ten_that', 'bo qua gia tri rong');
   eq(L.pickJourneyLabel(['a/b/c/ten_cuoi'], '?'), 'ten_cuoi', 'component_id lay doan cuoi');
   eq(L.pickJourneyLabel(['null'], 'du_phong'), 'du_phong', 'het lua chon thi dung du phong');
+});
+
+/* ------------------------------------------------------- khoi log bi lap nguyen xi */
+
+// Mot log feedback production that dai 4222 dong hoa ra la 2111 dong dau LAP LAI y het (md5 hai nua
+// bang nhau). Tool khong biet nen dem gap doi moi thu: "loi nay 4 lan" that ra 2 lan.
+const fakeEntries = (texts) => texts.map((raw, index) => ({ raw, lineNo: index + 1, isDuplicate: false }));
+const dongDai = (n) => 'dong log gia du dai de khong bi coi la trung ngau nhien #' + n;
+
+check('khoi lap: nhan ra khoi bi noi doi', () => {
+  const goc = [];
+  for (let i = 0; i < 60; i += 1) goc.push(dongDai(i));
+  const block = L.findDuplicateBlock(fakeEntries(goc.concat(goc)));
+  ok(block, 'phai nhan ra');
+  eq(block.offset, 60, 'do lech');
+  eq(block.matched, 60, 'so dong khop');
+  eq(block.lineFrom, 61, 'khoi lap bat dau o dong 61');
+  eq(block.lineTo, 120, 'va ket thuc o dong 120');
+  eq(block.sourceLineFrom, 1, 'khoi goc bat dau o dong 1');
+});
+
+// Dong trong / dong phan cach nam xen giua khoi lap la chuyen binh thuong. Coi chung la cat dut chuoi
+// thi khoi 2111 dong cua log that chi nhan ra duoc 491 dong — da do.
+check('khoi lap: dong trong xen giua khong duoc cat dut chuoi', () => {
+  const goc = [];
+  for (let i = 0; i < 60; i += 1) goc.push(i % 10 === 9 ? '' : dongDai(i));
+  const block = L.findDuplicateBlock(fakeEntries(goc.concat(goc)));
+  ok(block, 'phai nhan ra');
+  ok(block.matched >= 50, 'so dong khop phai gan het, nhan duoc ' + block.matched);
+  ok(block.length >= 59, 'doan bi lap phai trai het khoi, nhan duoc ' + block.length);
+});
+
+check('khoi lap: log sach thi khong bao gi', () => {
+  eq(L.findDuplicateBlock(fakeEntries(Array.from({ length: 200 }, (unused, i) => dongDai(i)))), null,
+    'moi dong khac nhau');
+  // Vai dong lap le te (heartbeat, dong phan cach) khong duoc tinh la khoi lap.
+  const leTe = [];
+  for (let i = 0; i < 200; i += 1) leTe.push(i % 25 === 0 ? dongDai(0) : dongDai(i));
+  eq(L.findDuplicateBlock(fakeEntries(leTe)), null, 'trung le te khong phai khoi lap');
+  eq(L.findDuplicateBlock(fakeEntries([])), null, 'log rong');
+});
+
+check('khoi lap: log fixture khong bi lap', () => {
+  eq(data.duplicate, null, 'fixture phai sach');
+});
+
+// Bo loc "bo khoi lap" phai that su loai dong ra khoi moi thong ke.
+check('khoi lap: bo loc loai dong lap ra khoi thong ke', () => {
+  const entry = { raw: 'x', level: 'INFO', module: '', session: 1, ts: 1, isDuplicate: true };
+  L.lensState.filter.skipDuplicate = false;
+  ok(L.entryMatches(entry, L.compileFilter(), null), 'chua bat thi van tinh');
+  L.lensState.filter.skipDuplicate = true;
+  ok(!L.entryMatches(entry, L.compileFilter(), null), 'bat roi thi phai loai');
+  entry.isDuplicate = false;
+  ok(L.entryMatches(entry, L.compileFilter(), null), 'dong khong lap van giu');
+  L.lensState.filter.skipDuplicate = false;
 });
 
 renderAll('log day du');

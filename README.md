@@ -43,10 +43,10 @@ bản build thì ngược lại: khối ngay dưới do `build.sh` ghi lại m�
 
 | | |
 |---|---|
-| `extension/lens.js` | **256 KB** (261,747 bytes) |
-| Nguồn | 5,687 dòng trong 21 file `src/` |
+| `extension/lens.js` | **263 KB** (268,871 bytes) |
+| Nguồn | 5,849 dòng trong 22 file `src/` |
 | Dependency lúc chạy | không có |
-| Test | 98 phép thử, `node test/run.js` |
+| Test | 103 phép thử, `node test/run.js` |
 
 <!-- /build-stats -->
 
@@ -96,6 +96,12 @@ dòng mà hàng đó đại diện (một nhóm lỗi 22 dòng thì hiện 22 v�
 chỗ), và dòng nhãn giữa minimap đổi thành giờ của hàng đang rê. Chạy ở mọi tab và cả trong tấm trượt
 payload, vì nó vẽ bằng một lớp SVG phủ lên panel chứ không phải chèn thẻ vào từng hàng — tab thêm sau
 này tự động có.
+
+**Cảnh báo log bị nối đôi.** Có log feedback mà nửa sau lặp lại nguyên xi nửa đầu — gặp thật trên một
+log production 4222 dòng. Tool đếm gấp đôi mọi thứ mà nhìn danh sách nhóm lỗi thì không thấy gì lạ (số
+nhóm không đổi, chỉ số *lần* trong mỗi nhóm gấp đôi). Nay có băng đỏ ngay đầu tab Tổng quan nói rõ bao
+nhiêu dòng lặp và lặp từ dòng nào, kèm nút **Bỏ khối lặp, tính lại**. Không tự động bỏ: báo trước rồi
+để người đọc quyết.
 
 **Minimap** dưới thanh tab là mật độ log theo thời gian, đỏ = có ERROR.
 

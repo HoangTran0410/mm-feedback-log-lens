@@ -173,6 +173,8 @@ function parseEntry(rawText, domIndex, lineNo, el) {
     // Dat true cho dong DAU TIEN cua moi chum moc khoi dong. Tab Dien bien doc co nay chu khong
     // do lai regex, neu khong mot lan mo app se ve ra ba moc "App khoi dong" chong nhau.
     isSessionStart: false,
+    // Nam trong khoi bi lap lai nguyen xi (xem src/02h-duplicate.js).
+    isDuplicate: false,
   };
 
   const head = RE_HEAD.exec(rawText);
@@ -375,6 +377,9 @@ function analyzeLog(gapThresholdMs) {
     previousTs = entry.ts;
   });
 
+  // Danh dau khoi lap TRUOC khi tinh thong ke: bo loc "bo khoi lap" doc co nay.
+  const duplicate = markDuplicateEntries(entries);
+
   const timeline = buildGaps(entries, gapThresholdMs);
 
   // Phan phu thuoc tap dong (levels/groups/http/modules/...) nam trong deriveStats, dung chung voi
@@ -384,6 +389,7 @@ function analyzeLog(gapThresholdMs) {
     entries,
     container: getLogScrollContainer(rowEls[0]),
     sessionCount: Math.max(1, sessionCount),
+    duplicate,
     outOfOrder,
     batchCount: entries.filter((entry) => entry.kind === 'batch').length,
     gaps: timeline.gaps,
@@ -1778,6 +1784,7 @@ const PANEL_CSS = [
   '.fll-note{display:flex;gap:10px;padding:12px 13px;border-radius:11px;font-size:11.5px;line-height:1.55;',
   'background:rgba(255,182,72,.09);border:1px solid rgba(255,182,72,.28);color:#ffd79a;margin-bottom:6px}',
   '.fll-note b{color:#fff;font-weight:650}',
+  '.fll-note.ok{background:rgba(61,220,151,.09);border-color:rgba(61,220,151,.28);color:#a9f0cf}',
 
   /* ---------- thanh ty le muc do ---------- */
   '.fll-lvbar{display:flex;height:10px;border-radius:5px;overflow:hidden;margin-bottom:10px;background:var(--bg3)}',
@@ -2166,6 +2173,119 @@ function buildConfigs(entries, httpCalls) {
 }
 // AI-GENERATED END
 /*
+File: src/02h-duplicate.js
+Created At: 2026-09-11 00:30:00 +07:00
+Created By: AI
+AI Agent: Claude Code
+Model: claude-opus-5
+*/
+// @ts-check
+// AI-GENERATED START — phat hien mot khoi dong bi lap lai nguyen xi trong log
+//
+// Vi sao can: mot log feedback production that (autoId 45490371) dai 4222 dong hoa ra la 2111 dong dau
+// LAP LAI Y HET — md5 hai nua bang nhau, cho noi nam ngay sau mot dong "LOGGER: END OF BATCH". Tool
+// khong biet chuyen do nen dem gap doi MOI THU: moi nhom loi, moi call HTTP, moi event tracker. Doc
+// "loi nay xay ra 4 lan" trong khi that ra 2 lan la doc sai han van de.
+//
+// Cach tim: moi dong trung nhau sinh ra mot "phieu" cho do lech giua hai lan xuat hien. Log bi noi doi
+// se do don gan het phieu vao DUNG MOT do lech (2111). Sau do xac minh bang cach dem chuoi lien tiep
+// dai nhat khop theo do lech do — trung ngau nhien vai dong le te thi khong tao duoc chuoi dai.
+//
+// Co y KHONG tu dong bo khoi lap: bao truoc, de nguoi doc bam. Khu nham mot khoi khong lap thi so lieu
+// cung sai, chi la sai theo huong khac — ma luc do khong con dau hieu nao de nhan ra.
+
+// Duoi nguong nay coi nhu trung ngau nhien: log sach nhat trong ba log that co chuoi lap dai nhat
+// 8 dong (cac dong dinh ky nhu heartbeat, "END OF BATCH"). 40 la cach xa nguong do.
+const DUPLICATE_MIN_RUN = 40;
+// Dong qua ngan (dau phan cach, dong trong) trung nhau la chuyen binh thuong, khong tinh phieu.
+const DUPLICATE_MIN_LINE = 24;
+
+function tallyDuplicateOffsets(entries) {
+  const firstSeen = new Map();
+  const offsets = new Map();
+  for (let index = 0; index < entries.length; index += 1) {
+    const raw = entries[index].raw;
+    if (!raw || raw.length < DUPLICATE_MIN_LINE) continue;
+    const first = firstSeen.get(raw);
+    if (first === undefined) {
+      firstSeen.set(raw, index);
+      continue;
+    }
+    const offset = index - first;
+    offsets.set(offset, (offsets.get(offset) || 0) + 1);
+  }
+  return offsets;
+}
+
+// Do lech duoc nhieu phieu nhat moi la ung vien; con lai la trung le te.
+function bestDuplicateOffset(offsets) {
+  let best = 0;
+  let bestVotes = 0;
+  offsets.forEach((votes, offset) => {
+    if (votes > bestVotes) {
+      bestVotes = votes;
+      best = offset;
+    }
+  });
+  return { offset: best, votes: bestVotes };
+}
+
+// Chuoi lien tiep dai nhat ma entries[i] giong het entries[i - offset].
+//
+// Dong ngan (dong trong, dong phan cach) la TRUNG TINH: khong tinh la khop, nhung cung khong cat dut
+// chuoi. Do that: coi chung la cat dut thi khoi lap 2111 dong cua log production chi nhan ra duoc 491
+// dong, vi cu vai chuc dong lai co mot dong trong xen vao.
+function longestRunAtOffset(entries, offset) {
+  let runStart = -1;
+  let runCount = 0;
+  let best = { count: 0, start: -1, end: -1 };
+  for (let index = offset; index < entries.length; index += 1) {
+    const raw = entries[index].raw;
+    if (!raw || raw.length < DUPLICATE_MIN_LINE) continue;
+    if (raw !== entries[index - offset].raw) {
+      runStart = -1;
+      runCount = 0;
+      continue;
+    }
+    if (runStart < 0) runStart = index;
+    runCount += 1;
+    if (runCount > best.count) best = { count: runCount, start: runStart, end: index };
+  }
+  return best;
+}
+
+function findDuplicateBlock(entries) {
+  if (!entries || entries.length < DUPLICATE_MIN_RUN * 2) return null;
+  const { offset, votes } = bestDuplicateOffset(tallyDuplicateOffsets(entries));
+  if (!offset || votes < DUPLICATE_MIN_RUN) return null;
+  const run = longestRunAtOffset(entries, offset);
+  if (run.count < DUPLICATE_MIN_RUN) return null;
+  const from = run.start;
+  const to = run.end;
+  return {
+    offset,
+    from,
+    to,
+    // length = ca doan bi lap (ke ca dong trong xen giua); matched = so dong that su khop tung ky tu.
+    length: to - from + 1,
+    matched: run.count,
+    // Khoi goc ma khoi tren lap lai — de nguoi doc nhay toi doi chieu.
+    sourceFrom: from - offset,
+    lineFrom: entries[from].lineNo,
+    lineTo: entries[to].lineNo,
+    sourceLineFrom: entries[from - offset].lineNo,
+  };
+}
+
+// Danh dau tren tung entry de bo loc va thong ke doc duoc. Tra ve chinh thong tin khoi de gan vao data.
+function markDuplicateEntries(entries) {
+  const block = findDuplicateBlock(entries);
+  if (!block) return null;
+  for (let index = block.from; index <= block.to; index += 1) entries[index].isDuplicate = true;
+  return block;
+}
+// AI-GENERATED END
+/*
 File: src/03a-state.js
 Created At: 2026-09-08 16:00:00 +07:00
 Created By: AI
@@ -2229,6 +2349,9 @@ const lensState = {
     timeFrom: null,
     timeTo: null,
     session: null,
+    // Bo qua khoi dong bi lap lai nguyen xi. Mac dinh TAT: bao truoc roi de nguoi doc bam, vi khu nham
+    // mot khoi khong lap thi so lieu cung sai — chi la sai theo huong khac va khong con dau hieu nao.
+    skipDuplicate: false,
   },
   // Muc dang di chuot qua, de biet luc nao phai ve lai mui ten len minimap (va luc nao thi thoi).
   aimEl: null,
@@ -2426,7 +2549,7 @@ Model: claude-opus-5
 function hasAnyFilterFacet() {
   const filter = lensState.filter;
   return !!(filter.levels.size || filter.modules.size || filter.text || filter.session ||
-    filter.timeFrom !== null || filter.timeTo !== null);
+    filter.timeFrom !== null || filter.timeTo !== null || filter.skipDuplicate);
 }
 
 // Mot lan ghi class len container thay cho hang nghin lan ghi len tung dong.
@@ -2507,6 +2630,7 @@ function compileFilter() {
     levels: filter.levels,
     modules: filter.modules,
     session: filter.session,
+    skipDuplicate: filter.skipDuplicate,
     timeFrom: filter.timeFrom,
     timeTo: filter.timeTo,
     text: filter.text,
@@ -2520,6 +2644,7 @@ function compileFilter() {
 // Do la cach dem cho cac chip trong tab Loc: mot facet khong duoc tu dem theo chinh no,
 // neu khong thi chon ERROR xong chip WARNING ve 0 va khong con duong noi rong lai.
 function entryMatches(entry, compiled, skipFacetId) {
+  if (skipFacetId !== 'duplicate' && compiled.skipDuplicate && entry.isDuplicate) return false;
   if (skipFacetId !== 'levels' && compiled.levels.size && !compiled.levels.has(entry.level)) return false;
   if (skipFacetId !== 'modules' && compiled.modules.size && !compiled.modules.has(entry.module)) return false;
   if (skipFacetId !== 'session' && compiled.session && entry.session !== compiled.session) return false;
@@ -2832,6 +2957,7 @@ function getActiveFilterFacets() {
   if (filter.timeFrom !== null || filter.timeTo !== null) {
     facets.push({ id: 'window', label: formatWindowLabel() });
   }
+  if (filter.skipDuplicate) facets.push({ id: 'duplicate', label: 'bỏ khối lặp' });
   if (filter.session) facets.push({ id: 'session', label: 'Phiên ' + filter.session });
   if (filter.levels.size) facets.push({ id: 'levels', label: Array.from(filter.levels).join(' + ') });
   if (filter.modules.size) {
@@ -2849,6 +2975,7 @@ function clearFilterFacet(facetId) {
     filter.timeFrom = null;
     filter.timeTo = null;
   }
+  else if (facetId === 'duplicate') filter.skipDuplicate = false;
   else if (facetId === 'session') filter.session = null;
   else if (facetId === 'levels') filter.levels.clear();
   else if (facetId === 'modules') filter.modules.clear();
@@ -2889,6 +3016,7 @@ function resetFilter() {
   lensState.filter.timeFrom = null;
   lensState.filter.timeTo = null;
   lensState.filter.session = null;
+  lensState.filter.skipDuplicate = false;
   // Moi dieu kien da rong nen luot nay chi cham vao dung nhung dong dang bi an.
   computeFilteredIndices();
   if (lensState.el.lastHit) lensState.el.lastHit.classList.remove('fll-hit');
@@ -4095,6 +4223,27 @@ function renderWindowChips(includeAllChip) {
 /* ---------------------------------------------------------------- Tổng quan */
 
 // Log duoc chup dung luc user bam gui feedback, nen mep phai cua truc thoi gian chinh la thoi diem xay ra van de.
+// Mot log production that (autoId 45490371) dai 4222 dong hoa ra la 2111 dong dau lap lai y het.
+// Khong bao thi tool dem gap doi moi thu ma khong ai nhan ra — "loi nay 4 lan" that ra la 2 lan.
+function renderDuplicateBanner(data) {
+  const block = data.duplicate;
+  if (!block) return '';
+  const isSkipping = lensState.filter.skipDuplicate;
+  const share = ((block.length / data.entries.length) * 100).toFixed(0);
+  return '<div class="fll-note' + (isSkipping ? ' ok' : '') + '">' +
+    '<span>' + (isSkipping ? '&#10003;' : '&#9888;') + '</span><div>' +
+    (isSkipping
+      ? '<b>Đang bỏ ' + block.length + ' dòng lặp.</b> Mọi con số bên dưới tính trên phần còn lại.'
+      : '<b>File này có ' + block.length + ' dòng lặp lại nguyên xi</b> (' + share + '% cả log): ' +
+        'dòng ' + block.sourceLineFrom + ' trở đi xuất hiện lại ở dòng ' + block.lineFrom + '–' +
+        block.lineTo + '. <b>Mọi con số bên dưới đang tính cả hai lần.</b>') +
+    '<div class="fll-row" style="margin-top:8px">' +
+    '<button class="fll-btn' + (isSkipping ? '' : ' pri') + '" data-act="tglSkipDuplicate">' +
+    (isSkipping ? 'Tính lại cả phần lặp' : 'Bỏ khối lặp, tính lại') + '</button>' +
+    '<button class="fll-btn" data-act="jumpDuplicate">Tới chỗ nối</button></div>' +
+    '</div></div>';
+}
+
 function renderFeedbackBanner() {
   const data = lensState.data;
   const context = data.feedback || {};
@@ -4141,6 +4290,9 @@ function renderSummaryTab() {
     statCard(data.badHttpCalls.length, 'HTTP bất thường', LEVEL_COLOR.ERROR, 'data-act="gotoHttp"',
       isScoped ? full.badHttpCalls.length : null) +
     '</div>';
+
+  // Bang nay phai dung TREN moi con so, vi neu log bi noi doi thi moi con so ben duoi deu gap doi.
+  html += renderDuplicateBanner(full);
 
   if (full.outOfOrder > 0) {
     html += '<div class="fll-note" data-tip="Logger flush theo lô (' + full.batchCount +
@@ -5447,6 +5599,15 @@ function handleLensClick(event) {
     lensState.mapZoomStack = [];
     renderMinimap();
     return undefined;
+  }
+  if (action === 'tglSkipDuplicate') {
+    lensState.filter.skipDuplicate = !lensState.filter.skipDuplicate;
+    applyFilter(true);
+    return renderTab();
+  }
+  if (action === 'jumpDuplicate') {
+    const block = lensState.data.duplicate;
+    return block ? jumpToIndex(block.from) : undefined;
   }
   if (action === 'tglSec') return toggleSection(hit);
   if (action === 'rescan') return rescan();
