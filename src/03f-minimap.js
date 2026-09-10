@@ -96,13 +96,21 @@ function updateMinimapRange() {
   if (hasAnyTimeRange()) {
     lensState.el.mapText.innerHTML = escapeHtml(formatClock(range.from) + ' → ' + formatClock(range.to) +
       ' · ' + formatDuration(range.to - range.from)) +
-      (lensState.mapZoom ? '' : ' <button class="fll-mapzoom" data-act="mapZoomIn" ' +
-        'title="Phóng minimap vào đúng khoảng này để nhìn rõ từng mốc">&#8596; phóng to</button>');
+      (canZoomFurther(range, bounds) ? ' <button class="fll-mapzoom" data-act="mapZoomIn" ' +
+        'title="Phóng minimap vào đúng khoảng này để nhìn rõ từng mốc">&#8596; phóng to</button>' : '');
     return;
   }
   lensState.el.mapText.textContent = lensState.mapZoom
     ? 'đang phóng to · kéo để chọn khoảng nhỏ hơn'
     : 'kéo để chọn khoảng · bấm để nhảy · nháy đúp để bỏ chọn';
+}
+
+// Nut "phong to" hien khi khoang dang chon NHO HON khung minimap dang ve — khong quan tam da phong
+// to hay chua. Truoc day cu thay dang phong to la an nut, nen chon tiep mot khoang nho hon ben trong
+// vung da phong thi khong con duong nao phong sau nua. Chi giau khi chon dung bang khung dang ve, luc
+// do bam vao khong doi duoc gi.
+function canZoomFurther(range, bounds) {
+  return range.from > bounds.from || range.to < bounds.to;
 }
 
 function hasAnyTimeRange() {
@@ -151,6 +159,11 @@ function resolveMinimapDragMode(clientX) {
   const filter = lensState.filter;
   if (filter.timeFrom === null && filter.timeTo === null) return 'create';
   const range = getVisibleTimeRange();
+  // Vung sang phu kin ca minimap (hay gap ngay sau khi phong to: khung ve dung bang khoang dang chon)
+  // thi "doi" va "co gian" deu vo nghia — khong con cho nao de doi toi. Coi moi cu keo la chon moi,
+  // neu khong thi phong to xong la khong the chon mot khoang nho hon nua.
+  const bounds = minimapBounds();
+  if (range.from <= bounds.from && range.to >= bounds.to) return 'create';
   if (Math.abs(clientX - minimapClientXFromTs(range.from)) <= MINIMAP_EDGE_GRAB_PX) return 'resizeStart';
   if (Math.abs(clientX - minimapClientXFromTs(range.to)) <= MINIMAP_EDGE_GRAB_PX) return 'resizeEnd';
   if (clientX > minimapClientXFromTs(range.from) && clientX < minimapClientXFromTs(range.to)) return 'move';

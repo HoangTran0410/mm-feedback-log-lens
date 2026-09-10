@@ -73,7 +73,8 @@ function loadLens() {
     'renderFilterTab,' +
     'renderTimelineTab,renderConfigTab,buildConfigs,tabUiState,lensState,TAB_DEFS,' +
     'applyFilter,aimIndicesFor,sectionKey,isSectionOpen,setSectionOpen,loadOpenSections,' +
-    'buildTimelineEvents,formatDuration,renderTimelineList,TIMELINE_KIND_ORDER,TIMELINE_KINDS};';
+    'buildTimelineEvents,formatDuration,renderTimelineList,TIMELINE_KIND_ORDER,TIMELINE_KINDS,' +
+    'canZoomFurther,minimapBounds};';
   const wired = src.replace(/\n\}\)\(\);\s*$/, '\n' + exportLine + '\n})();\n');
   if (wired === src) throw new Error('khong chen duoc dong export vao IIFE cua extension/lens.js');
   (0, eval)(wired);
@@ -675,6 +676,27 @@ check('o lau tren man: giu ca tong lan lan lau nhat', () => {
   if (journey.screens.some((row) => row.ms > 0)) {
     ok(html.indexOf('lần vào, lần lâu nhất') >= 0, 'hang phai co title noi ro tong va lan lau nhat');
   }
+});
+
+// Phong to minimap: nut "phong to" phai con hien khi da phong roi ma nguoi dung chon tiep mot khoang
+// NHO HON ben trong vung do — neu khong thi phong mot lan la het duong phong sau.
+check('minimap: con phong to duoc khi chon nho hon vung dang ve', () => {
+  const bounds = { from: 1000, to: 2000 };
+  eq(L.canZoomFurther({ from: 1200, to: 1800 }, bounds), true, 'nho hon ca hai dau');
+  eq(L.canZoomFurther({ from: 1200, to: 2000 }, bounds), true, 'nho hon o dau trai');
+  eq(L.canZoomFurther({ from: 1000, to: 1800 }, bounds), true, 'nho hon o dau phai');
+  eq(L.canZoomFurther({ from: 1000, to: 2000 }, bounds), false, 'trung khit thi bam cung khong doi gi');
+  eq(L.canZoomFurther({ from: 900, to: 2100 }, bounds), false, 'rong hon khung dang ve');
+});
+
+check('minimap: khong phong to thi khung ve la ca log', () => {
+  L.lensState.mapZoom = null;
+  const bounds = L.minimapBounds();
+  eq(bounds.from, L.lensState.data.firstTs, 'mep trai');
+  eq(bounds.to, L.lensState.data.lastTs, 'mep phai');
+  L.lensState.mapZoom = { from: 111, to: 222 };
+  eq(JSON.stringify(L.minimapBounds()), '{"from":111,"to":222}', 'dang phong thi lay dung vung do');
+  L.lensState.mapZoom = null;
 });
 
 renderAll('log day du');

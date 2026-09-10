@@ -43,10 +43,10 @@ bản build thì ngược lại: khối ngay dưới do `build.sh` ghi lại m�
 
 | | |
 |---|---|
-| `extension/lens.js` | **248 KB** (253,849 bytes) |
-| Nguồn | 5,518 dòng trong 20 file `src/` |
+| `extension/lens.js` | **249 KB** (254,694 bytes) |
+| Nguồn | 5,531 dòng trong 20 file `src/` |
 | Dependency lúc chạy | không có |
-| Test | 92 phép thử, `node test/run.js` |
+| Test | 94 phép thử, `node test/run.js` |
 
 <!-- /build-stats -->
 
@@ -106,7 +106,7 @@ này tự động có.
 | Kéo giữa vùng sáng | dời cả khoảng, giữ nguyên độ dài |
 | Kéo mép sáng | co giãn một đầu |
 | Nháy đúp | bỏ chọn khoảng |
-| Bấm `↔ phóng to` | **vẽ lại minimap trong đúng khoảng đang chọn** — nhiều mốc dính vào nhau thì phóng ra là tách được từng cái. Bấm `✕` ở nhãn bên phải để thu về cả log. |
+| Bấm `↔ phóng to` | **vẽ lại minimap trong đúng khoảng đang chọn** — nhiều mốc dính vào nhau thì phóng ra là tách được từng cái. Phóng xong kéo chọn tiếp một khoảng nhỏ hơn rồi phóng nữa, bao nhiêu lần cũng được. Bấm `✕` ở nhãn bên phải để thu thẳng về cả log. |
 
 Phóng to chỉ đổi **cái nhìn**, không đổi tập dòng đang hiện — bộ lọc và vùng phóng to là hai thứ
 riêng, bỏ lọc rồi vẫn giữ nguyên vùng đang phóng. Mốc nằm ngoài vùng đó thì mũi tên chỉ ép về mép
