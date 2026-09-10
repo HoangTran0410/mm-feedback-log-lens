@@ -354,13 +354,16 @@ function analyzeLog(gapThresholdMs) {
 }
 // AI-GENERATED END
 /*
-File: src/02-insights.js
+File: src/02a-insights.js
 Created At: 2026-09-08 16:00:00 +07:00
 Created By: AI
 AI Agent: Claude Code
 Model: claude-opus-5
 */
-// AI-GENERATED START — lop phan tich thu hai: thoi luong, ID lien ket, phien app, metadata cua feedback
+// AI-GENERATED START — thoi luong, ID lien ket, phien app, metadata feedback
+// Tach ra tu src/02-insights.js (946 dong). Cac file src/*.js duoc build.sh noi lai theo thu tu
+// ten file va boc trong MOT IIFE nen van dung chung scope — tach chi de doc.
+
 // Chay sau analyzeLog tren cung mang entries. Tach rieng de 01-analyzer.js khong phinh qua 500 dong.
 
 // Vai cho trong log ghi nham epoch vao truong duration= (vi du duration=1788836518693),
@@ -486,6 +489,17 @@ function readFeedbackContext() {
   if (timeHit) context.submittedAt = timeHit[1] + ' ' + timeHit[2];
   return context;
 }
+// AI-GENERATED END
+/*
+File: src/02b-payload.js
+Created At: 2026-09-08 16:00:00 +07:00
+Created By: AI
+AI Agent: Claude Code
+Model: claude-opus-5
+*/
+// AI-GENERATED START — tach khoi JSON trong dong log, va lop k=v dung chung cho ca tracker lan Grafana
+// Tach ra tu src/02-insights.js (946 dong). Cac file src/*.js duoc build.sh noi lai theo thu tu
+// ten file va boc trong MOT IIFE nen van dung chung scope — tach chi de doc.
 
 // Tra ve ca vi tri bat dau/ket thuc: nguoi goi con phai doc tiep phan dang sau khoi JSON nay.
 function extractJsonBlock(text) {
@@ -877,6 +891,17 @@ function buildPayloadSections(raw) {
   if (section) sections.push(section);
   return sections;
 }
+// AI-GENERATED END
+/*
+File: src/02c-journey.js
+Created At: 2026-09-08 16:00:00 +07:00
+Created By: AI
+AI Agent: Claude Code
+Model: claude-opus-5
+*/
+// AI-GENERATED START — dung lai thao tac cua user tu event MoMoTracker
+// Tach ra tu src/02-insights.js (946 dong). Cac file src/*.js duoc build.sh noi lai theo thu tu
+// ten file va boc trong MOT IIFE nen van dung chung scope — tach chi de doc.
 
 /* ---------------------------------------------- hanh trinh tuong tac cua user */
 
@@ -1156,6 +1181,17 @@ function buildJourney(entries) {
     screenLoads: buildScreenLoads(entries),
   };
 }
+// AI-GENERATED END
+/*
+File: src/02d-trace.js
+Created At: 2026-09-08 16:00:00 +07:00
+Created By: AI
+AI Agent: Claude Code
+Model: claude-opus-5
+*/
+// AI-GENERATED START — loi doc tu Grafana trace, va nhan dien nhieu cua chinh lop do luong
+// Tach ra tu src/02-insights.js (946 dong). Cac file src/*.js duoc build.sh noi lai theo thu tu
+// ten file va boc trong MOT IIFE nen van dung chung scope — tach chi de doc.
 
 /* ------------------------------------------- nhieu tu chinh he thong do luong */
 
@@ -1264,6 +1300,18 @@ function buildTraceIssues(entries) {
 
 // Moi thu phu thuoc "dang nhin nhung dong nao". Goi mot lan cho ca file luc quet,
 // va goi lai tren tap da loc moi khi bo loc doi — do duoc 2.5ms cho 4085 dong, 0.4ms cho tap ~850 dong.
+// AI-GENERATED END
+/*
+File: src/02e-derive.js
+Created At: 2026-09-08 16:00:00 +07:00
+Created By: AI
+AI Agent: Claude Code
+Model: claude-opus-5
+*/
+// AI-GENERATED START — gom moi thong ke phu thuoc "dang nhin nhung dong nao" vao mot cho
+// Tach ra tu src/02-insights.js (946 dong). Cac file src/*.js duoc build.sh noi lai theo thu tu
+// ten file va boc trong MOT IIFE nen van dung chung scope — tach chi de doc.
+
 function deriveStats(entries) {
   const levels = {};
   LEVEL_ORDER.forEach((level) => {
@@ -1300,7 +1348,7 @@ function attachInsights(data) {
 }
 // AI-GENERATED END
 /*
-File: src/02-theme.js
+File: src/02f-theme.js
 Created At: 2026-09-08 16:00:00 +07:00
 Created By: AI
 AI Agent: Claude Code
@@ -1667,13 +1715,16 @@ const PANEL_CSS = [
 ].join('');
 // AI-GENERATED END
 /*
-File: src/03-shell.js
+File: src/03a-state.js
 Created At: 2026-09-08 16:00:00 +07:00
 Created By: AI
 AI Agent: Claude Code
 Model: claude-opus-5
 */
-// AI-GENERATED START — khung panel: state, dieu huong dong, bo loc, minimap, keo tha, thu nho
+// AI-GENERATED START — hang so dung chung, lensState, tat tieng chu ky, ham dinh dang
+// Tach ra tu src/03-shell.js (992 dong / 67 ham). Cac file src/*.js duoc build.sh noi lai
+// theo thu tu ten file va boc trong MOT IIFE nen van dung chung scope — tach chi de doc,
+// khong doi cach chung goi nhau.
 
 const MINIMAP_BUCKETS = 90;
 const SPARKLINE_BUCKETS = 26;
@@ -1789,6 +1840,18 @@ function formatDuration(ms) {
 function formatCount(value) {
   return value >= 1000 ? (value / 1000).toFixed(1) + 'k' : String(value);
 }
+// AI-GENERATED END
+/*
+File: src/03b-nav.js
+Created At: 2026-09-08 16:00:00 +07:00
+Created By: AI
+AI Agent: Claude Code
+Model: claude-opus-5
+*/
+// AI-GENERATED START — nhay toi dong log, duyet ket qua khop, thanh dieu huong duoi
+// Tach ra tu src/03-shell.js (992 dong / 67 ham). Cac file src/*.js duoc build.sh noi lai
+// theo thu tu ten file va boc trong MOT IIFE nen van dung chung scope — tach chi de doc,
+// khong doi cach chung goi nhau.
 
 /* ---------------------------------------------------------------- dieu huong */
 
@@ -1848,6 +1911,18 @@ function renderFooter() {
     '<b>' + (lensState.matchPos + 1) + '/' + total + '</b> ' + escapeHtml(lensState.matchLabel) +
     ' &middot; dòng <b>' + (entry ? entry.lineNo : '?') + '</b>';
 }
+// AI-GENERATED END
+/*
+File: src/03c-filter.js
+Created At: 2026-09-08 16:00:00 +07:00
+Created By: AI
+AI Agent: Claude Code
+Model: claude-opus-5
+*/
+// AI-GENERATED START — loi bo loc: bien dieu kien thanh ham, loc tap dong, dung view
+// Tach ra tu src/03-shell.js (992 dong / 67 ham). Cac file src/*.js duoc build.sh noi lai
+// theo thu tu ten file va boc trong MOT IIFE nen van dung chung scope — tach chi de doc,
+// khong doi cach chung goi nhau.
 
 /* ------------------------------------------------------------------ bo loc */
 
@@ -1987,6 +2062,18 @@ function computeFilteredIndices() {
 function getFilterResult() {
   return lensState.lastFilterResult || computeFilteredIndices();
 }
+// AI-GENERATED END
+/*
+File: src/03d-permalink.js
+Created At: 2026-09-08 16:00:00 +07:00
+Created By: AI
+AI Agent: Claude Code
+Model: claude-opus-5
+*/
+// AI-GENERATED START — permalink qua hash URL va mau bo loc luu san
+// Tach ra tu src/03-shell.js (992 dong / 67 ham). Cac file src/*.js duoc build.sh noi lai
+// theo thu tu ten file va boc trong MOT IIFE nen van dung chung scope — tach chi de doc,
+// khong doi cach chung goi nhau.
 
 /* --------------------------------------------------- permalink qua hash URL */
 
@@ -2130,6 +2217,18 @@ function applyFilter(shouldNavigate) {
   refreshFilterBar();
   return result;
 }
+// AI-GENERATED END
+/*
+File: src/03e-filterbar.js
+Created At: 2026-09-08 16:00:00 +07:00
+Created By: AI
+AI Agent: Claude Code
+Model: claude-opus-5
+*/
+// AI-GENERATED START — thanh bo loc thuong tru: chip facet, cua so thoi gian, go tung dieu kien
+// Tach ra tu src/03-shell.js (992 dong / 67 ham). Cac file src/*.js duoc build.sh noi lai
+// theo thu tu ten file va boc trong MOT IIFE nen van dung chung scope — tach chi de doc,
+// khong doi cach chung goi nhau.
 
 /* ------------------------------- thanh bo loc thuong tru (hien o moi tab) */
 
@@ -2256,6 +2355,18 @@ function filterByLevel(level) {
   switchTab('flt');
   applyFilter(true);
 }
+// AI-GENERATED END
+/*
+File: src/03f-minimap.js
+Created At: 2026-09-08 16:00:00 +07:00
+Created By: AI
+AI Agent: Claude Code
+Model: claude-opus-5
+*/
+// AI-GENERATED START — minimap mat do log va thao tac keo chon khoang thoi gian tren no
+// Tach ra tu src/03-shell.js (992 dong / 67 ham). Cac file src/*.js duoc build.sh noi lai
+// theo thu tu ten file va boc trong MOT IIFE nen van dung chung scope — tach chi de doc,
+// khong doi cach chung goi nhau.
 
 /* ----------------------------------------------------------------- minimap */
 
@@ -2474,6 +2585,18 @@ function updateMinimapCursor(ts) {
   cursor.style.left = (((ts - lensState.data.firstTs) / span) * 100).toFixed(2) + '%';
   cursor.style.opacity = '1';
 }
+// AI-GENERATED END
+/*
+File: src/03g-panel.js
+Created At: 2026-09-08 16:00:00 +07:00
+Created By: AI
+AI Agent: Claude Code
+Model: claude-opus-5
+*/
+// AI-GENERATED START — keo tha panel, doi kich thuoc, nho lai vi tri
+// Tach ra tu src/03-shell.js (992 dong / 67 ham). Cac file src/*.js duoc build.sh noi lai
+// theo thu tu ten file va boc trong MOT IIFE nen van dung chung scope — tach chi de doc,
+// khong doi cach chung goi nhau.
 
 /* ------------------------------------------------- keo tha va doi kich thuoc */
 

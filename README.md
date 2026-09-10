@@ -29,8 +29,8 @@ bản build thì ngược lại: khối ngay dưới do `build.sh` ghi lại m�
 
 | | |
 |---|---|
-| `dist/lens.js` | **187 KB** (191,047 bytes) |
-| Nguồn | 4,244 dòng trong 7 file `src/` |
+| `dist/lens.js` | **191 KB** (195,769 bytes) |
+| Nguồn | 4,377 dòng trong 17 file `src/` |
 | Dependency lúc chạy | không có |
 | Test | 63 phép thử, `node test/run.js` |
 
@@ -313,12 +313,26 @@ bookmarklet "~114KB" trong khi thực tế đã 177KB — sai suốt một thờ
 | File | Việc |
 |---|---|
 | `src/01-analyzer.js` | đọc DOM → entry có cấu trúc, gom chữ ký, ghép HTTP, tính gap |
-| `src/02-insights.js` | thời lượng, ID liên kết, phiên app, metadata feedback, tách khối JSON, hành trình user |
-| `src/02-theme.js` | CSS |
-| `src/03-shell.js` | state, nhảy dòng, bộ lọc, minimap, kéo thả, tắt tiếng, permalink |
+| `src/02a-insights.js` | thời lượng, ID liên kết, phiên app, metadata feedback |
+| `src/02b-payload.js` | tách khối JSON trong dòng log; lớp `k=v` dùng chung cho tracker lẫn Grafana |
+| `src/02c-journey.js` | dựng lại thao tác của user từ event MoMoTracker |
+| `src/02d-trace.js` | lỗi đọc từ Grafana trace, nhận diện nhiễu của lớp đo lường |
+| `src/02e-derive.js` | gom mọi thống kê phụ thuộc "đang nhìn những dòng nào" vào một chỗ |
+| `src/02f-theme.js` | CSS |
+| `src/03a-state.js` | hằng dùng chung, `lensState`, tắt tiếng chữ ký, hàm định dạng |
+| `src/03b-nav.js` | nhảy tới dòng log, duyệt kết quả khớp, thanh điều hướng dưới |
+| `src/03c-filter.js` | lõi bộ lọc: biến điều kiện thành hàm, lọc tập dòng, dựng view |
+| `src/03d-permalink.js` | permalink qua hash URL, mẫu bộ lọc lưu sẵn |
+| `src/03e-filterbar.js` | thanh bộ lọc thường trú: chip facet, cửa sổ thời gian, gỡ từng điều kiện |
+| `src/03f-minimap.js` | minimap mật độ log và thao tác kéo chọn khoảng trên nó |
+| `src/03g-panel.js` | kéo thả panel, đổi kích thước, nhớ vị trí |
 | `src/04-sheet.js` | tấm trượt chi tiết: payload JSON và chuỗi theo ID |
 | `src/04-tabs.js` | nội dung 6 tab |
 | `src/05-boot.js` | gắn panel, uỷ quyền sự kiện, tự quét lại |
+
+`03-shell.js` từng là 992 dòng / 67 hàm và `02-insights.js` lên tới 946 dòng — quá lớn để giữ trong đầu
+khi sửa. Đã tách theo đúng các mục comment vốn có, **không đổi một dòng code nào**: kiểm bằng cách nối
+lại `dist/lens.js` trước và sau rồi `diff` phần thân, phải giống hệt. File lớn nhất giờ là 721 dòng.
 
 ---
 
