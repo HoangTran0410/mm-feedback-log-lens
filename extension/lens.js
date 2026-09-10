@@ -22,6 +22,7 @@ const RE_FLOW = /\[Flow: ([^\]]+)\]/;
 const RE_FLOW_STRIP = /\[Flow: [^\]]+\]\s*/g;
 const RE_TAG = /@@([A-Za-z][A-Za-z0-9_]*)/;
 const RE_EVENT = /\bevent: ([a-z0-9_]+)/;
+const RE_EVENT_PARAMS = /\| params: (\{[\s\S]*\})/;
 const RE_METHOD = /\[Method: ([A-Z]+)\]/;
 const RE_URL = /\[URL: (\S+?)\]/;
 const RE_STATUS = /--status: (\d+)/;
@@ -102,6 +103,16 @@ function parseHttpFields(body) {
   };
 }
 
+// params cua MoMoTracker khong phai JSON ma la map "k=v, k=v": parseKeyValueMap (02-insights) da xu ly
+// dung dau phay nam trong gia tri (bundle_sof=1,2) va map long nhau (last_component={...}).
+// Do tren log that: 940/940 dong co "| params: {" deu parse ra map, khong dong nao that bai.
+// indexOf chan truoc vi dai da so dong khong he co params, khong can chay regex.
+function parseEventParams(message) {
+  if (message.indexOf('| params: {') < 0) return null;
+  const hit = RE_EVENT_PARAMS.exec(message);
+  return hit ? parseKeyValueMap(hit[1]) : null;
+}
+
 function parseEntry(rawText, domIndex, lineNo, el) {
   const entry = {
     domIndex,
@@ -118,6 +129,7 @@ function parseEntry(rawText, domIndex, lineNo, el) {
     flow: '',
     tag: '',
     event: '',
+    eventParams: null,
     message: rawText,
     signature: '',
     http: null,
@@ -150,7 +162,10 @@ function parseEntry(rawText, domIndex, lineNo, el) {
   const tag = RE_TAG.exec(entry.message);
   if (tag) entry.tag = '@@' + tag[1];
   const event = RE_EVENT.exec(entry.message);
-  if (event) entry.event = event[1];
+  if (event) {
+    entry.event = event[1];
+    entry.eventParams = parseEventParams(entry.message);
+  }
 
   entry.http = parseHttpFields(body);
   // Chi ERROR/WARNING moi vao buildIssueGroups. Tinh chu ky cho ca 4085 dong la lang phi nang nhat
@@ -824,6 +839,228 @@ function buildPayloadSections(raw) {
   return sections;
 }
 
+/* ---------------------------------------------- hanh trinh tuong tac cua user */
+
+// Moi dong MoMoTracker deu ghi o muc INFO nen khong dong nao lot vao buildIssueGroups: nhung gi user
+// THAY va CHAM hoan toan vo hinh voi phan gom nhom loi. Do tren log that (33112319): 955 dong tracker,
+// 46 loai event, trong do popup "MAX-API SPAM DETECTED" dap vao mat user 5 lan ma khong kem mot ERROR nao.
+// Log ghi lap: nhieu event tracker xuat hien 2 dong giong het nhau. Do tren log that (78 cap trung
+// noi dung), khoang cach chia lam hai cum tach bach — mot cum 0..~1.1s (ghi lap) va mot cum tu 70s tro
+// len (user lam lai that su o phien sau). Chon 1000ms nam giua hai cum: tha dem du con hon gop nham
+// hai lan bam that thanh mot, vi "user bam lai vi app khong phan hoi" chinh la thu can nhin thay.
+const JOURNEY_MERGE_WINDOW_MS = 1000;
+const JOURNEY_KINDS = ['screen', 'tap', 'saw', 'move', 'fail'];
+const JOURNEY_KIND_LABEL = {
+  screen: 'Màn hình', tap: 'Chạm', saw: 'User thấy', move: 'Đổi luồng', fail: 'API fail',
+};
+
+// Tracker ghi thang chuoi "null"/"" cho truong rong; de nguyen thi nhan hien ra la chu "null".
+function journeyValue(raw) {
+  const text = raw == null ? '' : String(raw).trim();
+  return text === 'null' || text === 'undefined' || text === '{}' || text === '[]' ? '' : text;
+}
+
+function journeyParts(list) {
+  return list.map(journeyValue).filter(Boolean).join(' · ');
+}
+
+function journeyMs(raw) {
+  const ms = Number(journeyValue(raw));
+  return Number.isFinite(ms) && ms > 0 && ms <= MAX_PLAUSIBLE_DURATION_MS ? Math.round(ms) : 0;
+}
+
+// detail = boi canh ON DINH cua buoc (man hinh, service) — dung de gom nhom va so sanh khi gop.
+// note   = so do RIENG cua lan do (duration, dwell_time) — chi hien tren dong hanh trinh.
+// Tach hai thu nay ra vi neu tron chung thi hai lan cung mot loi chi khac 1ms duration se bi coi la
+// hai thu khac nhau, va nhan nhom se mat sach phan errorCode.
+// Bang duy nhat quyet dinh event nao vao hanh trinh. Tra null = bo qua (impression, ops_request_be,
+// trail_*, sync_* ... khong phai thao tac cua user). Co y KHONG lay roothome_component_impressed (76),
+// service_component_displayed (41), roothome_block_viewed (33): do la cai man hinh ve ra, khong phai
+// cai user lam, va so luong cua chung se nhan chim phan con lai.
+function pickJourneyStep(event, params) {
+  const screen = journeyValue(params.screen_name);
+  if (event === 'auto_screen_navigated') {
+    const from = journeyValue(params.pre_screen_name);
+    return { kind: 'screen', label: screen || journeyValue(params.feature_code),
+      detail: journeyParts([from ? from + ' → ' + (screen || '?') : screen, params.action]) };
+  }
+  if (event === 'auto_screen_displayed' || event === 'service_screen_displayed' ||
+    event === 'service_screen_viewed' || event === 'roothome_screen_displayed') {
+    const load = journeyMs(params.duration);
+    return { kind: 'screen', label: screen || journeyValue(params.service_name),
+      detail: journeyParts([params.service_name, params.status]),
+      note: load ? 'load ' + formatDuration(load) : '' };
+  }
+  if (event === 'feature_source') {
+    const from = journeyValue(params.from);
+    const to = journeyValue(params.to);
+    if (!from && !to) return null;
+    return { kind: 'move', label: (from || '?') + ' → ' + (to || '?'), detail: journeyValue(params.action) };
+  }
+  if (event === 'service_button_clicked') {
+    return { kind: 'tap', label: journeyValue(params.button_name) || 'button',
+      detail: journeyParts([params.screen_name, params.service_name]) };
+  }
+  if (event === 'auto_button_clicked') {
+    // component_id = "<appId>/<feature>/<screen>/Button/<nhan tieng Viet dung nhu user nhin thay>".
+    const id = journeyValue(params.component_id);
+    return { kind: 'tap', label: (id ? id.slice(id.lastIndexOf('/') + 1) : journeyValue(params.component_name)) || 'button',
+      detail: journeyParts([params.screen_name, params.action]) };
+  }
+  if (event === 'service_component_clicked') {
+    return { kind: 'tap', label: journeyValue(params.component_name) || 'component',
+      detail: journeyParts([params.screen_name, params.component_type]) };
+  }
+  if (event === 'roothome_component_clicked') {
+    const dwell = journeyMs(params.dwell_time);
+    return { kind: 'tap',
+      label: journeyValue(params.button_name) || journeyValue(params.component_name) ||
+        journeyValue(params.service) || 'component',
+      detail: journeyParts([params.item_title, params.block]),
+      note: dwell ? 'đứng ' + formatDuration(dwell) : '' };
+  }
+  if (event === 'roothome_screen_scrolled') {
+    const dwell = journeyMs(params.dwell_time);
+    return { kind: 'tap', label: 'cuộn ' + (screen || 'home'), detail: '',
+      note: dwell ? 'đứng ' + formatDuration(dwell) : '' };
+  }
+  if (event === 'auto_popup_displayed') {
+    return { kind: 'saw', label: journeyValue(params.title) || 'popup',
+      detail: journeyParts([params.screen_name, params.desc]) };
+  }
+  if (event === 'service_popup_displayed') {
+    return { kind: 'saw', label: journeyValue(params.popup_name) || 'popup',
+      detail: journeyParts([params.screen_name, params.service_name]) };
+  }
+  if (event === 'auto_bottomsheet_displayed') {
+    return { kind: 'saw',
+      label: 'sheet ' + (journeyValue(params.component_name) || journeyValue(params.title) || '?'),
+      detail: journeyParts([params.screen_name, params.feature_code]) };
+  }
+  if (event === 'service_screenshot') {
+    return { kind: 'saw', label: 'user chụp màn hình',
+      detail: journeyParts([params.screen_name, params.service_name]) };
+  }
+  // ops_receive_be la ket qua call BE do chinh tracker ghi, co san status/error_code/duration.
+  // Chi lay ban fail: 45/307 tren log that, va tab HTTP khong thay het so nay vi no doc dong [Method:].
+  if (event === 'ops_receive_be') {
+    if (journeyValue(params.status) !== 'fail') return null;
+    const code = journeyValue(params.error_code);
+    const api = journeyValue(params.api) || journeyValue(params.api_path) || 'API';
+    // errorCode vao NHAN chu khong vao detail: cung mot api fail voi hai ma khac nhau la hai chuyen
+    // khac nhau, gom chung mot dong se giau mat ma loi.
+    return { kind: 'fail', label: code ? api + ' · ' + code : api,
+      detail: journeyParts([params.error_message, params.screen_name]),
+      note: journeyMs(params.duration) ? formatDuration(journeyMs(params.duration)) : '' };
+  }
+  return null;
+}
+
+function groupJourneySteps(steps, kind) {
+  const map = new Map();
+  steps.forEach((step) => {
+    if (step.kind !== kind) return;
+    let row = map.get(step.label);
+    if (!row) {
+      row = { key: step.label, count: 0, ms: 0, indices: [], detail: step.detail,
+        firstTs: step.ts, lastTs: step.ts };
+      map.set(step.label, row);
+    }
+    // Dem SO THAO TAC (so buoc da gop), khong phai so dong log — de con so o day khop voi the thong ke
+    // dau tab. So dong tho van con nguyen trong row.indices de duyet tung dong.
+    row.count += 1;
+    row.ms += step.ms;
+    step.indices.forEach((domIndex) => row.indices.push(domIndex));
+    // Nhieu buoc cung nhan nhung khac boi canh (nut "transfer" o bill_detail va o detail_input):
+    // giu detail cua buoc dau cho ca nhom la noi sai. Chi giu khi moi buoc deu giong nhau.
+    if (row.detail !== step.detail) row.detail = '';
+    if (step.ts && (!row.firstTs || step.ts < row.firstTs)) row.firstTs = step.ts;
+    if (step.lastTs && (!row.lastTs || step.lastTs > row.lastTs)) row.lastTs = step.lastTs;
+  });
+  return Array.from(map.values());
+}
+
+// Gop cac buoc LIEN TIEP y het nhau va sat nhau ve thoi gian thanh mot buoc mang count.
+// Khong xoa dong nao: indices giu du ca N dong de van nhay duoc toi tung dong trong bang log.
+function mergeAdjacentJourneySteps(steps) {
+  const merged = [];
+  steps.forEach((step) => {
+    const last = merged[merged.length - 1];
+    // Buoc 'fail' KHONG gop: moi call BE da co trace_id rieng va da khu trung chinh xac theo do.
+    // Hai call that su khac nhau cach nhau vai tram ms la chuyen binh thuong — gop thi so o day
+    // se lech voi so call fail dem duoc tu trace_id.
+    if (step.kind !== 'fail' &&
+      last && last.kind === step.kind && last.label === step.label && last.detail === step.detail &&
+      step.ts && last.lastTs && step.ts - last.lastTs <= JOURNEY_MERGE_WINDOW_MS) {
+      last.count += 1;
+      last.lastTs = step.ts;
+      last.indices.push(step.domIndex);
+      return;
+    }
+    merged.push({ kind: step.kind, label: step.label, detail: step.detail, note: step.note,
+      event: step.event, ts: step.ts, lastTs: step.ts, domIndex: step.domIndex,
+      indices: [step.domIndex], count: 1, ms: 0 });
+  });
+  return merged;
+}
+
+function buildJourney(entries) {
+  const raw = [];
+  const counts = { screen: 0, tap: 0, saw: 0, move: 0, fail: 0 };
+  const seenTraceIds = new Set();
+  let apiTotal = 0;
+  let apiFail = 0;
+
+  entries.forEach((entry) => {
+    if (!entry.event || !entry.eventParams) return;
+    if (entry.event === 'ops_receive_be') {
+      // Mot call BE duoc ghi thanh 2 dong ops_receive_be giong het nhau. Do tren log that: 307 dong
+      // nhung chi 166 trace_id (139 trace xuat hien dung 2 lan, 26 mot lan, 1 ba lan) — trong khi
+      // ops_request_be la 166 dong / 166 trace_id, tuc 166 moi la so call that.
+      // trace_id la ID cua chinh call do nen khu trung theo no la chac chan, khong phai phong doan.
+      const traceId = journeyValue(entry.eventParams.trace_id);
+      if (traceId && seenTraceIds.has(traceId)) return;
+      if (traceId) seenTraceIds.add(traceId);
+      apiTotal += 1;
+      if (journeyValue(entry.eventParams.status) === 'fail') apiFail += 1;
+    }
+    const step = pickJourneyStep(entry.event, entry.eventParams);
+    if (!step || !step.label) return;
+    raw.push({ kind: step.kind, label: step.label, detail: step.detail || '', note: step.note || '',
+      event: entry.event, ts: entry.ts, domIndex: entry.domIndex });
+  });
+
+  // Cung ly do nhu tab Timeline: log co dong timestamp lui ve truoc, thu tu dong khong phai thu tu thoi gian.
+  raw.sort((a, b) => (a.ts || 0) - (b.ts || 0));
+  const steps = mergeAdjacentJourneySteps(raw);
+  steps.forEach((step) => {
+    counts[step.kind] += 1;
+  });
+
+  // ms cua mot buoc "screen" = khoang cach toi buoc screen/move ke tiep. Day la SO TINH RA, khong phai
+  // truong nao trong log — cac event no lien tuc trong cung mot lan chuyen man se ra ~0ms, chi buoc cuoi
+  // cua chum moi mang con so that. Truong dwell_time co san cua roothome nam rieng trong detail.
+  let boundaryTs = steps.length ? steps[steps.length - 1].ts : null;
+  for (let i = steps.length - 1; i >= 0; i -= 1) {
+    if (steps[i].kind === 'screen' && steps[i].ts && boundaryTs) {
+      steps[i].ms = Math.max(0, boundaryTs - steps[i].ts);
+    }
+    if (steps[i].kind === 'screen' || steps[i].kind === 'move') boundaryTs = steps[i].ts || boundaryTs;
+  }
+
+  const byCount = (a, b) => b.count - a.count;
+  return {
+    steps,
+    counts,
+    apiTotal,
+    apiFail,
+    screens: groupJourneySteps(steps, 'screen').sort((a, b) => b.ms - a.ms || b.count - a.count),
+    taps: groupJourneySteps(steps, 'tap').sort(byCount),
+    saw: groupJourneySteps(steps, 'saw').sort(byCount),
+    fails: groupJourneySteps(steps, 'fail').sort(byCount),
+  };
+}
+
 // Moi thu phu thuoc "dang nhin nhung dong nao". Goi mot lan cho ca file luc quet,
 // va goi lai tren tap da loc moi khi bo loc doi — do duoc 2.5ms cho 4085 dong, 0.4ms cho tap ~850 dong.
 function deriveStats(entries) {
@@ -846,6 +1083,7 @@ function deriveStats(entries) {
     tags: countBy(entries, (entry) => entry.tag),
     flows: countBy(entries, (entry) => entry.flow),
     events: countBy(entries, (entry) => entry.event),
+    journey: buildJourney(entries),
   };
 }
 
@@ -886,7 +1124,11 @@ const PANEL_CSS = [
   'font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;font-size:13px;font-weight:400;',
   '--bg:#16141d;--bg2:#1e1b27;--bg3:#2a2436;--line:rgba(255,255,255,.09);--txt:#ece9f5;--mut:#9b93ad;',
   '--acc:#ff2e88;--err:#ff5f6d;--warn:#ffb648;--info:#58c4ff;--dbg:#7d8590;--ok:#3ddc97;',
-  '--mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,monospace}',
+  '--mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,monospace;',
+  /* Padding cua .fll-body: .fll-sec phai biet dung hai so nay de dinh sat mep va tran het be ngang.
+     Moi cho dung deu kem gia tri du phong: bien khai o #fll-root, neu panel bi dung ngoai root do
+     thi var() khong giai duoc va CA declaration hong — padding se sap ve 0 chu khong quay ve mac dinh. */
+  '--pad-y:14px;--pad-x:16px}',
 
   /* ---------- khung panel ---------- */
   /* Kich thuoc bi chan bang JS (clampValue) chu khong bang max-width, de keo goc khong bi ket o 880px. */
@@ -987,7 +1229,7 @@ const PANEL_CSS = [
   'color:var(--mut);font-variant-numeric:tabular-nums;flex:0 0 auto}',
 
   /* ---------- body ---------- */
-  '.fll-body{flex:1;overflow-y:auto;overflow-x:hidden;padding:14px 16px 18px}',
+  '.fll-body{flex:1;overflow-y:auto;overflow-x:hidden;padding:var(--pad-y,14px) var(--pad-x,16px) 18px}',
   '.fll-body::-webkit-scrollbar{width:10px}',
   '.fll-body::-webkit-scrollbar-thumb{background:#3a3348;border-radius:10px;border:3px solid var(--bg)}',
   '.fll-body::-webkit-scrollbar-thumb:hover{background:#4c4360}',
@@ -1072,9 +1314,26 @@ const PANEL_CSS = [
   '.fll-btn.fll-mini{padding:5px 10px;font-size:10.5px;border-radius:7px}',
 
   /* ---------- tieu de section ---------- */
-  /* Khong ke duong ngang: tab Loc co toi 8 muc, moi muc mot vach la thanh "sup vach ke". */
-  '.fll-sec{margin:16px 0 8px;font-size:10px;font-weight:700;letter-spacing:.9px;text-transform:uppercase;',
-  'color:#7f7793;display:flex;align-items:center;gap:9px}',
+  /* Dinh lai o mep tren khi cuon. Tab Loc co 8 muc, tab Dien bien ve 80 moc mot lo — cuon mot lat la
+     khong con biet dang doc muc nao; sticky giu cai nhan do luon nam trong tam mat.
+     Ba dieu kien de sticky khong vo:
+     - Nen phai DUC va TRAN HET CHIEU RONG, neu khong noi dung se troi qua ngay ben duoi chu. Keo bang
+       margin ngang am 16px (dung bang padding cua .fll-body) roi padding bu lai.
+     - top phai la AM dung bang padding-top cua .fll-body. Do that trong Chrome tren trang test dung chinh
+       bo CSS nay: voi top:0 tieu de dinh cach mep tren 13.9px (dung bang padding-top 14px) va noi dung
+       van troi qua ben tren no — tuc offset tinh tu CONTENT box chu khong phai padding box. Voi
+       top:calc(var(--pad-y) * -1) thi ho con 0px, va KHONG bi overflow cat: no chi nho dung toi mep
+       padding box, la dung cho overflow bat dau clip.
+     - z-index:3 du de de len noi dung, van nam duoi .fll-sheet (z-index:8) nen tam truot khong bi dam xuyen.
+     Mau chu tung la #7f7793: chi 4.31:1 tren nen panel, duoi nguong WCAG AA 4.5:1, lai o co 10px in hoa
+     nen doc duoc ma khong "nhay ra" duoc. Nay #d5cfe2 tren dai nen dam nhat van dat 10.53:1.
+     Dai nen dung dung gradient cua .fll-sheet-hd cho thong nhat voi phan con lai cua panel. */
+  '.fll-sec{position:sticky;top:calc(var(--pad-y,14px) * -1);z-index:3;',
+  'margin:22px calc(var(--pad-x,16px) * -1) 10px;padding:10px var(--pad-x,16px) 9px;',
+  'background:linear-gradient(180deg,#241f31,#1a1723);border-bottom:1px solid var(--line);',
+  'font-size:11px;font-weight:700;letter-spacing:.9px;text-transform:uppercase;',
+  'color:#d5cfe2;display:flex;align-items:center;gap:8px}',
+  '.fll-sec:before{content:"";width:3px;height:13px;border-radius:2px;background:var(--acc);flex:0 0 auto}',
   '.fll-sec:first-child{margin-top:0}',
   '.fll-note{display:flex;gap:10px;padding:12px 13px;border-radius:11px;font-size:11.5px;line-height:1.55;',
   'background:rgba(255,182,72,.09);border:1px solid rgba(255,182,72,.28);color:#ffd79a;margin-bottom:6px}',
@@ -1150,6 +1409,20 @@ const PANEL_CSS = [
   '.fll-ev-t em{margin-left:auto;font-style:normal;font-size:10px;color:var(--mut);font-variant-numeric:tabular-nums}',
   '.fll-ev-d{font-size:10.5px;color:var(--mut);margin-top:4px;font-family:var(--mono);overflow:hidden;',
   'text-overflow:ellipsis;white-space:nowrap}',
+
+  /* ---------- hanh trinh ---------- */
+  /* Dung lai khung .fll-tl/.fll-ev cua Timeline, chi doi mau cham theo loai thao tac. */
+  '.fll-ev.jr-screen:before{background:var(--info)}',
+  '.fll-ev.jr-tap:before{background:var(--acc)}',
+  '.fll-ev.jr-saw:before{background:var(--warn)}',
+  '.fll-ev.jr-move:before{background:var(--ok)}',
+  '.fll-ev.jr-fail:before{background:var(--err)}',
+  '.fll-ev.jr-saw{border-left:2px solid var(--warn)}',
+  '.fll-ev.jr-fail{border-left:2px solid var(--err)}',
+  '.fll-jms{font-size:9.5px;font-weight:700;color:var(--warn);background:rgba(255,182,72,.14);',
+  'padding:1px 6px;border-radius:20px;font-variant-numeric:tabular-nums;flex:0 0 auto}',
+  '.fll-jn{font-size:9.5px;font-weight:800;color:var(--mut);background:var(--bg3);padding:1px 6px;',
+  'border-radius:20px;font-variant-numeric:tabular-nums;flex:0 0 auto}',
 
   /* ---------- form loc ---------- */
   '.fll-in{width:100%;padding:10px 12px;border-radius:9px;border:1px solid var(--line);background:var(--bg2);',
@@ -2409,14 +2682,16 @@ Created By: AI
 AI Agent: Claude Code
 Model: claude-opus-5
 */
-// AI-GENERATED START — noi dung 6 tab: Tong quan, Van de, HTTP, Cham, Loc, Timeline
+// AI-GENERATED START — noi dung 6 tab: Tong quan, Van de, HTTP, Cham, Loc, Dien bien
 
 // Dung log that co 262 nhom sau khi gom; ve het mot luot la mot chuoi HTML rat lon va phai
 // dung lai moi lan go phim trong o tim. Ve theo lo, con lai bam "Hien them".
 const ISSUE_PAGE_SIZE = 50;
 
+const TIMELINE_PAGE_SIZE = 80;
+
 const tabUiState = { issueLevel: 'all', issueQuery: '', httpOnlyBad: false, httpQuery: '', moduleQuery: '',
-  issueLimit: ISSUE_PAGE_SIZE, templateName: '' };
+  issueLimit: ISSUE_PAGE_SIZE, templateName: '', tlGroup: 'all', tlLimit: TIMELINE_PAGE_SIZE };
 
 function renderSparkline(indices, color) {
   const data = lensState.data;
@@ -2537,9 +2812,23 @@ function renderSummaryTab() {
       ' nhóm vấn đề</button>';
   }
 
+  // Popup/bottom sheet dat gia nhat nen nam ngay tab dau, khong phai giau sau vai lan bam:
+  // chung deu ghi o muc INFO nen phan "Loi noi bat" ngay tren khong bao gio nhac toi.
+  if (data.journey.saw.length) {
+    html += '<div class="fll-sec">User đã nhìn thấy gì</div>' +
+      '<div class="fll-hint" style="margin-bottom:8px">Popup và bottom sheet thật sự hiện lên màn hình. ' +
+      'Tất cả đều ghi ở mức <b>INFO</b> nên tab Vấn đề không đếm chúng.</div>' +
+      data.journey.saw.map(renderSawCard).join('');
+  }
+  if (data.journey.taps.length) {
+    html += '<div class="fll-sec">Chạm nhiều nhất</div>' + renderRankList(data.journey.taps, 'data-jtap', 6);
+  }
+
   html += '<div class="fll-sec">Module nói nhiều nhất</div>' + renderRankList(data.modules, 'data-module', 8);
   if (data.events.length) {
-    html += '<div class="fll-sec">Tracker event</div>' + renderRankList(data.events, 'data-event', 6);
+    html += '<div class="fll-sec">Tracker event</div>' + renderRankList(data.events, 'data-event', 6) +
+      '<div class="fll-hint" style="margin-top:6px">Tên event thô, kể cả loại chưa dựng thành thao tác ' +
+      'được — bấm để lọc thẳng ra những dòng đó.</div>';
   }
   return html;
 }
@@ -2685,14 +2974,30 @@ function renderHttpTab() {
     '<div class="fll-hint" style="margin:6px 0 10px">Bất thường = status &ge; 400, errorCode khác 0, ' +
     'hoặc request không tìm thấy response. <b>{ }</b> mở payload (đổi qua lại request / response), ' +
     '<b>&#128279;</b> gom mọi dòng cùng ID.</div>' +
-    '<div id="fll-http-list">' + renderHttpList() + '</div>';
+    '<div id="fll-http-list">' + renderHttpList() + '</div>' +
+    renderTrackerFailSection(data);
+}
+
+// Nguon thu hai cho cung cau hoi "call nao hong": ops_receive_be do chinh app ghi, co san
+// status/error_code/duration. Khong tron vao bang tren vi hai ben dem theo hai cach khac nhau
+// (bang tren ghep dong [Method:] req/res, day khu trung theo trace_id) — de canh nhau moi doi chieu duoc.
+function renderTrackerFailSection(data) {
+  const journey = data.journey;
+  if (!journey.fails.length) return '';
+  return '<div class="fll-sec">Call BE fail — theo tracker</div>' +
+    '<div class="fll-hint" style="margin-bottom:8px">Lấy từ <code>ops_receive_be</code> có ' +
+    '<code>status=fail</code>. Đây là nguồn khác với bảng trên (bảng đó đọc dòng <code>[Method:]</code>) ' +
+    'nên hai bên lệch nhau là bình thường: log này có <b>' + journey.apiTotal + '</b> call theo tracker ' +
+    'và <b>' + data.httpCalls.length + '</b> call theo dòng HTTP.</div>' +
+    journey.fails.map(renderTrackerFailRow).join('');
 }
 
 /* --------------------------------------------------------------------- Chậm */
 
 function renderSlowTab() {
-  const rows = getView().durations;
-  const header = '<div class="fll-hint" style="margin-bottom:10px">Mọi con số thời lượng rút được từ log ' +
+  const view = getView();
+  const rows = view.durations;
+  const header = renderScreenDwellSection(view) + '<div class="fll-sec">Mọi con số thời lượng</div>' + '<div class="fll-hint" style="margin-bottom:10px">Mọi con số thời lượng rút được từ log ' +
     '(<code>duration=</code>, <code>in Nms</code>, <code>duration KMM</code>, <code>totalWaited</code>), ' +
     'xếp giảm dần. Giá trị trên ' + MAX_PLAUSIBLE_DURATION_MS / 1000 + 's bị bỏ vì log có chỗ ghi nhầm ' +
     'epoch vào <code>duration=</code>.</div>';
@@ -2709,6 +3014,45 @@ function renderSlowTab() {
         '<span class="fll-dur">' + escapeHtml(row.time.slice(0, 8)) + '</span></div>';
     })
     .join('');
+}
+
+/* ----------------------------------------- manh dung chung cho hanh trinh user */
+
+// Ba manh duoi day khong con tab rieng: chung nam trong tab da co dung chu de cua chung —
+// "user thay gi" + "cham nhieu nhat" o Tong quan, "call BE fail" o HTTP, "o lau tren man" o Cham.
+// Ban than dong thoi gian thi tron thang vao tab Dien bien.
+function renderSawCard(row, rowIndex) {
+  return '<div class="fll-grp err" data-saw="' + rowIndex + '">' +
+    '<div class="fll-grp-top">' +
+    '<span class="fll-cnt">' + row.count + '&times;</span>' +
+    '<span class="fll-when">' + formatClock(row.firstTs) +
+    (row.count > 1 ? ' &rarr; ' + formatClock(row.lastTs) : '') + '</span></div>' +
+    '<div class="fll-msg">' + escapeHtml(row.key) +
+    (row.detail ? '<br><span style="opacity:.6">' + escapeHtml(row.detail) + '</span>' : '') +
+    '</div></div>';
+}
+
+function renderTrackerFailRow(row, rowIndex) {
+  return '<div class="fll-call" data-apifail="' + rowIndex + '">' +
+    '<span class="fll-st bad">' + row.count + '&times;</span>' +
+    '<span class="fll-path" style="direction:ltr">' + escapeHtml(row.key) + '</span>' +
+    '<span class="fll-dur">' + escapeHtml(row.detail.slice(0, 60)) + '</span></div>';
+}
+
+function renderScreenDwellSection(view) {
+  const screens = view.journey.screens.filter((row) => row.ms > 0);
+  if (!screens.length) return '';
+  const peak = Math.max(1, screens[0].ms);
+  return '<div class="fll-sec">Ở lâu nhất trên màn</div>' +
+    '<div class="fll-hint" style="margin-bottom:8px">Con số này <b>tính ra</b> từ khoảng cách tới bước ' +
+    'màn hình kế tiếp, không phải trường có sẵn trong log. Các event nổ liên tiếp trong cùng một lần ' +
+    'chuyển màn sẽ ra ~0ms nên không có mặt ở đây.</div>' +
+    '<div class="fll-rank">' + screens.slice(0, 8)
+      .map((row) => '<div class="fll-rk" data-jscreen="' + escapeHtml(row.key) + '">' +
+        '<u style="width:' + ((row.ms / peak) * 100).toFixed(1) + '%"></u>' +
+        '<span>' + escapeHtml(row.key) + '</span>' +
+        '<b>' + formatDuration(row.ms) + ' &middot; ' + row.count + '&times;</b></div>')
+      .join('') + '</div>';
 }
 
 /* ---------------------------------------------------------------------- Lọc */
@@ -2841,39 +3185,86 @@ function renderFilterTab() {
     '<button class="fll-btn" data-act="resetFilter">Xoá lọc</button></div>';
 }
 
-/* ----------------------------------------------------------------- Timeline */
+/* ---------------------------------------------------------------- Diễn biến */
 
-function renderTimelineTab() {
-  const data = getView();
+// Truoc day day la tab "Timeline" chi co 3 loai moc cua APP (khoi dong / khoang lang / nhom loi):
+// 29 moc, tab mong nhat trong ca panel. Buoc tuong tac cua user tung nam o mot tab rieng — nhung ca hai
+// deu la "sap theo timestamp that roi ve .fll-tl", tuc cung mot thu voi hai nguon khac nhau, va phai
+// nhay qua lai giua hai tab moi ghep duoc cau "user bam gi -> app dung im -> loi gi". Tron lam mot.
+const TIMELINE_GROUPS = [
+  { id: 'all', label: 'Tất cả' },
+  { id: 'app', label: 'App' },
+  { id: 'screen', label: 'Màn hình' },
+  { id: 'tap', label: 'Chạm' },
+  { id: 'saw', label: 'User thấy' },
+  { id: 'fail', label: 'API fail' },
+];
+
+function buildTimelineEvents(data) {
   const events = [];
 
   data.scopedEntries.forEach((entry) => {
     if (RE_SESSION.test(entry.message)) {
-      events.push({ ts: entry.ts, kind: 'boot', title: 'App khởi động — phiên ' + entry.session,
+      events.push({ ts: entry.ts, group: 'app', kind: 'boot', title: 'App khởi động — phiên ' + entry.session,
         detail: entry.message, index: entry.domIndex });
     }
   });
 
   data.gaps.forEach((gap) => {
-    events.push({ ts: gap.before.ts, kind: 'gap', title: 'Khoảng lặng ' + formatDuration(gap.ms),
+    events.push({ ts: gap.before.ts, group: 'app', kind: 'gap', title: 'Khoảng lặng ' + formatDuration(gap.ms),
       detail: 'dừng sau: ' + gap.before.message.slice(0, 90), index: gap.after.domIndex });
   });
 
   data.groups.filter((group) => group.level === 'ERROR' && !isGroupMuted(group)).forEach((group) => {
-    events.push({ ts: group.firstTs, kind: 'err', title: group.indices.length + '× ' + (group.module || 'ERROR'),
+    events.push({ ts: group.firstTs, group: 'app', kind: 'err',
+      title: group.indices.length + '× ' + (group.module || 'ERROR'),
       detail: group.sample.slice(0, 90), index: group.indices[0] });
   });
 
-  events.sort((a, b) => (a.ts || 0) - (b.ts || 0));
+  // "Doi luong" (feature_source) di chung nhom voi man hinh: no cung la chuyen dich chuyen, va tach
+  // ra thanh chip thu bay thi hang chip bat dau cuon ngang.
+  data.journey.steps.forEach((step) => {
+    events.push({ ts: step.ts, group: step.kind === 'move' ? 'screen' : step.kind, kind: 'jr-' + step.kind,
+      title: step.label, detail: [step.detail, step.note].filter(Boolean).join(' · '),
+      index: step.domIndex, count: step.count, ms: step.ms });
+  });
 
-  const header = '<div class="fll-row" style="margin-bottom:9px">' +
-    [1000, 2000, 5000, 10000]
-      .map((ms) => '<button class="fll-chip' + (lensState.gapThresholdMs === ms ? ' on' : '') +
-        '" data-act="setGap" data-value="' + ms + '">lặng &ge; ' + ms / 1000 + 's</button>')
-      .join('') + '</div>' +
-    '<div class="fll-hint" style="margin:0 0 10px">' + data.sessionCount + ' phiên app · ' +
-    data.gaps.length + ' khoảng lặng · ' + countUnmutedErrorGroups(data) +
-    ' nhóm lỗi. Đã sắp theo thời gian thật, không theo thứ tự dòng.' +
+  return events.sort((a, b) => (a.ts || 0) - (b.ts || 0));
+}
+
+function renderTimelineTab() {
+  const data = getView();
+  const all = buildTimelineEvents(data);
+  const events = tabUiState.tlGroup === 'all'
+    ? all
+    : all.filter((event) => event.group === tabUiState.tlGroup);
+
+  const counts = {};
+  TIMELINE_GROUPS.forEach((choice) => {
+    counts[choice.id] = choice.id === 'all' ? all.length : all.filter((e) => e.group === choice.id).length;
+  });
+
+  let header = '<div class="fll-row" style="margin-bottom:9px">' + TIMELINE_GROUPS
+    .filter((choice) => counts[choice.id])
+    .map((choice) => '<button class="fll-chip' + (tabUiState.tlGroup === choice.id ? ' on' : '') +
+      '" data-act="tlGroup" data-value="' + choice.id + '">' + choice.label +
+      ' <em>' + counts[choice.id] + '</em></button>')
+    .join('') + '</div>';
+
+  // Chip nguong khoang lang chi co nghia khi moc App dang hien.
+  if (tabUiState.tlGroup === 'all' || tabUiState.tlGroup === 'app') {
+    header += '<div class="fll-row" style="margin-bottom:9px">' +
+      [1000, 2000, 5000, 10000]
+        .map((ms) => '<button class="fll-chip' + (lensState.gapThresholdMs === ms ? ' on' : '') +
+          '" data-act="setGap" data-value="' + ms + '">lặng &ge; ' + ms / 1000 + 's</button>')
+        .join('') + '</div>';
+  }
+
+  header += '<div class="fll-hint" style="margin:0 0 10px">' + data.sessionCount + ' phiên app · ' +
+    data.gaps.length + ' khoảng lặng · ' + countUnmutedErrorGroups(data) + ' nhóm lỗi · ' +
+    data.journey.steps.length + ' bước tương tác. Đã sắp theo thời gian thật, không theo thứ tự dòng. ' +
+    'Bước tương tác đọc từ event <b>MoMoTracker</b> (mức INFO) — log ghi lặp nên các bước giống hệt ' +
+    'nhau cách nhau dưới 1s đã gộp thành <b>N&times;</b>, bấm vào vẫn duyệt đủ từng dòng.' +
     (data !== lensState.data
       ? ' <b>Khoảng lặng chỉ cắt theo cửa sổ thời gian</b> — lọc theo mức độ hay module không đổi nó, ' +
         'vì khoảng lặng là tính chất của đường thời gian chứ không phải của tập dòng.'
@@ -2881,11 +3272,21 @@ function renderTimelineTab() {
 
   if (!events.length) return header + '<div class="fll-empty">Không có mốc nào đáng chú ý.</div>';
 
-  return header + '<div class="fll-tl">' + events
+  const shown = events.slice(0, tabUiState.tlLimit);
+  return header + '<div class="fll-tl">' + shown
     .map((event) => '<div class="fll-ev ' + event.kind + '" data-jump="' + event.index + '">' +
-      '<div class="fll-ev-t">' + escapeHtml(event.title) + '<em>' + formatClock(event.ts) + '</em></div>' +
-      '<div class="fll-ev-d">' + escapeHtml(event.detail) + '</div></div>')
-    .join('') + '</div>';
+      '<div class="fll-ev-t">' +
+      (event.count > 1 ? '<span class="fll-jn">' + event.count + '&times;</span>' : '') +
+      escapeHtml(event.title) +
+      (event.ms >= 1000 ? '<span class="fll-jms">' + formatDuration(event.ms) + '</span>' : '') +
+      '<em>' + formatClock(event.ts) + '</em></div>' +
+      (event.detail ? '<div class="fll-ev-d">' + escapeHtml(event.detail) + '</div>' : '') +
+      '</div>')
+    .join('') + '</div>' +
+    (events.length > shown.length
+      ? '<button class="fll-btn" style="width:100%;margin-top:8px" data-act="moreTimeline">Hiện thêm — còn ' +
+        (events.length - shown.length) + ' mốc</button>'
+      : '');
 }
 // AI-GENERATED END
 /*
@@ -2904,7 +3305,7 @@ const TAB_DEFS = [
   { id: 'http', label: 'HTTP', badge: (data) => data.httpCalls.length },
   { id: 'slow', label: 'Chậm' },
   { id: 'flt', label: 'Lọc', badge: () => getActiveFilterFacets().length || null, tone: 'act' },
-  { id: 'tl', label: 'Timeline' },
+  { id: 'tl', label: 'Diễn biến' },
 ];
 
 // Bam bookmarklet lan thu hai = chay lai ca file, sinh mot the he closure moi.
@@ -3216,7 +3617,8 @@ function mountPanel() {
 
 function handleLensClick(event) {
   const hit = event.target.closest('[data-act],[data-tab],[data-jump],[data-group],[data-module],' +
-    '[data-level],[data-call],[data-bucket],[data-event]');
+    '[data-level],[data-call],[data-bucket],[data-event],[data-saw],[data-apifail],' +
+    '[data-jscreen],[data-jtap]');
   if (!hit) return;
   // groups/httpCalls doc theo view (dang loc thi la cua tap dang hien, dung nhu tab vua ve);
   // correlations van lay tu data vi chuoi mot request phai xem tron ven.
@@ -3248,6 +3650,22 @@ function handleLensClick(event) {
     const call = view.httpCalls[Number(hit.dataset.call)];
     const indices = [call.reqIndex, call.resIndex].filter((index) => index != null);
     return setMatches(indices, call.method + ' ' + call.path);
+  }
+  if (hit.dataset.saw) {
+    const row = view.journey.saw[Number(hit.dataset.saw)];
+    return row ? setMatches(row.indices, 'User thấy · ' + row.key) : undefined;
+  }
+  if (hit.dataset.apifail) {
+    const row = view.journey.fails[Number(hit.dataset.apifail)];
+    return row ? setMatches(row.indices, 'API fail · ' + row.key) : undefined;
+  }
+  if (hit.dataset.jscreen) {
+    const row = view.journey.screens.find((item) => item.key === hit.dataset.jscreen);
+    return row ? setMatches(row.indices, 'Màn hình · ' + row.key) : undefined;
+  }
+  if (hit.dataset.jtap) {
+    const row = view.journey.taps.find((item) => item.key === hit.dataset.jtap);
+    return row ? setMatches(row.indices, 'Chạm · ' + row.key) : undefined;
   }
 
   const action = hit.dataset.act;
@@ -3340,6 +3758,16 @@ function handleLensClick(event) {
   if (action === 'gotoTimeline') return switchTab('tl');
   if (action === 'issueLevel') {
     tabUiState.issueLevel = value;
+    return renderTab();
+  }
+  if (action === 'tlGroup') {
+    // Bam lai dung nhom dang chon = bo chon, quay ve xem tat ca.
+    tabUiState.tlGroup = tabUiState.tlGroup === value ? 'all' : value;
+    tabUiState.tlLimit = TIMELINE_PAGE_SIZE;
+    return renderTab();
+  }
+  if (action === 'moreTimeline') {
+    tabUiState.tlLimit += TIMELINE_PAGE_SIZE;
     return renderTab();
   }
   if (action === 'httpAll' || action === 'httpBad') {

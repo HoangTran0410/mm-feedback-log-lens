@@ -14,7 +14,7 @@ const TAB_DEFS = [
   { id: 'http', label: 'HTTP', badge: (data) => data.httpCalls.length },
   { id: 'slow', label: 'Chậm' },
   { id: 'flt', label: 'Lọc', badge: () => getActiveFilterFacets().length || null, tone: 'act' },
-  { id: 'tl', label: 'Timeline' },
+  { id: 'tl', label: 'Diễn biến' },
 ];
 
 // Bam bookmarklet lan thu hai = chay lai ca file, sinh mot the he closure moi.
@@ -326,7 +326,8 @@ function mountPanel() {
 
 function handleLensClick(event) {
   const hit = event.target.closest('[data-act],[data-tab],[data-jump],[data-group],[data-module],' +
-    '[data-level],[data-call],[data-bucket],[data-event]');
+    '[data-level],[data-call],[data-bucket],[data-event],[data-saw],[data-apifail],' +
+    '[data-jscreen],[data-jtap]');
   if (!hit) return;
   // groups/httpCalls doc theo view (dang loc thi la cua tap dang hien, dung nhu tab vua ve);
   // correlations van lay tu data vi chuoi mot request phai xem tron ven.
@@ -358,6 +359,22 @@ function handleLensClick(event) {
     const call = view.httpCalls[Number(hit.dataset.call)];
     const indices = [call.reqIndex, call.resIndex].filter((index) => index != null);
     return setMatches(indices, call.method + ' ' + call.path);
+  }
+  if (hit.dataset.saw) {
+    const row = view.journey.saw[Number(hit.dataset.saw)];
+    return row ? setMatches(row.indices, 'User thấy · ' + row.key) : undefined;
+  }
+  if (hit.dataset.apifail) {
+    const row = view.journey.fails[Number(hit.dataset.apifail)];
+    return row ? setMatches(row.indices, 'API fail · ' + row.key) : undefined;
+  }
+  if (hit.dataset.jscreen) {
+    const row = view.journey.screens.find((item) => item.key === hit.dataset.jscreen);
+    return row ? setMatches(row.indices, 'Màn hình · ' + row.key) : undefined;
+  }
+  if (hit.dataset.jtap) {
+    const row = view.journey.taps.find((item) => item.key === hit.dataset.jtap);
+    return row ? setMatches(row.indices, 'Chạm · ' + row.key) : undefined;
   }
 
   const action = hit.dataset.act;
@@ -450,6 +467,16 @@ function handleLensClick(event) {
   if (action === 'gotoTimeline') return switchTab('tl');
   if (action === 'issueLevel') {
     tabUiState.issueLevel = value;
+    return renderTab();
+  }
+  if (action === 'tlGroup') {
+    // Bam lai dung nhom dang chon = bo chon, quay ve xem tat ca.
+    tabUiState.tlGroup = tabUiState.tlGroup === value ? 'all' : value;
+    tabUiState.tlLimit = TIMELINE_PAGE_SIZE;
+    return renderTab();
+  }
+  if (action === 'moreTimeline') {
+    tabUiState.tlLimit += TIMELINE_PAGE_SIZE;
     return renderTab();
   }
   if (action === 'httpAll' || action === 'httpBad') {

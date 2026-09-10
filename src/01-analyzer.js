@@ -21,6 +21,7 @@ const RE_FLOW = /\[Flow: ([^\]]+)\]/;
 const RE_FLOW_STRIP = /\[Flow: [^\]]+\]\s*/g;
 const RE_TAG = /@@([A-Za-z][A-Za-z0-9_]*)/;
 const RE_EVENT = /\bevent: ([a-z0-9_]+)/;
+const RE_EVENT_PARAMS = /\| params: (\{[\s\S]*\})/;
 const RE_METHOD = /\[Method: ([A-Z]+)\]/;
 const RE_URL = /\[URL: (\S+?)\]/;
 const RE_STATUS = /--status: (\d+)/;
@@ -101,6 +102,16 @@ function parseHttpFields(body) {
   };
 }
 
+// params cua MoMoTracker khong phai JSON ma la map "k=v, k=v": parseKeyValueMap (02-insights) da xu ly
+// dung dau phay nam trong gia tri (bundle_sof=1,2) va map long nhau (last_component={...}).
+// Do tren log that: 940/940 dong co "| params: {" deu parse ra map, khong dong nao that bai.
+// indexOf chan truoc vi dai da so dong khong he co params, khong can chay regex.
+function parseEventParams(message) {
+  if (message.indexOf('| params: {') < 0) return null;
+  const hit = RE_EVENT_PARAMS.exec(message);
+  return hit ? parseKeyValueMap(hit[1]) : null;
+}
+
 function parseEntry(rawText, domIndex, lineNo, el) {
   const entry = {
     domIndex,
@@ -117,6 +128,7 @@ function parseEntry(rawText, domIndex, lineNo, el) {
     flow: '',
     tag: '',
     event: '',
+    eventParams: null,
     message: rawText,
     signature: '',
     http: null,
@@ -149,7 +161,10 @@ function parseEntry(rawText, domIndex, lineNo, el) {
   const tag = RE_TAG.exec(entry.message);
   if (tag) entry.tag = '@@' + tag[1];
   const event = RE_EVENT.exec(entry.message);
-  if (event) entry.event = event[1];
+  if (event) {
+    entry.event = event[1];
+    entry.eventParams = parseEventParams(entry.message);
+  }
 
   entry.http = parseHttpFields(body);
   // Chi ERROR/WARNING moi vao buildIssueGroups. Tinh chu ky cho ca 4085 dong la lang phi nang nhat

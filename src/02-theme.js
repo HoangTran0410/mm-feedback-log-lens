@@ -25,7 +25,11 @@ const PANEL_CSS = [
   'font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;font-size:13px;font-weight:400;',
   '--bg:#16141d;--bg2:#1e1b27;--bg3:#2a2436;--line:rgba(255,255,255,.09);--txt:#ece9f5;--mut:#9b93ad;',
   '--acc:#ff2e88;--err:#ff5f6d;--warn:#ffb648;--info:#58c4ff;--dbg:#7d8590;--ok:#3ddc97;',
-  '--mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,monospace}',
+  '--mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,monospace;',
+  /* Padding cua .fll-body: .fll-sec phai biet dung hai so nay de dinh sat mep va tran het be ngang.
+     Moi cho dung deu kem gia tri du phong: bien khai o #fll-root, neu panel bi dung ngoai root do
+     thi var() khong giai duoc va CA declaration hong — padding se sap ve 0 chu khong quay ve mac dinh. */
+  '--pad-y:14px;--pad-x:16px}',
 
   /* ---------- khung panel ---------- */
   /* Kich thuoc bi chan bang JS (clampValue) chu khong bang max-width, de keo goc khong bi ket o 880px. */
@@ -126,7 +130,7 @@ const PANEL_CSS = [
   'color:var(--mut);font-variant-numeric:tabular-nums;flex:0 0 auto}',
 
   /* ---------- body ---------- */
-  '.fll-body{flex:1;overflow-y:auto;overflow-x:hidden;padding:14px 16px 18px}',
+  '.fll-body{flex:1;overflow-y:auto;overflow-x:hidden;padding:var(--pad-y,14px) var(--pad-x,16px) 18px}',
   '.fll-body::-webkit-scrollbar{width:10px}',
   '.fll-body::-webkit-scrollbar-thumb{background:#3a3348;border-radius:10px;border:3px solid var(--bg)}',
   '.fll-body::-webkit-scrollbar-thumb:hover{background:#4c4360}',
@@ -211,9 +215,26 @@ const PANEL_CSS = [
   '.fll-btn.fll-mini{padding:5px 10px;font-size:10.5px;border-radius:7px}',
 
   /* ---------- tieu de section ---------- */
-  /* Khong ke duong ngang: tab Loc co toi 8 muc, moi muc mot vach la thanh "sup vach ke". */
-  '.fll-sec{margin:16px 0 8px;font-size:10px;font-weight:700;letter-spacing:.9px;text-transform:uppercase;',
-  'color:#7f7793;display:flex;align-items:center;gap:9px}',
+  /* Dinh lai o mep tren khi cuon. Tab Loc co 8 muc, tab Dien bien ve 80 moc mot lo — cuon mot lat la
+     khong con biet dang doc muc nao; sticky giu cai nhan do luon nam trong tam mat.
+     Ba dieu kien de sticky khong vo:
+     - Nen phai DUC va TRAN HET CHIEU RONG, neu khong noi dung se troi qua ngay ben duoi chu. Keo bang
+       margin ngang am 16px (dung bang padding cua .fll-body) roi padding bu lai.
+     - top phai la AM dung bang padding-top cua .fll-body. Do that trong Chrome tren trang test dung chinh
+       bo CSS nay: voi top:0 tieu de dinh cach mep tren 13.9px (dung bang padding-top 14px) va noi dung
+       van troi qua ben tren no — tuc offset tinh tu CONTENT box chu khong phai padding box. Voi
+       top:calc(var(--pad-y) * -1) thi ho con 0px, va KHONG bi overflow cat: no chi nho dung toi mep
+       padding box, la dung cho overflow bat dau clip.
+     - z-index:3 du de de len noi dung, van nam duoi .fll-sheet (z-index:8) nen tam truot khong bi dam xuyen.
+     Mau chu tung la #7f7793: chi 4.31:1 tren nen panel, duoi nguong WCAG AA 4.5:1, lai o co 10px in hoa
+     nen doc duoc ma khong "nhay ra" duoc. Nay #d5cfe2 tren dai nen dam nhat van dat 10.53:1.
+     Dai nen dung dung gradient cua .fll-sheet-hd cho thong nhat voi phan con lai cua panel. */
+  '.fll-sec{position:sticky;top:calc(var(--pad-y,14px) * -1);z-index:3;',
+  'margin:22px calc(var(--pad-x,16px) * -1) 10px;padding:10px var(--pad-x,16px) 9px;',
+  'background:linear-gradient(180deg,#241f31,#1a1723);border-bottom:1px solid var(--line);',
+  'font-size:11px;font-weight:700;letter-spacing:.9px;text-transform:uppercase;',
+  'color:#d5cfe2;display:flex;align-items:center;gap:8px}',
+  '.fll-sec:before{content:"";width:3px;height:13px;border-radius:2px;background:var(--acc);flex:0 0 auto}',
   '.fll-sec:first-child{margin-top:0}',
   '.fll-note{display:flex;gap:10px;padding:12px 13px;border-radius:11px;font-size:11.5px;line-height:1.55;',
   'background:rgba(255,182,72,.09);border:1px solid rgba(255,182,72,.28);color:#ffd79a;margin-bottom:6px}',
@@ -289,6 +310,20 @@ const PANEL_CSS = [
   '.fll-ev-t em{margin-left:auto;font-style:normal;font-size:10px;color:var(--mut);font-variant-numeric:tabular-nums}',
   '.fll-ev-d{font-size:10.5px;color:var(--mut);margin-top:4px;font-family:var(--mono);overflow:hidden;',
   'text-overflow:ellipsis;white-space:nowrap}',
+
+  /* ---------- hanh trinh ---------- */
+  /* Dung lai khung .fll-tl/.fll-ev cua Timeline, chi doi mau cham theo loai thao tac. */
+  '.fll-ev.jr-screen:before{background:var(--info)}',
+  '.fll-ev.jr-tap:before{background:var(--acc)}',
+  '.fll-ev.jr-saw:before{background:var(--warn)}',
+  '.fll-ev.jr-move:before{background:var(--ok)}',
+  '.fll-ev.jr-fail:before{background:var(--err)}',
+  '.fll-ev.jr-saw{border-left:2px solid var(--warn)}',
+  '.fll-ev.jr-fail{border-left:2px solid var(--err)}',
+  '.fll-jms{font-size:9.5px;font-weight:700;color:var(--warn);background:rgba(255,182,72,.14);',
+  'padding:1px 6px;border-radius:20px;font-variant-numeric:tabular-nums;flex:0 0 auto}',
+  '.fll-jn{font-size:9.5px;font-weight:800;color:var(--mut);background:var(--bg3);padding:1px 6px;',
+  'border-radius:20px;font-variant-numeric:tabular-nums;flex:0 0 auto}',
 
   /* ---------- form loc ---------- */
   '.fll-in{width:100%;padding:10px 12px;border-radius:9px;border:1px solid var(--line);background:var(--bg2);',

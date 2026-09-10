@@ -51,7 +51,7 @@ Trang admin chỉ có search theo text; tool này gom nhóm lỗi, thống kê, 
 | **HTTP** | Call nào fail, `errorCode` bao nhiêu, call nào không có response? |
 | **Chậm** | Thao tác nào tốn thời gian nhất? |
 | **Lọc** | Chỉ hiện dòng của module X / mức ERROR / phiên 2 / khớp regex. |
-| **Timeline** | App restart lúc nào? Chỗ nào app đứng im mấy chục giây? |
+| **Diễn biến** | Một dòng thời gian: user bấm gì, thấy popup gì, app đứng im lúc nào, lỗi nổ ở đâu. |
 
 **Minimap** dưới thanh tab là mật độ log theo thời gian, đỏ = có ERROR.
 
@@ -69,8 +69,8 @@ Trong lúc kéo chỉ vẽ lại hai miếng mờ; bộ lọc thật chỉ áp l
 
 ### Mọi con số đều theo dữ liệu đang lọc
 
-Chọn 5 phút cuối thì tỷ lệ mức độ, stat card, module ranking, tracker event, nhóm Vấn đề, HTTP, Chậm
-và Timeline đều tính trên đúng 5 phút đó — kèm tổng của cả file để đối chiếu (`21/47`).
+Chọn 5 phút cuối thì tỷ lệ mức độ, stat card, module ranking, tracker event, nhóm Vấn đề, HTTP, Chậm,
+Diễn biến đều tính trên đúng 5 phút đó — kèm tổng của cả file để đối chiếu (`21/47`).
 Về cấu trúc: `data` là kết quả parse (một lần, bất biến), `view` là thống kê của tập đang hiện;
 tính lại `view` tốn ~2.5ms nên áp mỗi lần đổi lọc thoải mái.
 
@@ -85,6 +85,38 @@ Ba thứ **cố ý không** scope:
 
 ### Năm thứ tiết kiệm nhiều thời gian nhất
 
+**Tương tác của user.** Mọi event `[Module: MoMoTracker]` đều ghi ở mức **INFO**, nên phần gom nhóm lỗi
+(chỉ đọc ERROR/WARNING) không bao giờ nhắc tới chúng — kể cả khi log đang nói user vừa bị một popup
+đập vào mặt 5 lần. Lens đọc `params: {k=v}` của các event đó, dựng lại thao tác của user, rồi **đặt
+từng phần vào tab đã có đúng chủ đề** chứ không mở thêm tab:
+
+| Đọc ra được | Nằm ở |
+|---|---|
+| Popup / bottom sheet đã hiện lên | **Tổng quan** — thứ đắt nhất, để ngay tab đầu |
+| Nút đã bấm (kèm nhãn tiếng Việt user thật sự thấy, lấy từ `component_id`) | **Tổng quan** |
+| Call BE fail theo `ops_receive_be` | **HTTP** — một cửa duy nhất cho câu "call nào hỏng" |
+| Màn nào user ở lâu nhất | **Chậm** |
+| Toàn bộ bước, trộn cùng mốc app | **Diễn biến** |
+
+Tab **Diễn biến** trước đây tên là Timeline và chỉ có 3 loại mốc của *app* (khởi động / khoảng lặng /
+nhóm lỗi) — 29 mốc, tab mỏng nhất panel. Bước tương tác của user cũng là "sắp theo timestamp thật rồi
+vẽ dòng thời gian", tức cùng một thứ với hai nguồn khác nhau; tách hai tab thì phải nhảy qua nhảy lại
+mới ghép được câu *user bấm gì → app đứng im 3s → lỗi gì*. Nay chung một dòng, lọc bằng chip
+`App / Màn hình / Chạm / User thấy / API fail`.
+
+Hai chỗ dữ liệu đánh lừa, đã xử lý:
+
+- **Log ghi lặp.** Cùng một event thường xuất hiện 2 dòng. Với call BE thì khử trùng theo `trace_id`
+  — chắc chắn, vì đó là ID của chính call đó (đo trên một log thật: 307 dòng `ops_receive_be` nhưng
+  chỉ 166 `trace_id`, đúng bằng số dòng `ops_request_be`). Với thao tác thì không có ID nào để dựa,
+  nên chỉ gộp các bước **giống hệt nhau và cách nhau dưới 1s** thành `N×`, không xoá dòng nào —
+  bấm vào vẫn duyệt đủ. Ngưỡng 1s chọn theo phân bố thật: các cặp trùng chia hai cụm tách bạch,
+  một cụm dưới ~1.1s và một cụm từ 70s trở lên (user làm lại thật ở phiên sau). Riêng bước API fail
+  thì **không** gộp thêm: mỗi `trace_id` đã là một call riêng, gộp nữa là lệch với chính số đếm được.
+- **"Ở lâu nhất trên màn" là số tính ra**, không phải trường có sẵn trong log: nó là khoảng cách tới
+  bước màn hình kế tiếp. Các event nổ liên tiếp trong cùng một lần chuyển màn sẽ ra ~0ms. Trường
+  `dwell_time` có sẵn của `roothome_*` để riêng trong phần mô tả, không trộn vào.
+
 **Lấy nét theo feedback.** Khối đầu tab Tổng quan đọc metadata ngay trên trang (`Feature`, `ScreenID`,
 `Entry Point`, thiết bị) và cho chip `30 giây cuối` / `1 phút` / `2 phút` / `5 phút`.
 Log được chụp đúng lúc user bấm gửi, nên mép phải trục thời gian chính là lúc xảy ra vấn đề —
@@ -92,7 +124,7 @@ không phải cuộn từ dòng 1 nữa. Có sẵn nút lọc theo đúng featur
 
 **Tắt tiếng chữ ký (🔇 trên mỗi nhóm).** Tắt một chữ ký nhiễu (`SomeModule >> handleError`) một lần,
 lưu vào `localStorage`,
-mọi feedback mở sau này đều sạch. Badge tab Vấn đề và tab Timeline đều bỏ qua nhóm đã tắt.
+mọi feedback mở sau này đều sạch. Badge tab Vấn đề và tab Diễn biến đều bỏ qua nhóm đã tắt.
 Bấm chip `🔇 Đã tắt tiếng (N)` để xem lại và bật lại.
 
 **Gom theo ID (🔗).** Một `cmdId` xuất hiện ở 5 dòng là một request đi qua 5 lớp.
@@ -200,7 +232,7 @@ Build tự kiểm tra cú pháp cả bản gốc lẫn bản đã rút gọn + p
 | File | Việc |
 |---|---|
 | `src/01-analyzer.js` | đọc DOM → entry có cấu trúc, gom chữ ký, ghép HTTP, tính gap |
-| `src/02-insights.js` | thời lượng, ID liên kết, phiên app, metadata feedback, tách khối JSON |
+| `src/02-insights.js` | thời lượng, ID liên kết, phiên app, metadata feedback, tách khối JSON, hành trình user |
 | `src/02-theme.js` | CSS |
 | `src/03-shell.js` | state, nhảy dòng, bộ lọc, minimap, kéo thả, tắt tiếng, permalink |
 | `src/04-sheet.js` | tấm trượt chi tiết: payload JSON và chuỗi theo ID |
@@ -257,7 +289,30 @@ Panel từng bị rối vì mấy thói quen dưới đây, sửa rồi thì gi�
   thì accent không còn nghĩa gì.
 - **Không nói lại điều thanh bộ lọc đã nói.** Từng có băng "Mọi số dưới đây tính trên N dòng" ngay
   dưới thanh đã ghi "hiện N/4085" — bỏ, vì mỗi stat card đã tự hiện `scope/tổng`.
-- **Tiêu đề mục không kẻ đường ngang.** Tab Lọc có 8 mục; 8 vạch kẻ biến nó thành súp vạch.
+- **Tiêu đề mục dính lại khi cuộn (`position:sticky`).** Tab Lọc có 8 mục, tab Diễn biến vẽ 80 mốc một
+  lô — cuộn một lát là không còn biết đang đọc mục nào. Ba điều kiện để sticky không vỡ, đều nằm trong
+  `.fll-sec`: nền phải **đục và tràn hết chiều rộng** (kéo bằng `margin` ngang âm 16px đúng bằng padding
+  của `.fll-body` rồi `padding` bù lại), nếu không thì nội dung trôi qua ngay dưới chữ; `top` phải là **số
+  âm đúng bằng `padding-top` của `.fll-body`** (`calc(var(--pad-y) * -1)`); và `z-index:3` đủ đè lên nội
+  dung nhưng vẫn nằm dưới `.fll-sheet` (`z-index:8`) nên tấm trượt không bị đâm xuyên.
+
+  Chỗ `top` là chỗ dễ đoán sai nhất, nên đo thẳng trong Chrome trên một trang test dùng đúng bộ CSS này:
+
+  | `top` | Hở giữa tiêu đề đã dính và mép trên `.fll-body` | Bị `overflow` cắt? |
+  |---|---|---|
+  | `0` | **13.9px** — đúng bằng `padding-top:14px`, nội dung vẫn trôi qua bên trên | không |
+  | `calc(var(--pad-y) * -1)` | **0px** | **không** |
+
+  Tức offset của sticky tính từ **content box**, không phải padding box. Số âm cũng không bị cắt vì nó chỉ
+  nhô đúng tới mép padding box — chính là chỗ `overflow` bắt đầu clip. Hai số này lấy chung từ `--pad-y`
+  / `--pad-x` nên đổi padding của `.fll-body` là tiêu đề tự theo, không phải sửa hai nơi.
+- **Từng không kẻ đường ngang, nay có** — vì lý do cũ đã hết hiệu lực. Nguyên tắc cũ là "tab Lọc có 8 mục,
+  8 vạch kẻ biến nó thành súp vạch", đúng khi tiêu đề trong suốt và vạch trôi nổi giữa nội dung. Nay vạch
+  gắn liền dải nền của chính tiêu đề nên nó đọc ra là *mép dưới của một dải*, không phải một vạch riêng.
+  Dấu đầu mục vẫn là thanh dọc ngắn màu accent.
+- **Tương phản chữ tiêu đề.** Từng là `#7f7793`, chỉ đạt **4.31:1** trên nền panel (dưới ngưỡng WCAG AA
+  4.5:1) ở cỡ 10px in hoa nên đọc được mà không nhảy ra được. Nay `#d5cfe2` ở 11px, đạt **10.53:1** ngay
+  cả trên chỗ đậm nhất của dải nền.
 - **Hướng dẫn dài để trong `title`, không để giữa form.** Cách dùng minimap nằm ở tooltip của minimap,
   trong form chỉ còn một dòng ngắn.
 - **Chip hết dòng khớp thì làm mờ (`.fll-chip.dim`), không xoá.** Vẫn bấm được để nới rộng.
@@ -354,4 +409,4 @@ người nhận link mà chỉ thấy một cái pill trong khi bảng log đã 
 
 Logger của app flush theo lô (`-------- LOGGER: END OF BATCH --------`). Vì vậy **thứ tự dòng không phải thứ tự thời gian**:
 trong log mẫu có 93 dòng mang timestamp nhỏ hơn dòng ngay trước nó.
-Minimap, gap và tab Timeline đều sort lại theo timestamp thật; tab Vấn đề và Lọc thì giữ thứ tự dòng gốc để còn khớp với những gì trang hiển thị.
+Minimap, gap và tab Diễn biến đều sort lại theo timestamp thật; tab Vấn đề và Lọc thì giữ thứ tự dòng gốc để còn khớp với những gì trang hiển thị.

@@ -513,6 +513,228 @@ function buildPayloadSections(raw) {
   return sections;
 }
 
+/* ---------------------------------------------- hanh trinh tuong tac cua user */
+
+// Moi dong MoMoTracker deu ghi o muc INFO nen khong dong nao lot vao buildIssueGroups: nhung gi user
+// THAY va CHAM hoan toan vo hinh voi phan gom nhom loi. Do tren log that (33112319): 955 dong tracker,
+// 46 loai event, trong do popup "MAX-API SPAM DETECTED" dap vao mat user 5 lan ma khong kem mot ERROR nao.
+// Log ghi lap: nhieu event tracker xuat hien 2 dong giong het nhau. Do tren log that (78 cap trung
+// noi dung), khoang cach chia lam hai cum tach bach — mot cum 0..~1.1s (ghi lap) va mot cum tu 70s tro
+// len (user lam lai that su o phien sau). Chon 1000ms nam giua hai cum: tha dem du con hon gop nham
+// hai lan bam that thanh mot, vi "user bam lai vi app khong phan hoi" chinh la thu can nhin thay.
+const JOURNEY_MERGE_WINDOW_MS = 1000;
+const JOURNEY_KINDS = ['screen', 'tap', 'saw', 'move', 'fail'];
+const JOURNEY_KIND_LABEL = {
+  screen: 'Màn hình', tap: 'Chạm', saw: 'User thấy', move: 'Đổi luồng', fail: 'API fail',
+};
+
+// Tracker ghi thang chuoi "null"/"" cho truong rong; de nguyen thi nhan hien ra la chu "null".
+function journeyValue(raw) {
+  const text = raw == null ? '' : String(raw).trim();
+  return text === 'null' || text === 'undefined' || text === '{}' || text === '[]' ? '' : text;
+}
+
+function journeyParts(list) {
+  return list.map(journeyValue).filter(Boolean).join(' · ');
+}
+
+function journeyMs(raw) {
+  const ms = Number(journeyValue(raw));
+  return Number.isFinite(ms) && ms > 0 && ms <= MAX_PLAUSIBLE_DURATION_MS ? Math.round(ms) : 0;
+}
+
+// detail = boi canh ON DINH cua buoc (man hinh, service) — dung de gom nhom va so sanh khi gop.
+// note   = so do RIENG cua lan do (duration, dwell_time) — chi hien tren dong hanh trinh.
+// Tach hai thu nay ra vi neu tron chung thi hai lan cung mot loi chi khac 1ms duration se bi coi la
+// hai thu khac nhau, va nhan nhom se mat sach phan errorCode.
+// Bang duy nhat quyet dinh event nao vao hanh trinh. Tra null = bo qua (impression, ops_request_be,
+// trail_*, sync_* ... khong phai thao tac cua user). Co y KHONG lay roothome_component_impressed (76),
+// service_component_displayed (41), roothome_block_viewed (33): do la cai man hinh ve ra, khong phai
+// cai user lam, va so luong cua chung se nhan chim phan con lai.
+function pickJourneyStep(event, params) {
+  const screen = journeyValue(params.screen_name);
+  if (event === 'auto_screen_navigated') {
+    const from = journeyValue(params.pre_screen_name);
+    return { kind: 'screen', label: screen || journeyValue(params.feature_code),
+      detail: journeyParts([from ? from + ' → ' + (screen || '?') : screen, params.action]) };
+  }
+  if (event === 'auto_screen_displayed' || event === 'service_screen_displayed' ||
+    event === 'service_screen_viewed' || event === 'roothome_screen_displayed') {
+    const load = journeyMs(params.duration);
+    return { kind: 'screen', label: screen || journeyValue(params.service_name),
+      detail: journeyParts([params.service_name, params.status]),
+      note: load ? 'load ' + formatDuration(load) : '' };
+  }
+  if (event === 'feature_source') {
+    const from = journeyValue(params.from);
+    const to = journeyValue(params.to);
+    if (!from && !to) return null;
+    return { kind: 'move', label: (from || '?') + ' → ' + (to || '?'), detail: journeyValue(params.action) };
+  }
+  if (event === 'service_button_clicked') {
+    return { kind: 'tap', label: journeyValue(params.button_name) || 'button',
+      detail: journeyParts([params.screen_name, params.service_name]) };
+  }
+  if (event === 'auto_button_clicked') {
+    // component_id = "<appId>/<feature>/<screen>/Button/<nhan tieng Viet dung nhu user nhin thay>".
+    const id = journeyValue(params.component_id);
+    return { kind: 'tap', label: (id ? id.slice(id.lastIndexOf('/') + 1) : journeyValue(params.component_name)) || 'button',
+      detail: journeyParts([params.screen_name, params.action]) };
+  }
+  if (event === 'service_component_clicked') {
+    return { kind: 'tap', label: journeyValue(params.component_name) || 'component',
+      detail: journeyParts([params.screen_name, params.component_type]) };
+  }
+  if (event === 'roothome_component_clicked') {
+    const dwell = journeyMs(params.dwell_time);
+    return { kind: 'tap',
+      label: journeyValue(params.button_name) || journeyValue(params.component_name) ||
+        journeyValue(params.service) || 'component',
+      detail: journeyParts([params.item_title, params.block]),
+      note: dwell ? 'đứng ' + formatDuration(dwell) : '' };
+  }
+  if (event === 'roothome_screen_scrolled') {
+    const dwell = journeyMs(params.dwell_time);
+    return { kind: 'tap', label: 'cuộn ' + (screen || 'home'), detail: '',
+      note: dwell ? 'đứng ' + formatDuration(dwell) : '' };
+  }
+  if (event === 'auto_popup_displayed') {
+    return { kind: 'saw', label: journeyValue(params.title) || 'popup',
+      detail: journeyParts([params.screen_name, params.desc]) };
+  }
+  if (event === 'service_popup_displayed') {
+    return { kind: 'saw', label: journeyValue(params.popup_name) || 'popup',
+      detail: journeyParts([params.screen_name, params.service_name]) };
+  }
+  if (event === 'auto_bottomsheet_displayed') {
+    return { kind: 'saw',
+      label: 'sheet ' + (journeyValue(params.component_name) || journeyValue(params.title) || '?'),
+      detail: journeyParts([params.screen_name, params.feature_code]) };
+  }
+  if (event === 'service_screenshot') {
+    return { kind: 'saw', label: 'user chụp màn hình',
+      detail: journeyParts([params.screen_name, params.service_name]) };
+  }
+  // ops_receive_be la ket qua call BE do chinh tracker ghi, co san status/error_code/duration.
+  // Chi lay ban fail: 45/307 tren log that, va tab HTTP khong thay het so nay vi no doc dong [Method:].
+  if (event === 'ops_receive_be') {
+    if (journeyValue(params.status) !== 'fail') return null;
+    const code = journeyValue(params.error_code);
+    const api = journeyValue(params.api) || journeyValue(params.api_path) || 'API';
+    // errorCode vao NHAN chu khong vao detail: cung mot api fail voi hai ma khac nhau la hai chuyen
+    // khac nhau, gom chung mot dong se giau mat ma loi.
+    return { kind: 'fail', label: code ? api + ' · ' + code : api,
+      detail: journeyParts([params.error_message, params.screen_name]),
+      note: journeyMs(params.duration) ? formatDuration(journeyMs(params.duration)) : '' };
+  }
+  return null;
+}
+
+function groupJourneySteps(steps, kind) {
+  const map = new Map();
+  steps.forEach((step) => {
+    if (step.kind !== kind) return;
+    let row = map.get(step.label);
+    if (!row) {
+      row = { key: step.label, count: 0, ms: 0, indices: [], detail: step.detail,
+        firstTs: step.ts, lastTs: step.ts };
+      map.set(step.label, row);
+    }
+    // Dem SO THAO TAC (so buoc da gop), khong phai so dong log — de con so o day khop voi the thong ke
+    // dau tab. So dong tho van con nguyen trong row.indices de duyet tung dong.
+    row.count += 1;
+    row.ms += step.ms;
+    step.indices.forEach((domIndex) => row.indices.push(domIndex));
+    // Nhieu buoc cung nhan nhung khac boi canh (nut "transfer" o bill_detail va o detail_input):
+    // giu detail cua buoc dau cho ca nhom la noi sai. Chi giu khi moi buoc deu giong nhau.
+    if (row.detail !== step.detail) row.detail = '';
+    if (step.ts && (!row.firstTs || step.ts < row.firstTs)) row.firstTs = step.ts;
+    if (step.lastTs && (!row.lastTs || step.lastTs > row.lastTs)) row.lastTs = step.lastTs;
+  });
+  return Array.from(map.values());
+}
+
+// Gop cac buoc LIEN TIEP y het nhau va sat nhau ve thoi gian thanh mot buoc mang count.
+// Khong xoa dong nao: indices giu du ca N dong de van nhay duoc toi tung dong trong bang log.
+function mergeAdjacentJourneySteps(steps) {
+  const merged = [];
+  steps.forEach((step) => {
+    const last = merged[merged.length - 1];
+    // Buoc 'fail' KHONG gop: moi call BE da co trace_id rieng va da khu trung chinh xac theo do.
+    // Hai call that su khac nhau cach nhau vai tram ms la chuyen binh thuong — gop thi so o day
+    // se lech voi so call fail dem duoc tu trace_id.
+    if (step.kind !== 'fail' &&
+      last && last.kind === step.kind && last.label === step.label && last.detail === step.detail &&
+      step.ts && last.lastTs && step.ts - last.lastTs <= JOURNEY_MERGE_WINDOW_MS) {
+      last.count += 1;
+      last.lastTs = step.ts;
+      last.indices.push(step.domIndex);
+      return;
+    }
+    merged.push({ kind: step.kind, label: step.label, detail: step.detail, note: step.note,
+      event: step.event, ts: step.ts, lastTs: step.ts, domIndex: step.domIndex,
+      indices: [step.domIndex], count: 1, ms: 0 });
+  });
+  return merged;
+}
+
+function buildJourney(entries) {
+  const raw = [];
+  const counts = { screen: 0, tap: 0, saw: 0, move: 0, fail: 0 };
+  const seenTraceIds = new Set();
+  let apiTotal = 0;
+  let apiFail = 0;
+
+  entries.forEach((entry) => {
+    if (!entry.event || !entry.eventParams) return;
+    if (entry.event === 'ops_receive_be') {
+      // Mot call BE duoc ghi thanh 2 dong ops_receive_be giong het nhau. Do tren log that: 307 dong
+      // nhung chi 166 trace_id (139 trace xuat hien dung 2 lan, 26 mot lan, 1 ba lan) — trong khi
+      // ops_request_be la 166 dong / 166 trace_id, tuc 166 moi la so call that.
+      // trace_id la ID cua chinh call do nen khu trung theo no la chac chan, khong phai phong doan.
+      const traceId = journeyValue(entry.eventParams.trace_id);
+      if (traceId && seenTraceIds.has(traceId)) return;
+      if (traceId) seenTraceIds.add(traceId);
+      apiTotal += 1;
+      if (journeyValue(entry.eventParams.status) === 'fail') apiFail += 1;
+    }
+    const step = pickJourneyStep(entry.event, entry.eventParams);
+    if (!step || !step.label) return;
+    raw.push({ kind: step.kind, label: step.label, detail: step.detail || '', note: step.note || '',
+      event: entry.event, ts: entry.ts, domIndex: entry.domIndex });
+  });
+
+  // Cung ly do nhu tab Timeline: log co dong timestamp lui ve truoc, thu tu dong khong phai thu tu thoi gian.
+  raw.sort((a, b) => (a.ts || 0) - (b.ts || 0));
+  const steps = mergeAdjacentJourneySteps(raw);
+  steps.forEach((step) => {
+    counts[step.kind] += 1;
+  });
+
+  // ms cua mot buoc "screen" = khoang cach toi buoc screen/move ke tiep. Day la SO TINH RA, khong phai
+  // truong nao trong log — cac event no lien tuc trong cung mot lan chuyen man se ra ~0ms, chi buoc cuoi
+  // cua chum moi mang con so that. Truong dwell_time co san cua roothome nam rieng trong detail.
+  let boundaryTs = steps.length ? steps[steps.length - 1].ts : null;
+  for (let i = steps.length - 1; i >= 0; i -= 1) {
+    if (steps[i].kind === 'screen' && steps[i].ts && boundaryTs) {
+      steps[i].ms = Math.max(0, boundaryTs - steps[i].ts);
+    }
+    if (steps[i].kind === 'screen' || steps[i].kind === 'move') boundaryTs = steps[i].ts || boundaryTs;
+  }
+
+  const byCount = (a, b) => b.count - a.count;
+  return {
+    steps,
+    counts,
+    apiTotal,
+    apiFail,
+    screens: groupJourneySteps(steps, 'screen').sort((a, b) => b.ms - a.ms || b.count - a.count),
+    taps: groupJourneySteps(steps, 'tap').sort(byCount),
+    saw: groupJourneySteps(steps, 'saw').sort(byCount),
+    fails: groupJourneySteps(steps, 'fail').sort(byCount),
+  };
+}
+
 // Moi thu phu thuoc "dang nhin nhung dong nao". Goi mot lan cho ca file luc quet,
 // va goi lai tren tap da loc moi khi bo loc doi — do duoc 2.5ms cho 4085 dong, 0.4ms cho tap ~850 dong.
 function deriveStats(entries) {
@@ -535,6 +757,7 @@ function deriveStats(entries) {
     tags: countBy(entries, (entry) => entry.tag),
     flows: countBy(entries, (entry) => entry.flow),
     events: countBy(entries, (entry) => entry.event),
+    journey: buildJourney(entries),
   };
 }
 

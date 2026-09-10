@@ -5,14 +5,16 @@ Created By: AI
 AI Agent: Claude Code
 Model: claude-opus-5
 */
-// AI-GENERATED START — noi dung 6 tab: Tong quan, Van de, HTTP, Cham, Loc, Timeline
+// AI-GENERATED START — noi dung 6 tab: Tong quan, Van de, HTTP, Cham, Loc, Dien bien
 
 // Dung log that co 262 nhom sau khi gom; ve het mot luot la mot chuoi HTML rat lon va phai
 // dung lai moi lan go phim trong o tim. Ve theo lo, con lai bam "Hien them".
 const ISSUE_PAGE_SIZE = 50;
 
+const TIMELINE_PAGE_SIZE = 80;
+
 const tabUiState = { issueLevel: 'all', issueQuery: '', httpOnlyBad: false, httpQuery: '', moduleQuery: '',
-  issueLimit: ISSUE_PAGE_SIZE, templateName: '' };
+  issueLimit: ISSUE_PAGE_SIZE, templateName: '', tlGroup: 'all', tlLimit: TIMELINE_PAGE_SIZE };
 
 function renderSparkline(indices, color) {
   const data = lensState.data;
@@ -133,9 +135,23 @@ function renderSummaryTab() {
       ' nhóm vấn đề</button>';
   }
 
+  // Popup/bottom sheet dat gia nhat nen nam ngay tab dau, khong phai giau sau vai lan bam:
+  // chung deu ghi o muc INFO nen phan "Loi noi bat" ngay tren khong bao gio nhac toi.
+  if (data.journey.saw.length) {
+    html += '<div class="fll-sec">User đã nhìn thấy gì</div>' +
+      '<div class="fll-hint" style="margin-bottom:8px">Popup và bottom sheet thật sự hiện lên màn hình. ' +
+      'Tất cả đều ghi ở mức <b>INFO</b> nên tab Vấn đề không đếm chúng.</div>' +
+      data.journey.saw.map(renderSawCard).join('');
+  }
+  if (data.journey.taps.length) {
+    html += '<div class="fll-sec">Chạm nhiều nhất</div>' + renderRankList(data.journey.taps, 'data-jtap', 6);
+  }
+
   html += '<div class="fll-sec">Module nói nhiều nhất</div>' + renderRankList(data.modules, 'data-module', 8);
   if (data.events.length) {
-    html += '<div class="fll-sec">Tracker event</div>' + renderRankList(data.events, 'data-event', 6);
+    html += '<div class="fll-sec">Tracker event</div>' + renderRankList(data.events, 'data-event', 6) +
+      '<div class="fll-hint" style="margin-top:6px">Tên event thô, kể cả loại chưa dựng thành thao tác ' +
+      'được — bấm để lọc thẳng ra những dòng đó.</div>';
   }
   return html;
 }
@@ -281,14 +297,30 @@ function renderHttpTab() {
     '<div class="fll-hint" style="margin:6px 0 10px">Bất thường = status &ge; 400, errorCode khác 0, ' +
     'hoặc request không tìm thấy response. <b>{ }</b> mở payload (đổi qua lại request / response), ' +
     '<b>&#128279;</b> gom mọi dòng cùng ID.</div>' +
-    '<div id="fll-http-list">' + renderHttpList() + '</div>';
+    '<div id="fll-http-list">' + renderHttpList() + '</div>' +
+    renderTrackerFailSection(data);
+}
+
+// Nguon thu hai cho cung cau hoi "call nao hong": ops_receive_be do chinh app ghi, co san
+// status/error_code/duration. Khong tron vao bang tren vi hai ben dem theo hai cach khac nhau
+// (bang tren ghep dong [Method:] req/res, day khu trung theo trace_id) — de canh nhau moi doi chieu duoc.
+function renderTrackerFailSection(data) {
+  const journey = data.journey;
+  if (!journey.fails.length) return '';
+  return '<div class="fll-sec">Call BE fail — theo tracker</div>' +
+    '<div class="fll-hint" style="margin-bottom:8px">Lấy từ <code>ops_receive_be</code> có ' +
+    '<code>status=fail</code>. Đây là nguồn khác với bảng trên (bảng đó đọc dòng <code>[Method:]</code>) ' +
+    'nên hai bên lệch nhau là bình thường: log này có <b>' + journey.apiTotal + '</b> call theo tracker ' +
+    'và <b>' + data.httpCalls.length + '</b> call theo dòng HTTP.</div>' +
+    journey.fails.map(renderTrackerFailRow).join('');
 }
 
 /* --------------------------------------------------------------------- Chậm */
 
 function renderSlowTab() {
-  const rows = getView().durations;
-  const header = '<div class="fll-hint" style="margin-bottom:10px">Mọi con số thời lượng rút được từ log ' +
+  const view = getView();
+  const rows = view.durations;
+  const header = renderScreenDwellSection(view) + '<div class="fll-sec">Mọi con số thời lượng</div>' + '<div class="fll-hint" style="margin-bottom:10px">Mọi con số thời lượng rút được từ log ' +
     '(<code>duration=</code>, <code>in Nms</code>, <code>duration KMM</code>, <code>totalWaited</code>), ' +
     'xếp giảm dần. Giá trị trên ' + MAX_PLAUSIBLE_DURATION_MS / 1000 + 's bị bỏ vì log có chỗ ghi nhầm ' +
     'epoch vào <code>duration=</code>.</div>';
@@ -305,6 +337,45 @@ function renderSlowTab() {
         '<span class="fll-dur">' + escapeHtml(row.time.slice(0, 8)) + '</span></div>';
     })
     .join('');
+}
+
+/* ----------------------------------------- manh dung chung cho hanh trinh user */
+
+// Ba manh duoi day khong con tab rieng: chung nam trong tab da co dung chu de cua chung —
+// "user thay gi" + "cham nhieu nhat" o Tong quan, "call BE fail" o HTTP, "o lau tren man" o Cham.
+// Ban than dong thoi gian thi tron thang vao tab Dien bien.
+function renderSawCard(row, rowIndex) {
+  return '<div class="fll-grp err" data-saw="' + rowIndex + '">' +
+    '<div class="fll-grp-top">' +
+    '<span class="fll-cnt">' + row.count + '&times;</span>' +
+    '<span class="fll-when">' + formatClock(row.firstTs) +
+    (row.count > 1 ? ' &rarr; ' + formatClock(row.lastTs) : '') + '</span></div>' +
+    '<div class="fll-msg">' + escapeHtml(row.key) +
+    (row.detail ? '<br><span style="opacity:.6">' + escapeHtml(row.detail) + '</span>' : '') +
+    '</div></div>';
+}
+
+function renderTrackerFailRow(row, rowIndex) {
+  return '<div class="fll-call" data-apifail="' + rowIndex + '">' +
+    '<span class="fll-st bad">' + row.count + '&times;</span>' +
+    '<span class="fll-path" style="direction:ltr">' + escapeHtml(row.key) + '</span>' +
+    '<span class="fll-dur">' + escapeHtml(row.detail.slice(0, 60)) + '</span></div>';
+}
+
+function renderScreenDwellSection(view) {
+  const screens = view.journey.screens.filter((row) => row.ms > 0);
+  if (!screens.length) return '';
+  const peak = Math.max(1, screens[0].ms);
+  return '<div class="fll-sec">Ở lâu nhất trên màn</div>' +
+    '<div class="fll-hint" style="margin-bottom:8px">Con số này <b>tính ra</b> từ khoảng cách tới bước ' +
+    'màn hình kế tiếp, không phải trường có sẵn trong log. Các event nổ liên tiếp trong cùng một lần ' +
+    'chuyển màn sẽ ra ~0ms nên không có mặt ở đây.</div>' +
+    '<div class="fll-rank">' + screens.slice(0, 8)
+      .map((row) => '<div class="fll-rk" data-jscreen="' + escapeHtml(row.key) + '">' +
+        '<u style="width:' + ((row.ms / peak) * 100).toFixed(1) + '%"></u>' +
+        '<span>' + escapeHtml(row.key) + '</span>' +
+        '<b>' + formatDuration(row.ms) + ' &middot; ' + row.count + '&times;</b></div>')
+      .join('') + '</div>';
 }
 
 /* ---------------------------------------------------------------------- Lọc */
@@ -437,39 +508,86 @@ function renderFilterTab() {
     '<button class="fll-btn" data-act="resetFilter">Xoá lọc</button></div>';
 }
 
-/* ----------------------------------------------------------------- Timeline */
+/* ---------------------------------------------------------------- Diễn biến */
 
-function renderTimelineTab() {
-  const data = getView();
+// Truoc day day la tab "Timeline" chi co 3 loai moc cua APP (khoi dong / khoang lang / nhom loi):
+// 29 moc, tab mong nhat trong ca panel. Buoc tuong tac cua user tung nam o mot tab rieng — nhung ca hai
+// deu la "sap theo timestamp that roi ve .fll-tl", tuc cung mot thu voi hai nguon khac nhau, va phai
+// nhay qua lai giua hai tab moi ghep duoc cau "user bam gi -> app dung im -> loi gi". Tron lam mot.
+const TIMELINE_GROUPS = [
+  { id: 'all', label: 'Tất cả' },
+  { id: 'app', label: 'App' },
+  { id: 'screen', label: 'Màn hình' },
+  { id: 'tap', label: 'Chạm' },
+  { id: 'saw', label: 'User thấy' },
+  { id: 'fail', label: 'API fail' },
+];
+
+function buildTimelineEvents(data) {
   const events = [];
 
   data.scopedEntries.forEach((entry) => {
     if (RE_SESSION.test(entry.message)) {
-      events.push({ ts: entry.ts, kind: 'boot', title: 'App khởi động — phiên ' + entry.session,
+      events.push({ ts: entry.ts, group: 'app', kind: 'boot', title: 'App khởi động — phiên ' + entry.session,
         detail: entry.message, index: entry.domIndex });
     }
   });
 
   data.gaps.forEach((gap) => {
-    events.push({ ts: gap.before.ts, kind: 'gap', title: 'Khoảng lặng ' + formatDuration(gap.ms),
+    events.push({ ts: gap.before.ts, group: 'app', kind: 'gap', title: 'Khoảng lặng ' + formatDuration(gap.ms),
       detail: 'dừng sau: ' + gap.before.message.slice(0, 90), index: gap.after.domIndex });
   });
 
   data.groups.filter((group) => group.level === 'ERROR' && !isGroupMuted(group)).forEach((group) => {
-    events.push({ ts: group.firstTs, kind: 'err', title: group.indices.length + '× ' + (group.module || 'ERROR'),
+    events.push({ ts: group.firstTs, group: 'app', kind: 'err',
+      title: group.indices.length + '× ' + (group.module || 'ERROR'),
       detail: group.sample.slice(0, 90), index: group.indices[0] });
   });
 
-  events.sort((a, b) => (a.ts || 0) - (b.ts || 0));
+  // "Doi luong" (feature_source) di chung nhom voi man hinh: no cung la chuyen dich chuyen, va tach
+  // ra thanh chip thu bay thi hang chip bat dau cuon ngang.
+  data.journey.steps.forEach((step) => {
+    events.push({ ts: step.ts, group: step.kind === 'move' ? 'screen' : step.kind, kind: 'jr-' + step.kind,
+      title: step.label, detail: [step.detail, step.note].filter(Boolean).join(' · '),
+      index: step.domIndex, count: step.count, ms: step.ms });
+  });
 
-  const header = '<div class="fll-row" style="margin-bottom:9px">' +
-    [1000, 2000, 5000, 10000]
-      .map((ms) => '<button class="fll-chip' + (lensState.gapThresholdMs === ms ? ' on' : '') +
-        '" data-act="setGap" data-value="' + ms + '">lặng &ge; ' + ms / 1000 + 's</button>')
-      .join('') + '</div>' +
-    '<div class="fll-hint" style="margin:0 0 10px">' + data.sessionCount + ' phiên app · ' +
-    data.gaps.length + ' khoảng lặng · ' + countUnmutedErrorGroups(data) +
-    ' nhóm lỗi. Đã sắp theo thời gian thật, không theo thứ tự dòng.' +
+  return events.sort((a, b) => (a.ts || 0) - (b.ts || 0));
+}
+
+function renderTimelineTab() {
+  const data = getView();
+  const all = buildTimelineEvents(data);
+  const events = tabUiState.tlGroup === 'all'
+    ? all
+    : all.filter((event) => event.group === tabUiState.tlGroup);
+
+  const counts = {};
+  TIMELINE_GROUPS.forEach((choice) => {
+    counts[choice.id] = choice.id === 'all' ? all.length : all.filter((e) => e.group === choice.id).length;
+  });
+
+  let header = '<div class="fll-row" style="margin-bottom:9px">' + TIMELINE_GROUPS
+    .filter((choice) => counts[choice.id])
+    .map((choice) => '<button class="fll-chip' + (tabUiState.tlGroup === choice.id ? ' on' : '') +
+      '" data-act="tlGroup" data-value="' + choice.id + '">' + choice.label +
+      ' <em>' + counts[choice.id] + '</em></button>')
+    .join('') + '</div>';
+
+  // Chip nguong khoang lang chi co nghia khi moc App dang hien.
+  if (tabUiState.tlGroup === 'all' || tabUiState.tlGroup === 'app') {
+    header += '<div class="fll-row" style="margin-bottom:9px">' +
+      [1000, 2000, 5000, 10000]
+        .map((ms) => '<button class="fll-chip' + (lensState.gapThresholdMs === ms ? ' on' : '') +
+          '" data-act="setGap" data-value="' + ms + '">lặng &ge; ' + ms / 1000 + 's</button>')
+        .join('') + '</div>';
+  }
+
+  header += '<div class="fll-hint" style="margin:0 0 10px">' + data.sessionCount + ' phiên app · ' +
+    data.gaps.length + ' khoảng lặng · ' + countUnmutedErrorGroups(data) + ' nhóm lỗi · ' +
+    data.journey.steps.length + ' bước tương tác. Đã sắp theo thời gian thật, không theo thứ tự dòng. ' +
+    'Bước tương tác đọc từ event <b>MoMoTracker</b> (mức INFO) — log ghi lặp nên các bước giống hệt ' +
+    'nhau cách nhau dưới 1s đã gộp thành <b>N&times;</b>, bấm vào vẫn duyệt đủ từng dòng.' +
     (data !== lensState.data
       ? ' <b>Khoảng lặng chỉ cắt theo cửa sổ thời gian</b> — lọc theo mức độ hay module không đổi nó, ' +
         'vì khoảng lặng là tính chất của đường thời gian chứ không phải của tập dòng.'
@@ -477,10 +595,20 @@ function renderTimelineTab() {
 
   if (!events.length) return header + '<div class="fll-empty">Không có mốc nào đáng chú ý.</div>';
 
-  return header + '<div class="fll-tl">' + events
+  const shown = events.slice(0, tabUiState.tlLimit);
+  return header + '<div class="fll-tl">' + shown
     .map((event) => '<div class="fll-ev ' + event.kind + '" data-jump="' + event.index + '">' +
-      '<div class="fll-ev-t">' + escapeHtml(event.title) + '<em>' + formatClock(event.ts) + '</em></div>' +
-      '<div class="fll-ev-d">' + escapeHtml(event.detail) + '</div></div>')
-    .join('') + '</div>';
+      '<div class="fll-ev-t">' +
+      (event.count > 1 ? '<span class="fll-jn">' + event.count + '&times;</span>' : '') +
+      escapeHtml(event.title) +
+      (event.ms >= 1000 ? '<span class="fll-jms">' + formatDuration(event.ms) + '</span>' : '') +
+      '<em>' + formatClock(event.ts) + '</em></div>' +
+      (event.detail ? '<div class="fll-ev-d">' + escapeHtml(event.detail) + '</div>' : '') +
+      '</div>')
+    .join('') + '</div>' +
+    (events.length > shown.length
+      ? '<button class="fll-btn" style="width:100%;margin-top:8px" data-act="moreTimeline">Hiện thêm — còn ' +
+        (events.length - shown.length) + ' mốc</button>'
+      : '');
 }
 // AI-GENERATED END
