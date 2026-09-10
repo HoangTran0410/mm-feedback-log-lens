@@ -10,5 +10,13 @@
 *.jpeg
 *.gif
 
+# Ngoai le DUY NHAT: anh trong docs/ chup tren log BIA do test/demo-log.js sinh ra,
+# khong co mot ky tu nao cua log that. Them anh vao day thi phai chup lai bang trang do,
+# tuyet doi khong chup tren trang feedback that.
+!docs/*.png
+
+# Trang demo do test/demo-log.js sinh ra — dung de chup anh, khong can commit
+demo.html
+
 .DS_Store
 node_modules/
