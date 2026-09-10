@@ -886,6 +886,16 @@ check('moi truong: nhan ra ban khong-production ma host khong co dau hieu uat/de
   eq(L.buildEnvironment(entries, [{ host: 'm.dev.mservice.io' }]).mixedBuild, false, 'co host dev thi khong lech');
   const env = L.buildEnvironment(entries, [{ host: 'm.dev.mservice.io' }]);
   eq(env.nonProdHosts.length, 1, 'phai nhan ra host dev');
+
+  // Ban production tren App Store ghi flavor la "Store". Coi moi thu khac chu "production" la dang ngo
+  // thi log that nao cung bi canh bao nham — da dinh dung loi do khi test tren trang admin that.
+  const store = [{ raw: 'x "User-Agent":"MoMoPlatform Store/5.15.0.51500 CFNetwork/1.0 Darwin/25.6.0 (iPhone 16 Pro iOS/26.6)" y' }];
+  eq(L.buildEnvironment(store, [{ host: 'api.momo.vn' }]).mixedBuild, false,
+    'ban Store la ban that, khong duoc canh bao');
+  eq(L.buildEnvironment(store, [{ host: 'api.momo.vn' }]).flavor, 'Store', 'van doc duoc ten build');
+  const trong = [{ raw: 'x "User-Agent":"MoMoPlatform/5.15.0 CFNetwork/1.0 Darwin/25.6.0 (iPhone iOS/26.6)" y' }];
+  eq(L.buildEnvironment(trong, [{ host: 'api.momo.vn' }]).mixedBuild, false,
+    'khong co ten build thi cung khong canh bao');
 });
 
 /* ------------------------------------------------------ tom tat de dan vao ticket */

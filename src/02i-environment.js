@@ -26,6 +26,10 @@ const RE_ENV_LANG = /[",\s]lang[=:"\s]+([a-z]{2,5})[",\s}]/;
 // Dau hieu KHONG phai production tren hostname. Khong lam danh sach host production: danh sach do se
 // cu phai cap nhat, con dau hieu uat/dev/staging thi on dinh hon nhieu.
 const RE_ENV_NONPROD_HOST = /(^|[.\-/])(uat|dev|staging|test|sandbox)([.\-:/]|$)/i;
+// Tim DAU HIEU khong-production, khong phai "khac chu production". Ban production tren App Store ghi
+// flavor la "Store" — coi moi thu khac chu "production" la dang ngo thi log that nao cung bi canh bao
+// nham. Da dinh dung loi do khi test tren trang admin that.
+const RE_ENV_NONPROD_BUILD = /^(uat|staging|dev|test|sandbox|alpha|beta|debug)$/i;
 
 function envFirst(entries, re, group) {
   for (let i = 0; i < entries.length; i += 1) {
@@ -76,8 +80,7 @@ function buildEnvironment(entries, httpCalls) {
     // Ban Staging/UAT ma lai goi toan host khong co dau hieu uat/dev — gap that tren mot log. Chi NOI
     // RA su that quan sat duoc, khong ket luan "log nay la prod hay khong": ban build va host la hai
     // chuyen khac nhau, va danh sach host o day chi gom nhung host co request trong log.
-    mixedBuild: !!flavor && flavor.toLowerCase() !== 'production' && hosts.size > 0 &&
-      nonProdHosts.length === 0,
+    mixedBuild: RE_ENV_NONPROD_BUILD.test(flavor) && hosts.size > 0 && nonProdHosts.length === 0,
   };
 }
 // AI-GENERATED END

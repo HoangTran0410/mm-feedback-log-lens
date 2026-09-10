@@ -43,8 +43,8 @@ bản build thì ngược lại: khối ngay dưới do `build.sh` ghi lại m�
 
 | | |
 |---|---|
-| `extension/lens.js` | **282 KB** (288,467 bytes) |
-| Nguồn | 6,260 dòng trong 24 file `src/` |
+| `extension/lens.js` | **282 KB** (288,796 bytes) |
+| Nguồn | 6,263 dòng trong 24 file `src/` |
 | Dependency lúc chạy | không có |
 | Test | 116 phép thử, `node test/run.js` |
 
