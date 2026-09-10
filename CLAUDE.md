@@ -85,6 +85,13 @@ ra (chữ `webadmin`, url CDN, tên lớp `ABTestingExpTag`...). Dòng không t�
 lấy `textContent` thì badge lọt vào khoá, mà badge đổi theo từng log — mở một mục ở log này, sang log
 khác lại thấy đóng. Mọi tiêu đề mục phải đi qua `secTitle(title, badge, tone)`.
 
+**"Gom theo ID": lọc DANH SÁCH, không cắt CHUỖI.** `buildCorrelations` cố ý đọc `data.entries` chứ
+không đọc view — xem một `cmdId` đi qua mấy lớp mà thiếu mất vài lớp là đúng thứ làm người đọc kết luận
+sai. Nhưng "không cắt chuỗi" khác "không cắt danh sách": mục này từng liệt kê MỌI ID của cả log ngay cả
+khi đang bật cửa sổ thời gian, trong khi mọi mục xung quanh đều theo bộ lọc, và không có một dòng chữ
+nào nói ra. Nay danh sách chỉ giữ ID còn ít nhất một dòng trong tập đang xem, badge ghi `N/tổng`, chữ
+nói rõ là bấm vào vẫn mở trọn chuỗi.
+
 **`hide()` của tab đọc data ĐẦY ĐỦ, không phải view đang lọc.** Lọc hẹp lại thì tab tự ẩn sẽ biến mất
 giữa chừng. Tab có hay không là tính chất của cả log; nội dung bên trong mới chạy theo bộ lọc.
 
@@ -398,6 +405,19 @@ Panel từng bị rối vì mấy thói quen dưới đây, sửa rồi thì gi�
 Hai con số cuối **không phải chi phí của tool**: đo tách bạch thì việc ghi class chỉ tốn **0.1ms**,
 229ms còn lại là trình duyệt layout lại 4085 dòng của bảng log — trang admin không dùng virtual scroll,
 mọi dòng đều nằm thật trong DOM và cao 174378px.
+
+**Trong lúc kéo, KHÔNG đụng vào thuộc tính kế thừa trên `<body>`.** `user-select` là thuộc tính kế
+thừa, nên `document.body.style.userSelect = 'none'` bắt trình duyệt tính lại style cho **toàn bộ tài
+liệu**. Đo trên trang admin thật (9363 dòng log, 40 537 node): bật mất **213.7ms**, trả lại mất
+**176.5ms**. Chặn bôi đen bằng cách nuốt sự kiện `selectstart` trong lúc kéo thì tốn 0.
+
+Cách cái lỗi này lộ ra đáng nhớ hơn con số: giữa cú kéo hoàn toàn mượt (p50 **16.7ms**), lúc không kéo
+thì **181 khung liên tiếp không rớt cái nào** — chỉ có đúng **một** khung khựng ngay sau `mousedown` và
+đúng một khung nữa ngay sau `mouseup`, mỗi cái ~216ms. Nhìn vào chỉ thấy "kéo panel bị giật". Phép thử
+tách bạch: `panel.classList.add('fll-dragging')` chỉ tốn **1.3ms**, và số node TRONG panel không ảnh
+hưởng gì (4406 node so với 400 node cho ra cùng một con số) — nên đừng đi tối ưu nhầm chỗ đó. Phép thử
+quyết định là đặt sẵn `userSelect='none'` TRƯỚC khi kéo: cú khựng lúc `mousedown` biến mất, chỉ còn cú
+lúc `mouseup` (chỗ trả lại `''`).
 
 **Kéo di chuyển panel** dùng `transform: translate3d()` rồi mới chốt thành `left/top` lúc thả tay,
 và gom `mousemove` lại một lần cập nhật mỗi khung hình. Lý do: ghi `left/top` mỗi nhịp chuột thì

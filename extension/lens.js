@@ -3661,6 +3661,20 @@ function applyPanelGeometry(panel) {
 
 // mousemove/mouseup chỉ được gắn trong lúc kéo rồi gỡ ngay, không gắn thường trú:
 // mountPanel() chạy lại mỗi lần mở từ pill, gắn thường trú sẽ cộng dồn listener.
+// Chặn bôi đen chữ trong lúc kéo bằng cách nuốt sự kiện 'selectstart', KHÔNG bằng
+// document.body.style.userSelect = 'none'.
+//
+// user-select là thuộc tính KẾ THỪA, nên đặt nó lên <body> bắt trình duyệt tính lại style cho toàn bộ
+// tài liệu. Đo trên trang admin thật (9363 dòng log, 40 537 node): bật mất 213.7ms, trả lại mất
+// 176.5ms — hai cú khựng gần một phần năm giây, đúng một khung sau mousedown và một khung sau mouseup.
+// Giữa cú kéo thì mượt (p50 16.7ms), và lúc không kéo thì 181 khung liên tiếp không rớt cái nào, nên
+// nhìn vào chỉ thấy "kéo panel bị giật" mà không đoán ra vì sao.
+// Đối chứng cùng lượt đo: panel.classList.add('fll-dragging') chỉ tốn 1.3ms, và số node TRONG panel
+// không ảnh hưởng gì (4406 node so với 400 node cho cùng một con số).
+function blockSelectStart(event) {
+  event.preventDefault();
+}
+
 function enableDragAndResize(panel, header, edgeGrip, cornerGrip) {
   let mode = null;
   let origin = null;
@@ -3690,7 +3704,7 @@ function enableDragAndResize(panel, header, edgeGrip, cornerGrip) {
       panel.style.height = rect.height + 'px';
     }
     panel.classList.add('fll-dragging');
-    document.body.style.userSelect = 'none';
+    window.addEventListener('selectstart', blockSelectStart);
     window.addEventListener('mousemove', handleMove);
     window.addEventListener('mouseup', handleUp);
     event.preventDefault();
@@ -3742,6 +3756,7 @@ function enableDragAndResize(panel, header, edgeGrip, cornerGrip) {
   function handleUp() {
     window.removeEventListener('mousemove', handleMove);
     window.removeEventListener('mouseup', handleUp);
+    window.removeEventListener('selectstart', blockSelectStart);
     if (!mode) return;
     // Chốt transform thành vị trí thật trước khi đo lại kích thước, không thì getBoundingClientRect
     // vẫn đang cộng thêm phần dịch chuyển.
@@ -3753,7 +3768,6 @@ function enableDragAndResize(panel, header, edgeGrip, cornerGrip) {
     mode = null;
     pendingEvent = null;
     panel.classList.remove('fll-dragging');
-    document.body.style.userSelect = '';
     savePanelGeometry(panel);
   }
 
@@ -5216,18 +5230,41 @@ function renderSessionChipRow() {
     '" data-act="setSession" data-value="0">Tất cả</button></div>';
 }
 
-function renderCorrelationList() {
+// Mục này là ngoại lệ duy nhất trong panel: CHUỖI của một ID không bao giờ bị cắt theo bộ lọc, vì
+// xem một cmdId đi qua mấy lớp mà thiếu mất vài lớp thì đúng là thứ làm người đọc kết luận sai.
+//
+// Nhưng "không cắt chuỗi" không có nghĩa là "không cắt danh sách". Trước đây mục này liệt kê MỌI ID
+// của cả log kể cả khi đang bật cửa sổ thời gian, trong khi mọi mục xung quanh đều theo bộ lọc — và
+// không có một dòng chữ nào nói ra chuyện đó. Nay danh sách chỉ giữ ID nào CÓ ÍT NHẤT MỘT DÒNG nằm
+// trong tập đang xem; bấm vào thì vẫn mở trọn chuỗi như cũ, và chữ ngay dưới nói rõ điều đó.
+function correlationBucketsInView() {
   const buckets = lensState.data.correlations;
-  if (!buckets.length) return '';
-  return secTitle('Gom theo ID', buckets.length) +
-    '<div class="fll-hint" style="margin-bottom:8px">Một ID xuất hiện ở nhiều dòng là một request đi qua ' +
-    'nhiều lớp. Bấm để xem trọn chuỗi.</div><div class="fll-rank">' +
-    buckets
+  const view = getView();
+  if (view === lensState.data) return buckets;
+  const inView = new Set(view.scopedEntries.map((entry) => entry.domIndex));
+  return buckets.filter((bucket) => bucket.indices.some((index) => inView.has(index)));
+}
+
+function renderCorrelationList() {
+  const all = lensState.data.correlations;
+  if (!all.length) return '';
+  const buckets = correlationBucketsInView();
+  const isScoped = buckets.length !== all.length;
+  const note = isScoped
+    ? 'Đang lọc nên chỉ liệt kê <b>' + buckets.length + '</b>/' + all.length +
+      ' ID còn dòng trong tập đang xem — nhưng bấm vào vẫn mở <b>trọn</b> chuỗi, kể cả những dòng bộ lọc đang giấu.'
+    : 'Một ID xuất hiện ở nhiều dòng là một request đi qua nhiều lớp. Bấm để xem trọn chuỗi.';
+  const body = buckets.length
+    ? '<div class="fll-rank">' + buckets
       .map((bucket) => '<div class="fll-rk" data-act="correlate" data-value="' + escapeHtml(bucket.value) + '">' +
         '<u style="width:' + ((bucket.indices.length / buckets[0].indices.length) * 100).toFixed(1) + '%"></u>' +
         '<span>' + escapeHtml(bucket.key) + ' · ' + escapeHtml(bucket.value.slice(-16)) + '</span>' +
         '<b>' + bucket.indices.length + '</b></div>')
-      .join('') + '</div>';
+      .join('') + '</div>'
+    : emptyBecauseOfFilter(all.length, 'ID nào');
+  return secTitle('Gom theo ID', isScoped ? buckets.length + '/' + all.length : buckets.length,
+    isScoped ? 'act' : '') +
+    '<div class="fll-hint" style="margin-bottom:8px">' + note + '</div>' + body;
 }
 
 // Mẫu bộ lọc dùng chung định dạng với permalink, chỉ khác là nằm trong localStorage

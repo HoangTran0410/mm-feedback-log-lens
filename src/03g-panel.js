@@ -41,6 +41,20 @@ function applyPanelGeometry(panel) {
 
 // mousemove/mouseup chỉ được gắn trong lúc kéo rồi gỡ ngay, không gắn thường trú:
 // mountPanel() chạy lại mỗi lần mở từ pill, gắn thường trú sẽ cộng dồn listener.
+// Chặn bôi đen chữ trong lúc kéo bằng cách nuốt sự kiện 'selectstart', KHÔNG bằng
+// document.body.style.userSelect = 'none'.
+//
+// user-select là thuộc tính KẾ THỪA, nên đặt nó lên <body> bắt trình duyệt tính lại style cho toàn bộ
+// tài liệu. Đo trên trang admin thật (9363 dòng log, 40 537 node): bật mất 213.7ms, trả lại mất
+// 176.5ms — hai cú khựng gần một phần năm giây, đúng một khung sau mousedown và một khung sau mouseup.
+// Giữa cú kéo thì mượt (p50 16.7ms), và lúc không kéo thì 181 khung liên tiếp không rớt cái nào, nên
+// nhìn vào chỉ thấy "kéo panel bị giật" mà không đoán ra vì sao.
+// Đối chứng cùng lượt đo: panel.classList.add('fll-dragging') chỉ tốn 1.3ms, và số node TRONG panel
+// không ảnh hưởng gì (4406 node so với 400 node cho cùng một con số).
+function blockSelectStart(event) {
+  event.preventDefault();
+}
+
 function enableDragAndResize(panel, header, edgeGrip, cornerGrip) {
   let mode = null;
   let origin = null;
@@ -70,7 +84,7 @@ function enableDragAndResize(panel, header, edgeGrip, cornerGrip) {
       panel.style.height = rect.height + 'px';
     }
     panel.classList.add('fll-dragging');
-    document.body.style.userSelect = 'none';
+    window.addEventListener('selectstart', blockSelectStart);
     window.addEventListener('mousemove', handleMove);
     window.addEventListener('mouseup', handleUp);
     event.preventDefault();
@@ -122,6 +136,7 @@ function enableDragAndResize(panel, header, edgeGrip, cornerGrip) {
   function handleUp() {
     window.removeEventListener('mousemove', handleMove);
     window.removeEventListener('mouseup', handleUp);
+    window.removeEventListener('selectstart', blockSelectStart);
     if (!mode) return;
     // Chốt transform thành vị trí thật trước khi đo lại kích thước, không thì getBoundingClientRect
     // vẫn đang cộng thêm phần dịch chuyển.
@@ -133,7 +148,6 @@ function enableDragAndResize(panel, header, edgeGrip, cornerGrip) {
     mode = null;
     pendingEvent = null;
     panel.classList.remove('fll-dragging');
-    document.body.style.userSelect = '';
     savePanelGeometry(panel);
   }
 

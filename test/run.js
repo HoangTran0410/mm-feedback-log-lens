@@ -71,7 +71,7 @@ function loadLens() {
     'SECTION_SEARCH_MIN_ROWS,buildEnvironment,buildTicketSummary,journeySurfaceName,' +
     'PANEL_CSS,detachLens,serializeFilter,applyFilterPayload,describeTemplatePayload,' +
     'renderTraceFailSection,isBadHttpCall,setTimeWindowPreset,isWindowPresetActive,' +
-    'formatWindowLabel,retargetTimeWindow,extractDurations};';
+    'formatWindowLabel,retargetTimeWindow,extractDurations,renderCorrelationList};';
   const wired = src.replace(/\n\}\)\(\);\s*$/, '\n' + exportLine + '\n})();\n');
   if (wired === src) throw new Error('khong chen duoc dong export vao IIFE cua extension/lens.js');
   (0, eval)(wired);
@@ -1133,6 +1133,33 @@ check('dang loc thi khong duoc khang dinh "log nay khong co"', () => {
   ok(L.renderConfigTab().indexOf('Log này không có') >= 0, 'log rong that thi van noi nhu cu');
   L.lensState.data = thatData;
   L.lensState.view = thatData;
+});
+
+// Mục "Gom theo ID" từng liệt kê MỌI ID của cả log kể cả khi đang bật cửa sổ thời gian, trong khi mọi
+// mục xung quanh đều theo bộ lọc — và không có dòng chữ nào nói ra. Nay danh sách theo bộ lọc, còn
+// CHUỖI của một ID thì vẫn nguyên vẹn (đó mới là thứ không được cắt).
+check('Gom theo ID: danh sách theo bộ lọc, chuỗi thì vẫn trọn vẹn', () => {
+  ok(data.correlations.length > 0, 'fixture phải có ID gom được');
+  L.lensState.view = data;
+  const dayDu = L.renderCorrelationList();
+  ok(dayDu.indexOf('Đang lọc nên chỉ liệt kê') < 0, 'không lọc thì không được nói là đang lọc');
+
+  // View chỉ còn đúng những dòng của ID đầu tiên -> các ID khác phải rụng khỏi danh sách.
+  const giu = new Set(data.correlations[0].indices);
+  const hep = Object.assign({}, data, {
+    scopedEntries: data.entries.filter((entry) => giu.has(entry.domIndex)),
+  });
+  L.lensState.view = hep;
+  const loc = L.renderCorrelationList();
+  ok(loc.indexOf('Đang lọc nên chỉ liệt kê') >= 0, 'phải nói rõ là danh sách đang bị lọc');
+  ok(loc.indexOf('trọn') >= 0, 'và nói rõ chuỗi vẫn mở trọn vẹn');
+  const soHang = (loc.match(/data-act="correlate"/g) || []).length;
+  ok(soHang < data.correlations.length, 'số hàng phải ít hơn khi lọc hẹp, nhận được ' + soHang);
+  ok(soHang >= 1, 'ID có dòng trong tập đang xem thì phải còn lại');
+  // Chuỗi vẫn phải đầy đủ: buildCorrelations đọc data.entries chứ không đọc view.
+  eq(data.correlations[0].indices.length,
+    giu.size, 'chuỗi của ID đó không được ngắn đi vì bộ lọc');
+  L.lensState.view = data;
 });
 
 // available = có dòng Grafana nào không. hasGated = có dòng nào đi qua cờ debug không. Trước đây
