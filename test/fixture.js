@@ -81,7 +81,12 @@ function build() {
   tracker('auto_screen_displayed', 'screen_name=ManHinhHai, duration=1500, bundle_sof=1,2, last_component={ten=NutBia, nhan=[a, b]}');
 
   // --- HTTP kieu dong [Method:] — nguon khac han voi ops_*
-  line('INFO', '[Module: HTTP] [Method: POST] [URL: https://gia.lap/bia/mot] --RequestPayload: {"cmdId":"CMD-BIA-1"}');
+  // Header mang van tay moi truong: may gi, iOS may, ban nao. Tren log that day la nguon DUY NHAT
+  // con song o log production (module DeviceProfileManager bang 0 o do).
+  line('INFO', '[Module: HTTP] [Method: POST] [URL: https://gia.lap/bia/mot] --RequestPayload: ' +
+    '--header: {"User-Agent":"MoMoPlatform GIALAP/9.9.9.99900 CFNetwork/1410.1 Darwin/22.6.0 ' +
+    '(iPhone Bia Plus iOS/18.7.16) AgentID/BIA", device_os=IOS, device_performance=low-end, lang=vi} ' +
+    '--body: {"cmdId":"CMD-BIA-1"}');
   line('INFO', '[Module: HTTP] [Method: POST] [URL: https://gia.lap/bia/mot] --ResponsePayload: {"cmdId":"CMD-BIA-1","errorCode":0} --status: 200');
   line('INFO', '[Module: HTTP] [Method: GET] [URL: https://gia.lap/bia/hai] --RequestPayload: {"cmdId":"CMD-BIA-2"}');
   line('INFO', '[Module: HTTP] [Method: GET] [URL: https://gia.lap/bia/hai] --ResponsePayload: {"cmdId":"CMD-BIA-2","errorCode":404} --status: 404');

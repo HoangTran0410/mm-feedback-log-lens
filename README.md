@@ -43,10 +43,10 @@ bản build thì ngược lại: khối ngay dưới do `build.sh` ghi lại m�
 
 | | |
 |---|---|
-| `extension/lens.js` | **270 KB** (276,139 bytes) |
-| Nguồn | 5,984 dòng trong 22 file `src/` |
+| `extension/lens.js` | **275 KB** (282,060 bytes) |
+| Nguồn | 6,108 dòng trong 23 file `src/` |
 | Dependency lúc chạy | không có |
-| Test | 108 phép thử, `node test/run.js` |
+| Test | 112 phép thử, `node test/run.js` |
 
 <!-- /build-stats -->
 
@@ -96,6 +96,12 @@ dòng mà hàng đó đại diện (một nhóm lỗi 22 dòng thì hiện 22 v�
 chỗ), và dòng nhãn giữa minimap đổi thành giờ của hàng đang rê. Chạy ở mọi tab và cả trong tấm trượt
 payload, vì nó vẽ bằng một lớp SVG phủ lên panel chứ không phải chèn thẻ vào từng hàng — tab thêm sau
 này tự động có.
+
+**Máy đó là máy gì.** Mục *Máy & môi trường* ở Tổng quan đọc thẳng từ header của request HTTP:
+`iPhone 16 · iOS 26.6.1 · high-end · 5.16.0.51600 build Staging · 3 host`. Lấy từ header chứ không
+từ module `DeviceProfileManager` là có lý do đo được: module đó có `27 / 9 / **0**` dòng trên ba log
+thật — **bằng 0 ở log production**, còn `User-Agent` thì `52 / 66 / 94` lần và mỗi log chỉ đúng một
+giá trị. Đây là nguồn duy nhất còn sống trên log production.
 
 **Khoảng lặng nào là "app treo", khoảng nào chỉ là user bấm Home.** Log không có dòng lifecycle riêng,
 nhưng trạng thái app nằm ghép trong dòng MQTT (`appState: BACKGROUND`). Tool đọc ra và tách hai loại:

@@ -33,6 +33,7 @@ function deriveStats(entries) {
     journey: buildJourney(entries),
     traceIssues: buildTraceIssues(entries),
     configs: buildConfigs(entries, httpCalls),
+    environment: buildEnvironment(entries, httpCalls),
   };
 }
 

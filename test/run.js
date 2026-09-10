@@ -75,7 +75,7 @@ function loadLens() {
     'applyFilter,aimIndicesFor,sectionKey,isSectionOpen,setSectionOpen,loadOpenSections,' +
     'buildTimelineEvents,formatDuration,renderTimelineList,TIMELINE_KIND_ORDER,TIMELINE_KINDS,' +
     'canZoomFurther,minimapBounds,pickJourneyLabel,findDuplicateBlock,entryMatches,compileFilter,' +
-    'SECTION_SEARCH_MIN_ROWS};';
+    'SECTION_SEARCH_MIN_ROWS,buildEnvironment};';
   const wired = src.replace(/\n\}\)\(\);\s*$/, '\n' + exportLine + '\n})();\n');
   if (wired === src) throw new Error('khong chen duoc dong export vao IIFE cua extension/lens.js');
   (0, eval)(wired);
@@ -846,6 +846,46 @@ check('khoang lang: hai loai hien khac nhau tren dong thoi gian', () => {
 // nguong va hai cai bay da gap; phan chen/loc DOM da do trong Chrome tren trang demo.
 check('o tim tung muc: nguong hop ly va khong am tham doi', () => {
   eq(L.SECTION_SEARCH_MIN_ROWS, 6, 'duoi 6 hang thi liec mat la thay het, khong can o tim');
+});
+
+/* --------------------------------------------------- van tay moi truong tu header HTTP */
+
+// Doc tu header request chu khong tu DeviceProfileManager: do tren ba log that, module do co
+// 27 / 9 / 0 dong — bang 0 tren log production, con User-Agent thi 52 / 66 / 94 lan.
+check('moi truong: doc duoc may, iOS, ban app tu User-Agent', () => {
+  const env = data.environment;
+  eq(env.available, true, 'phai doc duoc');
+  eq(env.device, 'iPhone Bia Plus', 'ten may');
+  eq(env.osVersion, '18.7.16', 'phien ban iOS');
+  eq(env.appVersion, '9.9.9.99900', 'ban app');
+  eq(env.flavor, 'GIALAP', 'ten build');
+  eq(env.cfNetwork, '1410.1', 'CFNetwork');
+  eq(env.darwin, '22.6.0', 'Darwin');
+  eq(env.performance, 'low-end', 'doi may');
+  eq(env.lang, 'vi', 'ngon ngu');
+});
+
+// Bay falsy: envFirst(entries, re, 0) — nhom 0 la ca chuoi khop, nhung "0 || 1" ra 1 nen ham tra ve
+// nhom thu nhat va ca User-Agent khong parse duoc. Da dinh that, phep thu nay giu cho no khong tai dien.
+check('moi truong: lay duoc nhom 0 (ca chuoi khop)', () => {
+  ok(data.environment.device && data.environment.appVersion,
+    'ca hai deu phai co gia tri; rong tuc la lai dinh bay nhom 0');
+});
+
+check('moi truong: log khong co header thi bao khong co, khong doan bua', () => {
+  const env = L.buildEnvironment([{ raw: 'khong co gi' }], []);
+  eq(env.available, false, 'khong co header lan khong co call thi coi nhu khong doc duoc');
+  eq(env.device, '', 'khong duoc bia ten may');
+  eq(env.mixedBuild, false, 'khong co du lieu thi khong canh bao gi');
+});
+
+// Ban build va host la HAI chuyen khac nhau. Chi noi ra dieu quan sat duoc, khong ket luan ho.
+check('moi truong: nhan ra ban khong-production ma host khong co dau hieu uat/dev', () => {
+  const entries = [{ raw: 'x "User-Agent":"MoMoPlatform Staging/5.16 CFNetwork/1.0 Darwin/25.6.0 (iPhone 16 iOS/26.6.1)" y' }];
+  eq(L.buildEnvironment(entries, [{ host: 'api.momo.vn' }]).mixedBuild, true, 'Staging + host sach');
+  eq(L.buildEnvironment(entries, [{ host: 'm.dev.mservice.io' }]).mixedBuild, false, 'co host dev thi khong lech');
+  const env = L.buildEnvironment(entries, [{ host: 'm.dev.mservice.io' }]);
+  eq(env.nonProdHosts.length, 1, 'phai nhan ra host dev');
 });
 
 renderAll('log day du');

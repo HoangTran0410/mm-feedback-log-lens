@@ -100,6 +100,44 @@ function renderDuplicateBanner(data) {
     '</div></div>';
 }
 
+// Muc nay tra loi cau dau tien cua buoc TAI HIEN: may gi, iOS may, ban nao, noi vao dau.
+// Doc tu header request HTTP vi do la nguon duy nhat con song tren log production (xem 02i).
+function renderEnvironmentSection(data) {
+  const env = data.environment;
+  if (!env.available) return '';
+  const context = data.feedback || {};
+  const rows = [
+    ['Thiết bị', [env.device, env.osVersion ? 'iOS ' + env.osVersion : '', env.deviceOs].filter(Boolean).join(' · ')],
+    ['Đời máy', env.performance],
+    ['Bản app', [env.appVersion, env.flavor ? 'build ' + env.flavor : ''].filter(Boolean).join(' · ')],
+    ['Mạng', context.Network || ''],
+    ['Ngôn ngữ', env.lang],
+    ['CFNetwork / Darwin', [env.cfNetwork, env.darwin].filter(Boolean).join(' / ')],
+    ['Host đã gọi', env.hostCount
+      ? env.hostCount + ' host' + (env.nonProdHosts.length
+        ? ' · ' + env.nonProdHosts.length + ' host có dấu hiệu uat/dev: ' + env.nonProdHosts.join(', ')
+        : ' · không host nào có dấu hiệu uat/dev')
+      : ''],
+  ].filter((row) => row[1]);
+  if (!rows.length) return '';
+
+  // Ban build va host la HAI chuyen khac nhau — chi noi ra su that quan sat duoc, khong ket luan ho.
+  const mixed = env.mixedBuild
+    ? '<div class="fll-note" style="margin-top:8px"><span>&#9888;</span><div>Bản <b>' +
+      escapeHtml(env.flavor) + '</b> nhưng mọi host trong log đều không có dấu hiệu uat/dev. ' +
+      'Bản build và host là hai chuyện khác nhau — đây chỉ là điều quan sát được, không phải kết luận.' +
+      '</div></div>'
+    : '';
+  return secTitle('Máy & môi trường', env.device || env.appVersion || '') +
+    '<div class="fll-hint" style="margin-bottom:8px">Đọc từ header của request HTTP — nguồn duy nhất ' +
+    'còn sống trên log production.</div>' +
+    '<div class="fll-rank">' + rows
+      .map((row) => '<div class="fll-rk" style="cursor:default">' +
+        '<span>' + escapeHtml(row[0]) + '</span><b style="color:var(--txt)">' +
+        escapeHtml(row[1]) + '</b></div>')
+      .join('') + '</div>' + mixed;
+}
+
 function renderFeedbackBanner() {
   const data = lensState.data;
   const context = data.feedback || {};
@@ -195,6 +233,7 @@ function renderSummaryTab() {
       renderRankList(data.journey.taps, 'data-jtap', 6);
   }
 
+  html += renderEnvironmentSection(full);
   html += renderSlowSections();
   html += secTitle('Module nói nhiều nhất', data.modules.length) +
     renderRankList(data.modules, 'data-module', 8);
