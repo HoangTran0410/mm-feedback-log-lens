@@ -22,6 +22,8 @@ const RE_FLOW_STRIP = /\[Flow: [^\]]+\]\s*/g;
 const RE_TAG = /@@([A-Za-z][A-Za-z0-9_]*)/;
 const RE_EVENT = /\bevent: ([a-z0-9_]+)/;
 const RE_EVENT_PARAMS = /\| params: (\{[\s\S]*\})/;
+const RE_TRACE_VERB = /@@ grafana >> ([a-zA-Z]+) >>/;
+const RE_TRACE_PARAM = /TraceParameter\((.*)\)\s*$/;
 const RE_METHOD = /\[Method: ([A-Z]+)\]/;
 const RE_URL = /\[URL: (\S+?)\]/;
 const RE_STATUS = /--status: (\d+)/;
@@ -112,6 +114,15 @@ function parseEventParams(message) {
   return hit ? parseKeyValueMap(hit[1]) : null;
 }
 
+// Grafana ghi tham so duoi dang TraceParameter(k=v, k=v) — cung mot dinh dang k=v voi params cua
+// tracker, chi khac cap bao ngoai. Boc lai thanh {k=v} de dung chung parseKeyValueMap, huong luon
+// ca phan noi lai manh bi dau phay xe doi. Do tren hai log that (mot UAT, mot prod): 3904/3904 dong
+// TraceParameter parse ra map co truong flow.
+function parseTraceParameter(message) {
+  const hit = RE_TRACE_PARAM.exec(message);
+  return hit ? parseKeyValueMap('{' + hit[1] + '}') : null;
+}
+
 function parseEntry(rawText, domIndex, lineNo, el) {
   const entry = {
     domIndex,
@@ -129,6 +140,8 @@ function parseEntry(rawText, domIndex, lineNo, el) {
     tag: '',
     event: '',
     eventParams: null,
+    traceVerb: '',
+    traceParams: null,
     message: rawText,
     signature: '',
     http: null,
@@ -164,6 +177,15 @@ function parseEntry(rawText, domIndex, lineNo, el) {
   if (event) {
     entry.event = event[1];
     entry.eventParams = parseEventParams(entry.message);
+  }
+
+  // indexOf chan truoc: chi dong Grafana moi mang trace, chay regex tren moi dong la vo ich.
+  if (entry.message.indexOf('@@ grafana >> ') >= 0) {
+    const traceVerb = RE_TRACE_VERB.exec(entry.message);
+    if (traceVerb) {
+      entry.traceVerb = traceVerb[1];
+      entry.traceParams = parseTraceParameter(entry.message);
+    }
   }
 
   entry.http = parseHttpFields(body);

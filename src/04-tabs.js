@@ -220,7 +220,54 @@ function renderIssuesTab() {
     escapeHtml(tabUiState.issueQuery) + '">' +
     '<div class="fll-hint" style="margin:6px 0 10px">Bấm một nhóm để nhảy đến, rồi <b>n</b> / <b>p</b> đi tiếp. ' +
     'Bấm &#128263; để tắt tiếng chữ ký nhiễu — nhớ luôn cho các feedback mở sau này.</div>' +
+    renderTraceFailSection(data) +
+    '<div class="fll-sec">Nhóm theo chữ ký dòng log</div>' +
     '<div id="fll-issue-list">' + renderIssueList() + '</div>';
+}
+
+// Dat TRUOC danh sach nhom chu ky vi day la loai loi ma danh sach do khong the thay: Grafana ghi o
+// muc INFO. Mot log co the khong co dong Grafana nao — luc do phai noi thang la khong co, chu de
+// trong thi nguoi doc tuong la "khong co loi".
+function renderTraceFailSection(data) {
+  const trace = data.traceIssues;
+  if (!trace.available) {
+    return '<div class="fll-sec">Lỗi từ Grafana trace</div>' +
+      '<div class="fll-hint" style="margin-bottom:4px">Log này <b>không có dòng Grafana trace nào</b>. ' +
+      'Những dòng đó chỉ được ghi khi máy gửi feedback bật Debug Tool, nên vắng mặt là bình thường — ' +
+      'chỉ là ở log này không có thêm nguồn lỗi nào ngoài các nhóm chữ ký bên dưới.</div>';
+  }
+  if (!trace.fails.length) {
+    return '<div class="fll-sec">Lỗi từ Grafana trace</div>' +
+      '<div class="fll-hint" style="margin-bottom:4px">Có <b>' + trace.lineCount + '</b> dòng Grafana trace ' +
+      'nhưng <b>không có <code>traceFail</code></b> nào — theo Grafana thì không luồng nào báo lỗi.</div>';
+  }
+
+  return '<div class="fll-sec">Lỗi từ Grafana trace</div>' +
+    '<div class="fll-hint" style="margin-bottom:8px">Đọc từ <code>traceFail</code> — mang sẵn ' +
+    '<code>errorCode</code> và <code>errorMessage</code>, mô tả lỗi rõ hơn hầu hết dòng ERROR trong log, ' +
+    'nhưng ghi ở mức <b>INFO</b> nên các nhóm chữ ký bên dưới không đếm chúng. Gom theo ' +
+    '<code>errorMessage</code>: một sự cố hạ tầng hiện ra ở nhiều app khác nhau vẫn về <b>một</b> hàng.' +
+    '</div>' + trace.fails.map(renderTraceFailCard).join('');
+}
+
+function renderTraceFailCard(row, rowIndex) {
+  const meta = [];
+  if (row.apps.length > 1) meta.push('<b>' + row.apps.length + ' app</b>');
+  else if (row.apps.length === 1) meta.push(escapeHtml(row.apps[0]));
+  if (row.steps.length) {
+    meta.push(escapeHtml(row.steps.slice(0, 3).join(', ')) +
+      (row.steps.length > 3 ? ' +' + (row.steps.length - 3) : ''));
+  }
+  return '<div class="fll-grp err" data-tracefail="' + rowIndex + '" title="' +
+    escapeHtml(row.apps.join('\n')) + '">' +
+    '<div class="fll-grp-top">' +
+    '<span class="fll-cnt">' + row.count + '&times;</span>' +
+    (row.codes.length ? '<span class="fll-mod">code ' + escapeHtml(row.codes.join('/')) + '</span>' : '') +
+    '<span class="fll-when">' + formatClock(row.firstTs) +
+    (row.count > 1 ? ' &rarr; ' + formatClock(row.lastTs) : '') + '</span></div>' +
+    '<div class="fll-msg">' + escapeHtml(row.key) +
+    (meta.length ? '<br><span style="opacity:.6">' + meta.join(' · ') + '</span>' : '') +
+    '</div></div>';
 }
 
 /* --------------------------------------------------------------------- HTTP */

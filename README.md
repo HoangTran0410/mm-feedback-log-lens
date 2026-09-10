@@ -29,10 +29,10 @@ bản build thì ngược lại: khối ngay dưới do `build.sh` ghi lại m�
 
 | | |
 |---|---|
-| `dist/lens.js` | **170 KB** (174,373 bytes) |
-| Nguồn | 3,933 dòng trong 7 file `src/` |
+| `dist/lens.js` | **178 KB** (181,837 bytes) |
+| Nguồn | 4,079 dòng trong 7 file `src/` |
 | Dependency lúc chạy | không có |
-| Test | 43 phép thử, `node test/run.js` |
+| Test | 55 phép thử, `node test/run.js` |
 
 <!-- /build-stats -->
 
@@ -54,7 +54,7 @@ bản build thì ngược lại: khối ngay dưới do `build.sh` ghi lại m�
 | Tab | Trả lời câu hỏi |
 |---|---|
 | **Tổng quan** | User gặp chuyện gì, lúc nào, ở màn nào? Log có gì bất thường? |
-| **Vấn đề** | Thật sự có mấy loại lỗi khác nhau? Mỗi loại bao nhiêu lần, lúc nào? |
+| **Vấn đề** | Thật sự có mấy loại lỗi khác nhau? Mỗi loại bao nhiêu lần, lúc nào? Có sự cố hạ tầng nào đứng sau không? |
 | **HTTP** | Call nào fail, `errorCode` bao nhiêu, call nào không có response? |
 | **Chậm** | Thao tác nào tốn thời gian nhất? |
 | **Lọc** | Chỉ hiện dòng của module X / mức ERROR / phiên 2 / khớp regex. |
@@ -91,6 +91,33 @@ Ba thứ **cố ý không** scope:
 - **Chuỗi theo ID** cũng không scope: xem một request thì phải xem trọn vẹn.
 
 ### Năm thứ tiết kiệm nhiều thời gian nhất
+
+**Lỗi từ Grafana trace.** Ngoài các nhóm chữ ký dòng log, tab Vấn đề còn đọc `traceFail` của
+`[Module: Grafana]`. Những dòng này mang sẵn `flow` + `step` + `errorCode` + `errorMessage` — mô tả
+lỗi rõ hơn hầu hết dòng ERROR trong log — nhưng ghi ở mức **INFO** nên phần gom nhóm không đếm chúng.
+
+Chúng được gom theo **`errorMessage`**, không theo `step`. Lý do nằm trong `GrafanaTracker.generateParams`:
+
+```kotlin
+if (!isPlatform(appId) && !isComposeApp(appId) && params.isStaticFlow != true) {
+    this.flow = this.appId
+    this.step = "${params.flow}.${params.step}"
+}
+```
+
+Với miniapp thì `flow` bị ghi đè bằng `appId` và `step` bị đổi thành `"flow.step"`, nên **một** sự cố
+hạ tầng hiện ra thành hàng chục dòng trông khác nhau. Gom theo `errorMessage` thì chúng về một hàng,
+kèm số app bị ảnh hưởng — đo trên một log thật: 45 lần cùng lỗi `500 - B07 No version found from
+remote` trải khắp **16 miniapp**, gộp lại thành một hàng thay vì 16 dòng rời tưởng là 16 sự cố lẻ.
+
+Khi `errorMessage` rỗng thì gom theo tên bước, **không** gom theo mỗi `errorCode`: trên log thật,
+gom theo mã sẽ nhét chung `TransactionResultV3_call_api_V1_REWARDS_PREDICT` với
+`TabBarContainer_call_api_RIGVER_APPVERSION_V1_FEATURES` chỉ vì cả hai đều là `code 200`.
+
+Dòng Grafana chỉ được ghi khi máy gửi feedback bật Debug Tool, nên **có log không có dòng nào**. Lúc
+đó tab Vấn đề nói thẳng là log này không có, chứ không để trống — để trống thì người đọc tưởng là
+không có lỗi. Đã chạy trên cả log UAT lẫn log production; hai môi trường khác nhau ở lượng dữ liệu
+chứ không khác định dạng.
 
 **Tương tác của user.** Mọi event `[Module: MoMoTracker]` đều ghi ở mức **INFO**, nên phần gom nhóm lỗi
 (chỉ đọc ERROR/WARNING) không bao giờ nhắc tới chúng — kể cả khi log đang nói user vừa bị một popup

@@ -32,6 +32,11 @@ function tracker(event, params, advanceMs) {
   line('INFO', '[Module: MoMoTracker] event: ' + event + ' | params: {' + params + '}', advanceMs);
 }
 
+function grafana(verb, params, advanceMs) {
+  line('INFO', '[Module: Grafana] @@ grafana >> ' + verb +
+    ' >> generateParams >> parameter: TraceParameter(' + params + ')', advanceMs);
+}
+
 function build() {
   lines.length = 0;
   clock = Date.UTC(2026, 0, 2, 3, 0, 0);
@@ -90,6 +95,18 @@ function build() {
 
   // --- event co ten nhung KHONG co params (log that co dang "... does not exist in Whitelist")
   line('INFO', '[Module: MoMoTracker] event: su_kien_bia does not exist in Whitelist');
+
+  // --- Grafana trace. traceFail o muc INFO nen khong nhom chu ky nao dem duoc.
+  grafana('startTrace', 'flow=luong_bia, step=buoc_mot_start, appId=vn.gia.lap, errorCode=null, errorMessage=null');
+  grafana('traceSuccess', 'flow=luong_bia, step=buoc_mot_success, appId=vn.gia.lap, errorCode=null, errorMessage=null');
+
+  // Mot su co "ha tang": CUNG errorMessage nhung o HAI app khac nhau -> phai ve MOT hang, apps=2
+  grafana('traceFail', 'flow=vn.gia.lapmot, step=miniapp.lay_ban_fail, appId=vn.gia.lapmot, errorCode=500.0, errorMessage=500 - khong tim thay ban nao');
+  grafana('traceFail', 'flow=vn.gia.laphai, step=miniapp.lay_ban_fail, appId=vn.gia.laphai, errorCode=500.0, errorMessage=500 - khong tim thay ban nao');
+
+  // Hai loi KHONG co errorMessage, cung errorCode nhung KHAC buoc -> phai la HAI hang rieng
+  grafana('traceFail', 'flow=nen_tang, step=ManHinhMot_goi_api_ALPHA_fail, appId=vn.gia.lap, errorCode=200.0, errorMessage=null');
+  grafana('traceFail', 'flow=nen_tang, step=ManHinhHai_goi_api_BETA_fail, appId=vn.gia.lap, errorCode=200.0, errorMessage=null');
 
   return lines.slice();
 }

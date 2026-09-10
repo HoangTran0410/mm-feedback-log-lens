@@ -220,6 +220,41 @@ check('journey ton trong bo loc, khong phai luc nao cung ca file', () => {
     'loc hep lai thi so buoc phai giam: ' + scoped.journey.steps.length + ' vs ' + journey.steps.length);
 });
 
+/* ------------------------------------------------------------ Grafana trace */
+
+check('nhan ra log CO Grafana trace', () => {
+  ok(data.traceIssues.available, 'phai bao la co');
+  eq(data.traceIssues.counts.startTrace, 1, 'so startTrace');
+  eq(data.traceIssues.counts.traceSuccess, 1, 'so traceSuccess');
+  eq(data.traceIssues.counts.traceFail, 4, 'so traceFail');
+});
+
+check('traceFail cung errorMessage o nhieu app gom ve MOT hang', () => {
+  const row = data.traceIssues.fails.find((r) => r.key.indexOf('khong tim thay ban nao') >= 0);
+  ok(row, 'phai co hang do; hien co: ' + data.traceIssues.fails.map((r) => r.key).join(' | '));
+  eq(row.count, 2, 'so lan');
+  eq(row.apps.length, 2, 'so app bi anh huong');
+  eq(row.steps.length, 1, 'goc buoc chung sau khi bo tien to flow va hau to _fail');
+  eq(row.steps[0], 'lay_ban', 'ten buoc goc');
+});
+
+check('traceFail khong co errorMessage thi tach theo buoc, khong gom theo moi ma loi', () => {
+  const rows = data.traceIssues.fails.filter((r) => r.codes.indexOf('200') >= 0);
+  eq(rows.length, 2, 'hai buoc khac nhau phai la hai hang');
+  ok(rows.every((r) => r.key.indexOf('errorCode 200') >= 0), 'nhan phai kem ma loi');
+});
+
+check('traceFail KHONG lot vao nhom chu ky (vi no la INFO)', () => {
+  ok(data.groups.every((g) => g.sample.indexOf('khong tim thay ban nao') < 0),
+    'dong Grafana muc INFO khong duoc gom vao nhom ERROR/WARNING');
+});
+
+check('tab Van de co nhac toi loi Grafana', () => {
+  const html = L.renderIssuesTab();
+  ok(html.indexOf('Grafana trace') >= 0, 'phai co muc');
+  ok(html.indexOf('khong tim thay ban nao') >= 0, 'phai hien noi dung loi');
+});
+
 /* ------------------------------------------------------- render moi tab, moi trang thai */
 
 function renderAll(label) {
@@ -253,6 +288,20 @@ check('badge cua moi tab tinh duoc, khong ngã', () => {
     if (tab.badge) tab.badge(data);
   });
 });
+
+// log khong co dong Grafana nao — phai BAO la khong co, khong duoc de trong
+rows = fixture.build().filter((text) => text.indexOf('[Module: Grafana]') < 0).map(makeRow);
+scan();
+check('log khong co Grafana: bao ro la khong co', () => {
+  const trace = L.lensState.data.traceIssues;
+  eq(trace.available, false, 'available');
+  eq(trace.lineCount, 0, 'lineCount');
+  eq(trace.fails.length, 0, 'so hang loi');
+  const html = L.renderIssuesTab();
+  ok(html.indexOf('không có dòng Grafana trace nào') >= 0,
+    'tab Van de phai noi thang la log nay khong co');
+});
+renderAll('log khong co Grafana');
 
 // log khong co dong tracker nao
 rows = fixture.build().filter((text) => text.indexOf('MoMoTracker') < 0).map(makeRow);

@@ -23,6 +23,8 @@ const RE_FLOW_STRIP = /\[Flow: [^\]]+\]\s*/g;
 const RE_TAG = /@@([A-Za-z][A-Za-z0-9_]*)/;
 const RE_EVENT = /\bevent: ([a-z0-9_]+)/;
 const RE_EVENT_PARAMS = /\| params: (\{[\s\S]*\})/;
+const RE_TRACE_VERB = /@@ grafana >> ([a-zA-Z]+) >>/;
+const RE_TRACE_PARAM = /TraceParameter\((.*)\)\s*$/;
 const RE_METHOD = /\[Method: ([A-Z]+)\]/;
 const RE_URL = /\[URL: (\S+?)\]/;
 const RE_STATUS = /--status: (\d+)/;
@@ -113,6 +115,15 @@ function parseEventParams(message) {
   return hit ? parseKeyValueMap(hit[1]) : null;
 }
 
+// Grafana ghi tham so duoi dang TraceParameter(k=v, k=v) — cung mot dinh dang k=v voi params cua
+// tracker, chi khac cap bao ngoai. Boc lai thanh {k=v} de dung chung parseKeyValueMap, huong luon
+// ca phan noi lai manh bi dau phay xe doi. Do tren hai log that (mot UAT, mot prod): 3904/3904 dong
+// TraceParameter parse ra map co truong flow.
+function parseTraceParameter(message) {
+  const hit = RE_TRACE_PARAM.exec(message);
+  return hit ? parseKeyValueMap('{' + hit[1] + '}') : null;
+}
+
 function parseEntry(rawText, domIndex, lineNo, el) {
   const entry = {
     domIndex,
@@ -130,6 +141,8 @@ function parseEntry(rawText, domIndex, lineNo, el) {
     tag: '',
     event: '',
     eventParams: null,
+    traceVerb: '',
+    traceParams: null,
     message: rawText,
     signature: '',
     http: null,
@@ -165,6 +178,15 @@ function parseEntry(rawText, domIndex, lineNo, el) {
   if (event) {
     entry.event = event[1];
     entry.eventParams = parseEventParams(entry.message);
+  }
+
+  // indexOf chan truoc: chi dong Grafana moi mang trace, chay regex tren moi dong la vo ich.
+  if (entry.message.indexOf('@@ grafana >> ') >= 0) {
+    const traceVerb = RE_TRACE_VERB.exec(entry.message);
+    if (traceVerb) {
+      entry.traceVerb = traceVerb[1];
+      entry.traceParams = parseTraceParameter(entry.message);
+    }
   }
 
   entry.http = parseHttpFields(body);
@@ -1071,6 +1093,78 @@ function buildJourney(entries) {
   };
 }
 
+/* -------------------------------------------------- loi doc tu Grafana trace */
+
+// Grafana ghi o muc INFO nen khong dong nao lot vao buildIssueGroups, trong khi traceFail mang san
+// flow + step + errorCode + errorMessage — tuc mo ta loi RO HON bat ky dong ERROR nao trong log.
+//
+// Gom theo errorMessage chu khong theo step: trong GrafanaTracker.generateParams, voi miniapp thi
+// `flow` bi ghi de bang appId va `step` bi doi thanh "flow.step", nen MOT su co ha tang hien ra
+// thanh hang chuc dong khac nhau. Do tren mot log that: cung mot loi "500 - B07 No version found
+// from remote" xuat hien o 17 miniapp khac nhau. Gom theo errorMessage thi 17 dong do ve mot hang,
+// kem so app bi anh huong — nhin la biet ngay ha tang chet chu khong phai bug cua tinh nang.
+const TRACE_VERBS = ['startTrace', 'traceSuccess', 'traceFail', 'countTrace', 'durationStopTrace',
+  'durationTrace', 'errorTrace'];
+
+// Hau to _start/_success/_fail do generateParams tu gan, va tien to "<flow>." cung do no gan khi
+// appId khong phai platform. Bo ca hai de con lai ten buoc that.
+function traceStepRoot(step) {
+  const text = journeyValue(step).replace(/_(start|success|fail|duration)$/i, '');
+  const dot = text.lastIndexOf('.');
+  return dot >= 0 ? text.slice(dot + 1) : text;
+}
+
+function buildTraceIssues(entries) {
+  const counts = {};
+  TRACE_VERBS.forEach((verb) => {
+    counts[verb] = 0;
+  });
+  let lineCount = 0;
+  const failMap = new Map();
+
+  entries.forEach((entry) => {
+    if (!entry.traceVerb) return;
+    lineCount += 1;
+    if (counts[entry.traceVerb] !== undefined) counts[entry.traceVerb] += 1;
+    if (entry.traceVerb !== 'traceFail' || !entry.traceParams) return;
+
+    const params = entry.traceParams;
+    const message = journeyValue(params.errorMessage);
+    const code = journeyValue(params.errorCode).replace(/\.0$/, '');
+    const step = traceStepRoot(params.step);
+    // Co errorMessage thi gom theo no — do moi la thu chung giua cac app cung dinh mot su co.
+    // Khong co thi KHONG duoc gom theo moi errorCode: tren mot log that, "code 200" om chung
+    // TransactionResultV3_call_api_V1_REWARDS_PREDICT va TabBarContainer_call_api_RIGVER_APPVERSION
+    // — hai chuyen khac han nhau. Luc do lay ten buoc lam khoa.
+    const key = message || (step ? step + (code ? ' · errorCode ' + code : '') : 'errorCode ' + code);
+
+    let row = failMap.get(key);
+    if (!row) {
+      row = { key, count: 0, indices: [], codes: new Set(), steps: new Set(), apps: new Set(),
+        firstTs: entry.ts, lastTs: entry.ts };
+      failMap.set(key, row);
+    }
+    row.count += 1;
+    row.indices.push(entry.domIndex);
+    if (code) row.codes.add(code);
+    if (step) row.steps.add(step);
+    const app = journeyValue(params.appId) || journeyValue(params.flow);
+    if (app) row.apps.add(app);
+    if (entry.ts) {
+      if (!row.firstTs || entry.ts < row.firstTs) row.firstTs = entry.ts;
+      if (!row.lastTs || entry.ts > row.lastTs) row.lastTs = entry.ts;
+    }
+  });
+
+  const fails = Array.from(failMap.values())
+    .map((row) => ({ key: row.key, count: row.count, indices: row.indices, firstTs: row.firstTs,
+      lastTs: row.lastTs, codes: Array.from(row.codes), steps: Array.from(row.steps),
+      apps: Array.from(row.apps) }))
+    .sort((a, b) => b.apps.length - a.apps.length || b.count - a.count);
+
+  return { available: lineCount > 0, lineCount, counts, fails };
+}
+
 // Moi thu phu thuoc "dang nhin nhung dong nao". Goi mot lan cho ca file luc quet,
 // va goi lai tren tap da loc moi khi bo loc doi — do duoc 2.5ms cho 4085 dong, 0.4ms cho tap ~850 dong.
 function deriveStats(entries) {
@@ -1094,6 +1188,7 @@ function deriveStats(entries) {
     flows: countBy(entries, (entry) => entry.flow),
     events: countBy(entries, (entry) => entry.event),
     journey: buildJourney(entries),
+    traceIssues: buildTraceIssues(entries),
   };
 }
 
@@ -2907,7 +3002,54 @@ function renderIssuesTab() {
     escapeHtml(tabUiState.issueQuery) + '">' +
     '<div class="fll-hint" style="margin:6px 0 10px">Bấm một nhóm để nhảy đến, rồi <b>n</b> / <b>p</b> đi tiếp. ' +
     'Bấm &#128263; để tắt tiếng chữ ký nhiễu — nhớ luôn cho các feedback mở sau này.</div>' +
+    renderTraceFailSection(data) +
+    '<div class="fll-sec">Nhóm theo chữ ký dòng log</div>' +
     '<div id="fll-issue-list">' + renderIssueList() + '</div>';
+}
+
+// Dat TRUOC danh sach nhom chu ky vi day la loai loi ma danh sach do khong the thay: Grafana ghi o
+// muc INFO. Mot log co the khong co dong Grafana nao — luc do phai noi thang la khong co, chu de
+// trong thi nguoi doc tuong la "khong co loi".
+function renderTraceFailSection(data) {
+  const trace = data.traceIssues;
+  if (!trace.available) {
+    return '<div class="fll-sec">Lỗi từ Grafana trace</div>' +
+      '<div class="fll-hint" style="margin-bottom:4px">Log này <b>không có dòng Grafana trace nào</b>. ' +
+      'Những dòng đó chỉ được ghi khi máy gửi feedback bật Debug Tool, nên vắng mặt là bình thường — ' +
+      'chỉ là ở log này không có thêm nguồn lỗi nào ngoài các nhóm chữ ký bên dưới.</div>';
+  }
+  if (!trace.fails.length) {
+    return '<div class="fll-sec">Lỗi từ Grafana trace</div>' +
+      '<div class="fll-hint" style="margin-bottom:4px">Có <b>' + trace.lineCount + '</b> dòng Grafana trace ' +
+      'nhưng <b>không có <code>traceFail</code></b> nào — theo Grafana thì không luồng nào báo lỗi.</div>';
+  }
+
+  return '<div class="fll-sec">Lỗi từ Grafana trace</div>' +
+    '<div class="fll-hint" style="margin-bottom:8px">Đọc từ <code>traceFail</code> — mang sẵn ' +
+    '<code>errorCode</code> và <code>errorMessage</code>, mô tả lỗi rõ hơn hầu hết dòng ERROR trong log, ' +
+    'nhưng ghi ở mức <b>INFO</b> nên các nhóm chữ ký bên dưới không đếm chúng. Gom theo ' +
+    '<code>errorMessage</code>: một sự cố hạ tầng hiện ra ở nhiều app khác nhau vẫn về <b>một</b> hàng.' +
+    '</div>' + trace.fails.map(renderTraceFailCard).join('');
+}
+
+function renderTraceFailCard(row, rowIndex) {
+  const meta = [];
+  if (row.apps.length > 1) meta.push('<b>' + row.apps.length + ' app</b>');
+  else if (row.apps.length === 1) meta.push(escapeHtml(row.apps[0]));
+  if (row.steps.length) {
+    meta.push(escapeHtml(row.steps.slice(0, 3).join(', ')) +
+      (row.steps.length > 3 ? ' +' + (row.steps.length - 3) : ''));
+  }
+  return '<div class="fll-grp err" data-tracefail="' + rowIndex + '" title="' +
+    escapeHtml(row.apps.join('\n')) + '">' +
+    '<div class="fll-grp-top">' +
+    '<span class="fll-cnt">' + row.count + '&times;</span>' +
+    (row.codes.length ? '<span class="fll-mod">code ' + escapeHtml(row.codes.join('/')) + '</span>' : '') +
+    '<span class="fll-when">' + formatClock(row.firstTs) +
+    (row.count > 1 ? ' &rarr; ' + formatClock(row.lastTs) : '') + '</span></div>' +
+    '<div class="fll-msg">' + escapeHtml(row.key) +
+    (meta.length ? '<br><span style="opacity:.6">' + meta.join(' · ') + '</span>' : '') +
+    '</div></div>';
 }
 
 /* --------------------------------------------------------------------- HTTP */
@@ -3631,7 +3773,7 @@ function mountPanel() {
 function handleLensClick(event) {
   const hit = event.target.closest('[data-act],[data-tab],[data-jump],[data-group],[data-module],' +
     '[data-level],[data-call],[data-bucket],[data-event],[data-saw],[data-apifail],' +
-    '[data-jscreen],[data-jtap]');
+    '[data-jscreen],[data-jtap],[data-tracefail]');
   if (!hit) return;
   // groups/httpCalls doc theo view (dang loc thi la cua tap dang hien, dung nhu tab vua ve);
   // correlations van lay tu data vi chuoi mot request phai xem tron ven.
@@ -3679,6 +3821,10 @@ function handleLensClick(event) {
   if (hit.dataset.jtap) {
     const row = view.journey.taps.find((item) => item.key === hit.dataset.jtap);
     return row ? setMatches(row.indices, 'Chạm · ' + row.key) : undefined;
+  }
+  if (hit.dataset.tracefail) {
+    const row = view.traceIssues.fails[Number(hit.dataset.tracefail)];
+    return row ? setMatches(row.indices, 'traceFail · ' + row.key.slice(0, 40)) : undefined;
   }
 
   const action = hit.dataset.act;
