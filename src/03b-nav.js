@@ -22,8 +22,7 @@ function jumpToIndex(domIndex) {
   if (lensState.el.lastHit && lensState.el.lastHit !== entry.el) lensState.el.lastHit.classList.remove('fll-hit');
   if (!isRowVisible(entry)) {
     lensState.forcedVisibleIndices.add(domIndex);
-    entry.el.classList.add('fll-keep');
-    entry.isKept = true;
+    forceRowVisible(entry);
   }
   entry.el.classList.add('fll-hit');
   lensState.el.lastHit = entry.el;
@@ -46,6 +45,21 @@ function setMatches(indices, label) {
   lensState.matchPos = indices.length ? 0 : -1;
   if (indices.length) jumpToIndex(indices[0]);
   renderFooter();
+  // Nhay mot cai khi co danh sach MOI. Thanh nay nam duoi cung panel nen nguoi dung hay khong nhan ra
+  // vua co gi do de duyet; nhay o day chi de keo mat xuong. Co y KHONG nhay moi lan bam n/p — luc do
+  // nguoi dung dang nhin no roi, nhay nua thanh phien.
+  flashFooter();
+}
+
+function flashFooter() {
+  const info = lensState.el.info;
+  const footer = info && info.parentElement;
+  if (!footer || !lensState.matches.length) return;
+  footer.classList.remove('fll-ft-flash');
+  // Doc lai offsetWidth de trinh duyet ket thuc animation cu truoc khi gan lai class,
+  // neu khong thi bam hai lan lien tiep se khong thay nhay lan thu hai.
+  void footer.offsetWidth;
+  footer.classList.add('fll-ft-flash');
 }
 
 function moveMatch(step) {
@@ -56,17 +70,27 @@ function moveMatch(step) {
   renderFooter();
 }
 
+// Thanh duoi cung tung luon hien va ghi "Chua chon gi de duyet" — dung nhung khong noi no LA gi,
+// nen nguoi dung nhin qua khong biet de lam gi, ma van chiem cho.
+// Nay AN HAN khi chua co gi de duyet. Chinh viec no hien ra (kem mot nhay mau accent) la loi gioi
+// thieu: no chi xuat hien dung luc vua co mot danh sach dong de di qua.
 function renderFooter() {
   const info = lensState.el.info;
   if (!info) return;
+  const footer = /** @type {HTMLElement | null} */ (info.parentElement);
   const total = lensState.matches.length;
+
+  if (footer) footer.hidden = !total;
   if (!total) {
-    info.innerHTML = '<span style="opacity:.7">Chưa chọn gì để duyệt</span>';
+    info.innerHTML = '';
     return;
   }
+
   const entry = lensState.data.entries[lensState.matches[Math.max(0, lensState.matchPos)]];
   info.innerHTML =
-    '<b>' + (lensState.matchPos + 1) + '/' + total + '</b> ' + escapeHtml(lensState.matchLabel) +
-    ' &middot; dòng <b>' + (entry ? entry.lineNo : '?') + '</b>';
+    '<span class="fll-ft-tag">đang duyệt</span>' +
+    '<b class="fll-ft-pos">' + (lensState.matchPos + 1) + '/' + total + '</b> ' +
+    '<span class="fll-ft-lbl">' + escapeHtml(lensState.matchLabel) + '</span>' +
+    '<span class="fll-ft-line">#<b>' + (entry ? entry.lineNo : '?') + '</b></span>';
 }
 // AI-GENERATED END

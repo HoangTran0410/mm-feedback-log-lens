@@ -61,7 +61,7 @@ function loadLens() {
   const src = fs.readFileSync(path.join(REPO, 'extension/lens.js'), 'utf8');
   const exportLine = 'globalThis.__LENS={analyzeLog,attachInsights,deriveStats,buildJourney,' +
     'parseKeyValueMap,renderSummaryTab,renderIssuesTab,renderHttpTab,renderSlowTab,renderFilterTab,' +
-    'renderTimelineTab,tabUiState,lensState,TAB_DEFS,TIMELINE_GROUPS};';
+    'renderTimelineTab,tabUiState,lensState,TAB_DEFS,TIMELINE_GROUPS,applyFilter};';
   const wired = src.replace(/\n\}\)\(\);\s*$/, '\n' + exportLine + '\n})();\n');
   if (wired === src) throw new Error('khong chen duoc dong export vao IIFE cua extension/lens.js');
   (0, eval)(wired);
@@ -261,6 +261,44 @@ check('tab Van de co nhac toi loi Grafana', () => {
   const html = L.renderIssuesTab();
   ok(html.indexOf('Grafana trace') >= 0, 'phai co muc');
   ok(html.indexOf('khong tim thay ban nao') >= 0, 'phai hien noi dung loi');
+});
+
+/* ------------------------------------------------- danh dau dong khi loc */
+
+check('loc HEP thi danh dau dong duoc giu', () => {
+  L.lensState.filter.levels.clear();
+  L.lensState.filter.levels.add('ERROR');
+  L.lensState.filter.hideOthers = true;
+  L.applyFilter(false);
+  eq(L.lensState.filterDomMode, 'keep', 'giu it dong thi danh dau phia giu');
+  const giu = data.entries.filter((e) => e.isMarked).length;
+  const tong = data.entries.length;
+  ok(giu * 2 <= tong, 'so dong mang dau (' + giu + ') phai la phia it hon trong ' + tong);
+});
+
+check('loc RONG thi dao lai, danh dau dong bi loai', () => {
+  L.lensState.filter.levels.clear();
+  // Giu gan het: bo moi muc TRU mot muc hiem
+  ['ERROR', 'WARNING', 'INFO'].forEach((lv) => L.lensState.filter.levels.add(lv));
+  L.applyFilter(false);
+  const giuLai = data.entries.filter((e) => e.isKept).length;
+  const mangDau = data.entries.filter((e) => e.isMarked).length;
+  eq(L.lensState.filterDomMode, 'drop', 'giu gan het thi phai dao sang danh dau phia bi loai');
+  ok(mangDau <= data.entries.length - giuLai + 1,
+    'so dau (' + mangDau + ') phai bam theo so dong BI LOAI, khong phai so dong giu (' + giuLai + ')');
+  ok(mangDau * 2 <= data.entries.length, 'va van la phia it hon');
+});
+
+check('doi qua doi lai khong de sot dau cu', () => {
+  L.lensState.filter.levels.clear();
+  L.lensState.filter.levels.add('ERROR');
+  L.applyFilter(false);
+  eq(L.lensState.filterDomMode, 'keep', 've lai che do keep');
+  // Moi dong mang dau deu phai la dong duoc giu; neu sot dau 'drop' cu thi dieu nay sai.
+  const sai = data.entries.filter((e) => e.isMarked && !e.isKept).length;
+  eq(sai, 0, 'khong dong nao vua mang dau vua bi loai');
+  L.lensState.filter.levels.clear();
+  L.applyFilter(false);
 });
 
 /* ------------------------------------------ miniapp tai loi + thoi gian tai */

@@ -29,10 +29,10 @@ bản build thì ngược lại: khối ngay dưới do `build.sh` ghi lại m�
 
 | | |
 |---|---|
-| `extension/lens.js` | **192 KB** (196,541 bytes) |
-| Nguồn | 4,400 dòng trong 17 file `src/` |
+| `extension/lens.js` | **199 KB** (204,174 bytes) |
+| Nguồn | 4,534 dòng trong 17 file `src/` |
 | Dependency lúc chạy | không có |
-| Test | 63 phép thử, `node test/run.js` |
+| Test | 66 phép thử, `node test/run.js` |
 
 <!-- /build-stats -->
 
@@ -501,10 +501,26 @@ việc thay bóng lúc kéo chỉ là phụ.
 
 Những chỗ đã tối ưu, đừng vô tình làm ngược lại:
 
-- **Lọc bằng cách đánh dấu dòng ĐƯỢC GIỮ**, không phải ẩn từng dòng bị loại: bật `.fll-filtering`
-  trên container rồi gắn `.fll-keep` cho vài chục dòng khớp. Cách cũ ghi class lên ~4000 dòng mỗi lần.
+- **Đánh dấu theo phía ÍT hơn.** Chi phí lọc nằm gần như hoàn toàn ở *số lần chạm class của dòng*,
+  không phải ở layout. Đo trên trang admin thật với **10 362 dòng**:
+
+  | thao tác | thời gian |
+  |---|---|
+  | 10k `classList.add` | **7 025ms** |
+  | bật `.fll-filtering` khi cả 10k dòng đều mang `.fll-keep` | 224ms |
+  | 83 `classList.add` | **5ms** |
+  | tắt lọc, hiện lại toàn bộ | 13ms |
+
+  10k lần chạm class đắt gấp **1 400 lần** 83 lần chạm. Vì thế lọc hẹp (vài chục dòng khớp) thì gắn
+  `.fll-keep` cho dòng **được giữ**; lọc rộng thì đảo lại, gắn `.fll-drop` cho dòng **bị loại** và bật
+  `.fll-dropping`. Số lần chạm luôn là `min(giữ, loại)`.
+
+  Lọc theo **phiên app** là ca bắt buộc phải có cách đảo này: một phiên có thể chiếm 10 279 / 10 362
+  dòng. Trước khi sửa, chọn phiên đó làm trang **đứng hình 7,1 giây**; sau khi sửa còn **dưới 300ms**.
 - `entry.isKept` phải luôn khớp class thật trên DOM, kể cả lúc không lọc — nhờ vậy lần lọc sau
-  chỉ ghi đúng phần chênh lệch.
+  chỉ ghi đúng phần chênh lệch. Guard `entry.isMarked !== wanted` là thiết yếu chứ không phải tối ưu
+  vụn: đo cho thấy gọi `classList.remove` lên cả 10 362 dòng (dù chỉ 83 dòng thật sự mang class) vẫn
+  tốn **6 484ms** — trình duyệt tính tiền theo lần chạm, không theo số dòng đổi thật.
 - **Chữ ký chỉ tính cho dòng ERROR/WARNING.** Tính cho cả 4085 dòng nghĩa là chạy 7 lượt `replace`
   trên những dòng payload HTTP dài 10KB mà không ai dùng tới — riêng việc này chiếm gần nửa thời gian khởi động.
 - `buildCorrelations` và `extractDurations` **sàng bằng `indexOf` trước khi chạy regex**.

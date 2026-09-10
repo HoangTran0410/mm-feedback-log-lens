@@ -128,11 +128,22 @@ function togglePayloadWrap(button) {
   button.className = 'fll-chip' + (payloadSheetState.isWrapped ? ' on' : '');
 }
 
-function renderPayloadToolbar(tabsHtml) {
+// Nut "Nhay toi dong" nam tren thanh cong cu dau tam truot, khong phai duoi cung: payload JSON dai
+// toi 10KB nen truoc day phai cuon het ca khoi du lieu moi thay no. Thanh nay con dinh lai khi cuon
+// (position:sticky) de doc giua chung van bam duoc.
+// Hai hang co chu dich, khong nhoi tat ca vao mot hang: do that tren panel 480px cho thay nhoi chung
+// thi tong be ngang cac nut vuot khung 61px va tu vo thanh hai hang loi lom.
+// Hang tren la tab Request/Response, hang duoi la hanh dong. Ca khoi dinh lai khi cuon.
+function renderPayloadToolbar(tabsHtml, domIndex, lineNo) {
+  const jump = domIndex == null ? '' :
+    '<button class="fll-btn fll-mini pri" data-jump="' + domIndex + '" ' +
+    'title="Cuộn bảng log tới đúng dòng này">&#8629; Dòng ' + lineNo + '</button>';
   const wrap = '<button class="fll-chip' + (payloadSheetState.isWrapped ? ' on' : '') +
     '" data-act="toggleWrap" title="Xuống dòng thay vì cuộn ngang">&#8629; Xuống dòng</button>';
-  if (!tabsHtml) return '<div class="fll-row fll-paybar">' + '<div class="fll-hd-sp"></div>' + wrap + '</div>';
-  return '<div class="fll-stabs">' + tabsHtml + '<div class="fll-hd-sp"></div>' + wrap + '</div>';
+  return '<div class="fll-paytop">' +
+    (tabsHtml ? '<div class="fll-stabs">' + tabsHtml + '</div>' : '') +
+    '<div class="fll-row fll-paybar">' + jump + '<div class="fll-hd-sp"></div>' + wrap + '</div>' +
+    '</div>';
 }
 
 function renderPayloadBody(domIndex, tabsHtml) {
@@ -140,11 +151,9 @@ function renderPayloadBody(domIndex, tabsHtml) {
   if (!entry) return null;
   const sections = buildPayloadSections(entry.raw);
   const body = sections.length
-    ? sections.map(renderPayloadSection).join('') +
-      '<div class="fll-row" style="margin-top:12px">' +
-      '<button class="fll-btn pri" data-jump="' + domIndex + '">Nhảy tới dòng ' + entry.lineNo + '</button></div>'
+    ? sections.map(renderPayloadSection).join('')
     : '<div class="fll-empty">Dòng này không có khối dữ liệu nào.</div>';
-  return { entry, html: renderPayloadToolbar(tabsHtml || '') + body };
+  return { entry, html: renderPayloadToolbar(tabsHtml || '', domIndex, entry.lineNo) + body };
 }
 
 function formatBytes(count) {

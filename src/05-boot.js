@@ -87,8 +87,8 @@ function disposeSelf(shouldRestorePage) {
   clearInputTimers();
   if (lensState.el.root) lensState.el.root.remove();
   if (shouldRestorePage) {
-    document.querySelectorAll('.fll-filtering, .fll-hit')
-      .forEach((el) => el.classList.remove('fll-filtering', 'fll-hit'));
+    document.querySelectorAll('.fll-filtering, .fll-dropping, .fll-drop, .fll-hit')
+      .forEach((el) => el.classList.remove('fll-filtering', 'fll-dropping', 'fll-drop', 'fll-hit'));
   }
 }
 
@@ -200,8 +200,8 @@ function rescan() {
 function closeLens() {
   const root = document.getElementById(ROOT_ID);
   if (root) root.remove();
-  document.querySelectorAll('.fll-filtering, .fll-hit')
-    .forEach((el) => el.classList.remove('fll-filtering', 'fll-hit'));
+  document.querySelectorAll('.fll-filtering, .fll-dropping, .fll-drop, .fll-hit')
+    .forEach((el) => el.classList.remove('fll-filtering', 'fll-dropping', 'fll-drop', 'fll-hit'));
   lensState.el.root = null;
   lensState.el.panel = null;
   lensState.data = null;
@@ -218,8 +218,8 @@ function detachLens() {
   // ke tiep. Con sot .fll-filtering/.fll-keep thi feedback moi chi hien vai chuc dong trong khi panel
   // bao "khong co bo loc nao" — dung kieu sai ma nguoi dung khong biet.
   setLogFilteringMode(false);
-  document.querySelectorAll('.fll-keep, .fll-hit')
-    .forEach((el) => el.classList.remove('fll-keep', 'fll-hit'));
+  document.querySelectorAll('.fll-keep, .fll-drop, .fll-hit')
+    .forEach((el) => el.classList.remove('fll-keep', 'fll-drop', 'fll-hit'));
   lensState.el = { root: null, panel: null };
   lensState.data = null;
   lensState.view = null;
@@ -298,10 +298,10 @@ function mountPanel() {
     'kéo giữa vùng sáng để dời, kéo mép để co giãn, nháy đúp để bỏ chọn."></div>' +
     '<div class="fll-maplbl"></div>' +
     '<div class="fll-body"></div>' +
-    '<footer class="fll-ft">' +
-    '<button class="fll-ico" data-act="prev" title="Trước (p)">◀</button>' +
+    '<footer class="fll-ft" hidden>' +
+    '<button class="fll-nav" data-act="prev" title="Dòng trước — phím p">&#9664;<em>p</em></button>' +
     '<div class="fll-info"></div>' +
-    '<button class="fll-ico" data-act="next" title="Sau (n)">▶</button></footer>' +
+    '<button class="fll-nav" data-act="next" title="Dòng sau — phím n"><em>n</em>&#9654;</button></footer>' +
     '<div class="fll-corner" title="Kéo để đổi cả chiều rộng và chiều cao"></div></div>';
 
   const panel = root.querySelector('.fll-panel');
@@ -482,6 +482,13 @@ function handleLensClick(event) {
   if (action === 'gotoIssues') return switchTab('iss');
   if (action === 'gotoHttp') return switchTab('http');
   if (action === 'gotoTimeline') return switchTab('tl');
+  if (action === 'gotoSessions') {
+    switchTab('flt');
+    // Tab Loc co 9 muc; nhay thang toi muc Phien app thay vi de nguoi dung tu do tim.
+    const chip = lensState.el.body && lensState.el.body.querySelector('[data-act="setSession"]');
+    if (chip) chip.scrollIntoView({ block: 'center' });
+    return undefined;
+  }
   if (action === 'issueLevel') {
     tabUiState.issueLevel = value;
     return renderTab();

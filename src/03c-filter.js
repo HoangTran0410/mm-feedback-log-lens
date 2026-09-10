@@ -20,15 +20,66 @@ function hasAnyFilterFacet() {
 }
 
 // Mot lan ghi class len container thay cho hang nghin lan ghi len tung dong.
-function setLogFilteringMode(isFiltering) {
+function setLogFilteringMode(isFiltering, mode) {
   const container = lensState.data && lensState.data.container;
   if (!container) return;
-  container.classList.toggle('fll-filtering', isFiltering);
+  container.classList.toggle('fll-filtering', isFiltering && mode !== 'drop');
+  container.classList.toggle('fll-dropping', isFiltering && mode === 'drop');
   lensState.isFiltering = isFiltering;
+}
+
+// Chi phi loc nam gan nhu HOAN TOAN o so lan cham vao class cua dong, khong phai o layout.
+// Do that tren trang admin voi 10362 dong:
+//   10k classList.add            -> 7025ms
+//   bat .fll-filtering khi ca 10k dong deu co .fll-keep -> 224ms
+//   83 classList.add             -> 5ms
+//   tat loc, hien lai toan bo    -> 13ms
+// Tuc 10k lan cham class dat gap 1400 lan so voi 83 lan. Vi vay danh dau theo phia IT HON:
+// loc hep (vai chuc dong) thi danh dau dong DUOC GIU, loc rong (loc theo phien app — mot phien
+// co the la 10279/10362 dong) thi danh dau dong BI LOAI. So lan cham luon la min(giu, loai).
+function pickRowMarkMode(visibleCount, total) {
+  return visibleCount * 2 > total ? 'drop' : 'keep';
+}
+
+function applyRowMarks(entries, keepFlags, isFiltering, mode) {
+  // Doi cach danh dau thi phai go het dau cu truoc, neu khong dong mang dau cu se an/hien sai.
+  if (lensState.filterDomMode !== mode) {
+    const stale = lensState.filterDomMode === 'drop' ? 'fll-drop' : 'fll-keep';
+    entries.forEach((entry) => {
+      if (entry.isMarked && entry.el) entry.el.classList.remove(stale);
+      entry.isMarked = false;
+    });
+    lensState.filterDomMode = mode;
+  }
+
+  const cls = mode === 'drop' ? 'fll-drop' : 'fll-keep';
+  entries.forEach((entry, index) => {
+    const keep = keepFlags[index] === 1;
+    entry.isKept = keep;
+    if (!isFiltering || !entry.el) return;
+    // Che do 'drop' danh dau dong BI LOAI, nen dau can gan la phu dinh cua keep.
+    const wanted = mode === 'drop' ? !keep : keep;
+    if (entry.isMarked !== wanted) {
+      entry.el.classList.toggle(cls, wanted);
+      entry.isMarked = wanted;
+    }
+  });
 }
 
 function isRowVisible(entry) {
   return !lensState.isFiltering || entry.isKept === true;
+}
+
+// Ep mot dong hien ra du bo loc dang giau no — cach ep phu thuoc dang danh dau nao dang dung.
+function forceRowVisible(entry) {
+  if (!entry.el) return;
+  if (lensState.filterDomMode === 'drop') {
+    entry.el.classList.remove('fll-drop');
+  } else {
+    entry.el.classList.add('fll-keep');
+  }
+  entry.isMarked = lensState.filterDomMode !== 'drop';
+  entry.isKept = true;
 }
 
 function compileFilter() {
@@ -125,20 +176,22 @@ function computeFilteredIndices() {
   // Ham nay tinh lai toan bo trang thai nen moi dong tung duoc "ep hien" tro ve chuan.
   lensState.forcedVisibleIndices.clear();
   const isFiltering = filter.hideOthers && hasAnyFilterFacet();
+  const entries = lensState.data.entries;
   const visible = [];
-  lensState.data.entries.forEach((entry) => {
-    const keep = entryMatches(entry, compiled, null);
-    if (keep) visible.push(entry.domIndex);
-    // Chi danh dau dong DUOC GIU (thuong vai chuc) thay vi an tung dong bi loai (thuong ~4000).
-    // Khi khong loc thi khong dung toi DOM: class tren container tat la moi dong tu hien lai,
-    // va entry.isKept van khop voi class dang co nen lan loc sau chi ghi dung phan chenh lech.
-    if (isFiltering && entry.el && entry.isKept !== keep) {
-      entry.el.classList.toggle('fll-keep', keep);
-      entry.isKept = keep;
-    }
+  // Tinh xong het roi moi dung toi DOM: phai biet tong so dong duoc giu thi moi chon duoc
+  // danh dau theo phia nao cho it thao tac hon.
+  const keepFlags = new Uint8Array(entries.length);
+  entries.forEach((entry, index) => {
+    if (!entryMatches(entry, compiled, null)) return;
+    keepFlags[index] = 1;
+    visible.push(entry.domIndex);
   });
-  setLogFilteringMode(isFiltering);
-  lensState.visibleCount = isFiltering ? visible.length : lensState.data.entries.length;
+  // Khi khong loc thi giu nguyen cach danh dau dang co: class tren container tat la moi dong tu
+  // hien lai, va dau tren dong van khop nen lan loc sau chi ghi dung phan chenh lech.
+  const mode = isFiltering ? pickRowMarkMode(visible.length, entries.length) : lensState.filterDomMode;
+  applyRowMarks(entries, keepFlags, isFiltering, mode);
+  setLogFilteringMode(isFiltering, mode);
+  lensState.visibleCount = isFiltering ? visible.length : entries.length;
   lensState.lastFilterResult = { visible, isBadPattern };
   buildView();
   return lensState.lastFilterResult;

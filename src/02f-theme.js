@@ -201,10 +201,18 @@ const PANEL_CSS = [
   '.fll-jn{color:var(--warn)}',
   '.fll-jb{color:#c79bff}',
   /* Thanh doi Request / Response: dung lai dang tab cua panel de nhat quan, size nam trong badge. */
-  '.fll-stabs{display:flex;align-items:flex-end;gap:4px;border-bottom:1px solid var(--line);margin-bottom:13px}',
+  /* Thanh cong cu cua tam truot dinh lai khi cuon: payload JSON dai toi 10KB, cuon giua chung van
+     phai bam duoc "Toi dong" va doi Request/Response. Cung ba dieu kien nhu .fll-sec — nen duc,
+     tran het be ngang bang margin ngang am, va top am dung bang padding cua vung cuon. */
+  '.fll-paytop{position:sticky;top:calc(var(--pad-y,14px) * -1);z-index:4;background:var(--bg);',
+  'margin:calc(var(--pad-y,14px) * -1) calc(var(--pad-x,16px) * -1) 12px;',
+  'padding:var(--pad-y,14px) var(--pad-x,16px) 8px;border-bottom:1px solid var(--line)}',
+  '.fll-stabs{display:flex;align-items:flex-end;gap:4px;border-bottom:1px solid var(--line);margin-bottom:8px}',
   '.fll-stabs .fll-tab{flex:0 0 auto;padding:5px 12px 8px}',
   '.fll-stabs .fll-chip,.fll-paybar .fll-chip{margin-bottom:6px}',
-  '.fll-paybar{margin-bottom:8px}',
+  '.fll-paybar{margin:0;gap:6px}',
+  '.fll-paybar .fll-btn.fll-mini{flex:0 0 auto}',
+  '.fll-paybar .fll-chip{margin:0}',
   '.fll-pay{margin-bottom:14px}',
   '.fll-pay:last-child{margin-bottom:0}',
   '.fll-pay-hd{display:flex;align-items:center;gap:8px;margin-bottom:7px;min-height:24px;flex-wrap:wrap}',
@@ -344,11 +352,35 @@ const PANEL_CSS = [
 
   /* ---------- footer dieu huong ---------- */
   /* Chua padding-right rong hon de nut ">" khong nam duoi tay nam keo goc. */
-  '.fll-ft{display:flex;align-items:center;gap:8px;padding:11px 30px 11px 14px;',
-  'border-top:1px solid var(--line);background:linear-gradient(0deg,#241f31,#1a1723);flex:0 0 auto}',
-  '.fll-ft .fll-info{flex:1;font-size:11px;color:var(--mut);overflow:hidden;text-overflow:ellipsis;',
-  'white-space:nowrap}',
+  /* Thanh nay nam duoi cung nen de bi bo qua, ma luon hien thi lai ton cho khi khong co viec.
+     Nay chi hien khi that su co danh sach dong de duyet — viec no XUAT HIEN chinh la loi gioi thieu.
+     [hidden] phai ghi ro vi display:flex ben duoi se de len mac dinh cua thuoc tinh hidden. */
+  '.fll-ft[hidden]{display:none}',
+  '.fll-ft{display:flex;align-items:center;gap:6px;padding:9px 30px 9px 8px;',
+  'border-top:1px solid var(--line);background:linear-gradient(0deg,#241f31,#1a1723);flex:0 0 auto;',
+  'transition:background .18s,border-color .18s}',
+  '.fll-ft{border-top:2px solid var(--acc);background:linear-gradient(0deg,#2c2235,#221b2c)}',
+  '.fll-ft .fll-info{flex:1;min-width:0;font-size:11px;color:var(--mut);display:flex;align-items:center;',
+  'gap:6px;overflow:hidden}',
   '.fll-ft .fll-info b{color:var(--txt);font-weight:650;font-variant-numeric:tabular-nums}',
+  '.fll-ft-tag{flex:0 0 auto;font-size:8px;font-weight:800;letter-spacing:.5px;text-transform:uppercase;',
+  'color:var(--acc);background:rgba(255,46,136,.14);padding:2px 5px;border-radius:20px}',
+  '.fll-ft-pos{flex:0 0 auto;font-size:12px}',
+  '.fll-ft-lbl{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
+  '.fll-ft-line{flex:0 0 auto;color:var(--mut)}',
+
+  /* Nut duyet: truoc chi la mui ten 28px khong nhan, nguoi dung khong biet co phim tat.
+     Nay deo luon chu phim ngay tren nut. */
+  '.fll-nav{display:flex;align-items:center;gap:3px;padding:5px 7px;border-radius:8px;',
+  'border:1px solid var(--line);background:var(--bg2);color:var(--mut);font-size:10px;cursor:pointer;',
+  'transition:.14s;flex:0 0 auto}',
+  '.fll-nav em{font-style:normal;font-size:9.5px;font-weight:800;background:var(--bg3);color:var(--mut);',
+  'padding:1px 5px;border-radius:4px}',
+  '.fll-nav{color:var(--txt);border-color:rgba(255,46,136,.4)}',
+  '.fll-nav em{background:rgba(255,46,136,.18);color:var(--acc)}',
+  '.fll-nav:hover{border-color:var(--acc);color:var(--txt)}',
+  '.fll-ft-flash{animation:fll-ftflash .55s ease-out}',
+  '@keyframes fll-ftflash{0%{background:rgba(255,46,136,.32)}100%{background:linear-gradient(0deg,#2c2235,#221b2c)}}',
 
   /* ---------- pill khi thu nho ---------- */
   '.fll-pill{position:fixed;right:18px;bottom:18px;display:flex;align-items:center;gap:9px;padding:11px 18px;',
@@ -361,6 +393,8 @@ const PANEL_CSS = [
   /* ---------- style bom vao bang log cua trang ---------- */
   /* Loc bang mot class tren container + danh dau dong duoc giu, thay vi an tung dong bi loai. */
   '.fll-filtering > [class*="logRow"]:not(.fll-keep){display:none!important}',
+  /* Che do dao: loc rong thi danh dau dong BI LOAI cho it thao tac hon. */
+  '.fll-dropping > [class*="logRow"].fll-drop{display:none!important}',
   '.fll-hit{background:rgba(255,46,136,.22)!important;outline:2px solid #ff2e88!important;outline-offset:-2px;',
   'border-radius:3px;animation:fll-flash .9s ease-out}',
   '@keyframes fll-flash{0%{background:rgba(255,46,136,.6)!important}100%{background:rgba(255,46,136,.22)!important}}',

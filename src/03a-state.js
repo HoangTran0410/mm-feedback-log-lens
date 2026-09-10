@@ -42,6 +42,9 @@ const lensState = {
   mutedSignatures: new Set(),
   filterTemplates: [],
   isShowingMuted: false,
+  // 'keep' = danh dau dong duoc giu, 'drop' = danh dau dong bi loai. Chon theo phia it hon,
+  // vi chi phi loc nam o SO LAN cham class chu khong phai o layout.
+  filterDomMode: 'keep',
   // Nguoi dung bam "x" tren feedback nay: dung tu gan lai nua (nhung sang feedback khac thi gan lai).
   isDismissed: false,
   // Nho lan truoc dang mo panel hay dang thu gon, de sang feedback khac tra ve dung dang do.

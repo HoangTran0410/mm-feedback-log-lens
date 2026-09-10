@@ -103,7 +103,11 @@ function renderSummaryTab() {
       isScoped ? full.levels.ERROR : null) +
     statCard(data.levels.WARNING, 'WARNING', LEVEL_COLOR.WARNING, 'data-level="WARNING"',
       isScoped ? full.levels.WARNING : null) +
-    statCard(full.sessionCount, 'phiên app', '#3ddc97', 'data-act="gotoTimeline"') +
+    // Bam vao day phai ra dung CHO LOC theo phien (tab Loc), khong phai tab Dien bien — truoc day
+    // no dan sang Dien bien trong khi cho chon phien lai nam o Loc. Mot phien thi khong co gi de
+    // chon, de nut bam duoc chi lam nguoi dung bam hut.
+    statCard(full.sessionCount, 'phiên app', '#3ddc97',
+      full.sessionCount > 1 ? 'data-act="gotoSessions"' : 'data-act="noop"') +
     statCard(data.gaps.length, 'khoảng lặng ≥ ' + full.gapThresholdLabel, LEVEL_COLOR.WARNING,
       'data-act="gotoTimeline"', isScoped ? full.gaps.length : null) +
     statCard(data.badHttpCalls.length, 'HTTP bất thường', LEVEL_COLOR.ERROR, 'data-act="gotoHttp"',

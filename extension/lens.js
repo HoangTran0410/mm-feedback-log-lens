@@ -1559,10 +1559,18 @@ const PANEL_CSS = [
   '.fll-jn{color:var(--warn)}',
   '.fll-jb{color:#c79bff}',
   /* Thanh doi Request / Response: dung lai dang tab cua panel de nhat quan, size nam trong badge. */
-  '.fll-stabs{display:flex;align-items:flex-end;gap:4px;border-bottom:1px solid var(--line);margin-bottom:13px}',
+  /* Thanh cong cu cua tam truot dinh lai khi cuon: payload JSON dai toi 10KB, cuon giua chung van
+     phai bam duoc "Toi dong" va doi Request/Response. Cung ba dieu kien nhu .fll-sec — nen duc,
+     tran het be ngang bang margin ngang am, va top am dung bang padding cua vung cuon. */
+  '.fll-paytop{position:sticky;top:calc(var(--pad-y,14px) * -1);z-index:4;background:var(--bg);',
+  'margin:calc(var(--pad-y,14px) * -1) calc(var(--pad-x,16px) * -1) 12px;',
+  'padding:var(--pad-y,14px) var(--pad-x,16px) 8px;border-bottom:1px solid var(--line)}',
+  '.fll-stabs{display:flex;align-items:flex-end;gap:4px;border-bottom:1px solid var(--line);margin-bottom:8px}',
   '.fll-stabs .fll-tab{flex:0 0 auto;padding:5px 12px 8px}',
   '.fll-stabs .fll-chip,.fll-paybar .fll-chip{margin-bottom:6px}',
-  '.fll-paybar{margin-bottom:8px}',
+  '.fll-paybar{margin:0;gap:6px}',
+  '.fll-paybar .fll-btn.fll-mini{flex:0 0 auto}',
+  '.fll-paybar .fll-chip{margin:0}',
   '.fll-pay{margin-bottom:14px}',
   '.fll-pay:last-child{margin-bottom:0}',
   '.fll-pay-hd{display:flex;align-items:center;gap:8px;margin-bottom:7px;min-height:24px;flex-wrap:wrap}',
@@ -1702,11 +1710,35 @@ const PANEL_CSS = [
 
   /* ---------- footer dieu huong ---------- */
   /* Chua padding-right rong hon de nut ">" khong nam duoi tay nam keo goc. */
-  '.fll-ft{display:flex;align-items:center;gap:8px;padding:11px 30px 11px 14px;',
-  'border-top:1px solid var(--line);background:linear-gradient(0deg,#241f31,#1a1723);flex:0 0 auto}',
-  '.fll-ft .fll-info{flex:1;font-size:11px;color:var(--mut);overflow:hidden;text-overflow:ellipsis;',
-  'white-space:nowrap}',
+  /* Thanh nay nam duoi cung nen de bi bo qua, ma luon hien thi lai ton cho khi khong co viec.
+     Nay chi hien khi that su co danh sach dong de duyet — viec no XUAT HIEN chinh la loi gioi thieu.
+     [hidden] phai ghi ro vi display:flex ben duoi se de len mac dinh cua thuoc tinh hidden. */
+  '.fll-ft[hidden]{display:none}',
+  '.fll-ft{display:flex;align-items:center;gap:6px;padding:9px 30px 9px 8px;',
+  'border-top:1px solid var(--line);background:linear-gradient(0deg,#241f31,#1a1723);flex:0 0 auto;',
+  'transition:background .18s,border-color .18s}',
+  '.fll-ft{border-top:2px solid var(--acc);background:linear-gradient(0deg,#2c2235,#221b2c)}',
+  '.fll-ft .fll-info{flex:1;min-width:0;font-size:11px;color:var(--mut);display:flex;align-items:center;',
+  'gap:6px;overflow:hidden}',
   '.fll-ft .fll-info b{color:var(--txt);font-weight:650;font-variant-numeric:tabular-nums}',
+  '.fll-ft-tag{flex:0 0 auto;font-size:8px;font-weight:800;letter-spacing:.5px;text-transform:uppercase;',
+  'color:var(--acc);background:rgba(255,46,136,.14);padding:2px 5px;border-radius:20px}',
+  '.fll-ft-pos{flex:0 0 auto;font-size:12px}',
+  '.fll-ft-lbl{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
+  '.fll-ft-line{flex:0 0 auto;color:var(--mut)}',
+
+  /* Nut duyet: truoc chi la mui ten 28px khong nhan, nguoi dung khong biet co phim tat.
+     Nay deo luon chu phim ngay tren nut. */
+  '.fll-nav{display:flex;align-items:center;gap:3px;padding:5px 7px;border-radius:8px;',
+  'border:1px solid var(--line);background:var(--bg2);color:var(--mut);font-size:10px;cursor:pointer;',
+  'transition:.14s;flex:0 0 auto}',
+  '.fll-nav em{font-style:normal;font-size:9.5px;font-weight:800;background:var(--bg3);color:var(--mut);',
+  'padding:1px 5px;border-radius:4px}',
+  '.fll-nav{color:var(--txt);border-color:rgba(255,46,136,.4)}',
+  '.fll-nav em{background:rgba(255,46,136,.18);color:var(--acc)}',
+  '.fll-nav:hover{border-color:var(--acc);color:var(--txt)}',
+  '.fll-ft-flash{animation:fll-ftflash .55s ease-out}',
+  '@keyframes fll-ftflash{0%{background:rgba(255,46,136,.32)}100%{background:linear-gradient(0deg,#2c2235,#221b2c)}}',
 
   /* ---------- pill khi thu nho ---------- */
   '.fll-pill{position:fixed;right:18px;bottom:18px;display:flex;align-items:center;gap:9px;padding:11px 18px;',
@@ -1719,6 +1751,8 @@ const PANEL_CSS = [
   /* ---------- style bom vao bang log cua trang ---------- */
   /* Loc bang mot class tren container + danh dau dong duoc giu, thay vi an tung dong bi loai. */
   '.fll-filtering > [class*="logRow"]:not(.fll-keep){display:none!important}',
+  /* Che do dao: loc rong thi danh dau dong BI LOAI cho it thao tac hon. */
+  '.fll-dropping > [class*="logRow"].fll-drop{display:none!important}',
   '.fll-hit{background:rgba(255,46,136,.22)!important;outline:2px solid #ff2e88!important;outline-offset:-2px;',
   'border-radius:3px;animation:fll-flash .9s ease-out}',
   '@keyframes fll-flash{0%{background:rgba(255,46,136,.6)!important}100%{background:rgba(255,46,136,.22)!important}}',
@@ -1768,6 +1802,9 @@ const lensState = {
   mutedSignatures: new Set(),
   filterTemplates: [],
   isShowingMuted: false,
+  // 'keep' = danh dau dong duoc giu, 'drop' = danh dau dong bi loai. Chon theo phia it hon,
+  // vi chi phi loc nam o SO LAN cham class chu khong phai o layout.
+  filterDomMode: 'keep',
   // Nguoi dung bam "x" tren feedback nay: dung tu gan lai nua (nhung sang feedback khac thi gan lai).
   isDismissed: false,
   // Nho lan truoc dang mo panel hay dang thu gon, de sang feedback khac tra ve dung dang do.
@@ -1876,8 +1913,7 @@ function jumpToIndex(domIndex) {
   if (lensState.el.lastHit && lensState.el.lastHit !== entry.el) lensState.el.lastHit.classList.remove('fll-hit');
   if (!isRowVisible(entry)) {
     lensState.forcedVisibleIndices.add(domIndex);
-    entry.el.classList.add('fll-keep');
-    entry.isKept = true;
+    forceRowVisible(entry);
   }
   entry.el.classList.add('fll-hit');
   lensState.el.lastHit = entry.el;
@@ -1900,6 +1936,21 @@ function setMatches(indices, label) {
   lensState.matchPos = indices.length ? 0 : -1;
   if (indices.length) jumpToIndex(indices[0]);
   renderFooter();
+  // Nhay mot cai khi co danh sach MOI. Thanh nay nam duoi cung panel nen nguoi dung hay khong nhan ra
+  // vua co gi do de duyet; nhay o day chi de keo mat xuong. Co y KHONG nhay moi lan bam n/p — luc do
+  // nguoi dung dang nhin no roi, nhay nua thanh phien.
+  flashFooter();
+}
+
+function flashFooter() {
+  const info = lensState.el.info;
+  const footer = info && info.parentElement;
+  if (!footer || !lensState.matches.length) return;
+  footer.classList.remove('fll-ft-flash');
+  // Doc lai offsetWidth de trinh duyet ket thuc animation cu truoc khi gan lai class,
+  // neu khong thi bam hai lan lien tiep se khong thay nhay lan thu hai.
+  void footer.offsetWidth;
+  footer.classList.add('fll-ft-flash');
 }
 
 function moveMatch(step) {
@@ -1910,18 +1961,28 @@ function moveMatch(step) {
   renderFooter();
 }
 
+// Thanh duoi cung tung luon hien va ghi "Chua chon gi de duyet" — dung nhung khong noi no LA gi,
+// nen nguoi dung nhin qua khong biet de lam gi, ma van chiem cho.
+// Nay AN HAN khi chua co gi de duyet. Chinh viec no hien ra (kem mot nhay mau accent) la loi gioi
+// thieu: no chi xuat hien dung luc vua co mot danh sach dong de di qua.
 function renderFooter() {
   const info = lensState.el.info;
   if (!info) return;
+  const footer = /** @type {HTMLElement | null} */ (info.parentElement);
   const total = lensState.matches.length;
+
+  if (footer) footer.hidden = !total;
   if (!total) {
-    info.innerHTML = '<span style="opacity:.7">Chưa chọn gì để duyệt</span>';
+    info.innerHTML = '';
     return;
   }
+
   const entry = lensState.data.entries[lensState.matches[Math.max(0, lensState.matchPos)]];
   info.innerHTML =
-    '<b>' + (lensState.matchPos + 1) + '/' + total + '</b> ' + escapeHtml(lensState.matchLabel) +
-    ' &middot; dòng <b>' + (entry ? entry.lineNo : '?') + '</b>';
+    '<span class="fll-ft-tag">đang duyệt</span>' +
+    '<b class="fll-ft-pos">' + (lensState.matchPos + 1) + '/' + total + '</b> ' +
+    '<span class="fll-ft-lbl">' + escapeHtml(lensState.matchLabel) + '</span>' +
+    '<span class="fll-ft-line">#<b>' + (entry ? entry.lineNo : '?') + '</b></span>';
 }
 // AI-GENERATED END
 /*
@@ -1946,15 +2007,66 @@ function hasAnyFilterFacet() {
 }
 
 // Mot lan ghi class len container thay cho hang nghin lan ghi len tung dong.
-function setLogFilteringMode(isFiltering) {
+function setLogFilteringMode(isFiltering, mode) {
   const container = lensState.data && lensState.data.container;
   if (!container) return;
-  container.classList.toggle('fll-filtering', isFiltering);
+  container.classList.toggle('fll-filtering', isFiltering && mode !== 'drop');
+  container.classList.toggle('fll-dropping', isFiltering && mode === 'drop');
   lensState.isFiltering = isFiltering;
+}
+
+// Chi phi loc nam gan nhu HOAN TOAN o so lan cham vao class cua dong, khong phai o layout.
+// Do that tren trang admin voi 10362 dong:
+//   10k classList.add            -> 7025ms
+//   bat .fll-filtering khi ca 10k dong deu co .fll-keep -> 224ms
+//   83 classList.add             -> 5ms
+//   tat loc, hien lai toan bo    -> 13ms
+// Tuc 10k lan cham class dat gap 1400 lan so voi 83 lan. Vi vay danh dau theo phia IT HON:
+// loc hep (vai chuc dong) thi danh dau dong DUOC GIU, loc rong (loc theo phien app — mot phien
+// co the la 10279/10362 dong) thi danh dau dong BI LOAI. So lan cham luon la min(giu, loai).
+function pickRowMarkMode(visibleCount, total) {
+  return visibleCount * 2 > total ? 'drop' : 'keep';
+}
+
+function applyRowMarks(entries, keepFlags, isFiltering, mode) {
+  // Doi cach danh dau thi phai go het dau cu truoc, neu khong dong mang dau cu se an/hien sai.
+  if (lensState.filterDomMode !== mode) {
+    const stale = lensState.filterDomMode === 'drop' ? 'fll-drop' : 'fll-keep';
+    entries.forEach((entry) => {
+      if (entry.isMarked && entry.el) entry.el.classList.remove(stale);
+      entry.isMarked = false;
+    });
+    lensState.filterDomMode = mode;
+  }
+
+  const cls = mode === 'drop' ? 'fll-drop' : 'fll-keep';
+  entries.forEach((entry, index) => {
+    const keep = keepFlags[index] === 1;
+    entry.isKept = keep;
+    if (!isFiltering || !entry.el) return;
+    // Che do 'drop' danh dau dong BI LOAI, nen dau can gan la phu dinh cua keep.
+    const wanted = mode === 'drop' ? !keep : keep;
+    if (entry.isMarked !== wanted) {
+      entry.el.classList.toggle(cls, wanted);
+      entry.isMarked = wanted;
+    }
+  });
 }
 
 function isRowVisible(entry) {
   return !lensState.isFiltering || entry.isKept === true;
+}
+
+// Ep mot dong hien ra du bo loc dang giau no — cach ep phu thuoc dang danh dau nao dang dung.
+function forceRowVisible(entry) {
+  if (!entry.el) return;
+  if (lensState.filterDomMode === 'drop') {
+    entry.el.classList.remove('fll-drop');
+  } else {
+    entry.el.classList.add('fll-keep');
+  }
+  entry.isMarked = lensState.filterDomMode !== 'drop';
+  entry.isKept = true;
 }
 
 function compileFilter() {
@@ -2051,20 +2163,22 @@ function computeFilteredIndices() {
   // Ham nay tinh lai toan bo trang thai nen moi dong tung duoc "ep hien" tro ve chuan.
   lensState.forcedVisibleIndices.clear();
   const isFiltering = filter.hideOthers && hasAnyFilterFacet();
+  const entries = lensState.data.entries;
   const visible = [];
-  lensState.data.entries.forEach((entry) => {
-    const keep = entryMatches(entry, compiled, null);
-    if (keep) visible.push(entry.domIndex);
-    // Chi danh dau dong DUOC GIU (thuong vai chuc) thay vi an tung dong bi loai (thuong ~4000).
-    // Khi khong loc thi khong dung toi DOM: class tren container tat la moi dong tu hien lai,
-    // va entry.isKept van khop voi class dang co nen lan loc sau chi ghi dung phan chenh lech.
-    if (isFiltering && entry.el && entry.isKept !== keep) {
-      entry.el.classList.toggle('fll-keep', keep);
-      entry.isKept = keep;
-    }
+  // Tinh xong het roi moi dung toi DOM: phai biet tong so dong duoc giu thi moi chon duoc
+  // danh dau theo phia nao cho it thao tac hon.
+  const keepFlags = new Uint8Array(entries.length);
+  entries.forEach((entry, index) => {
+    if (!entryMatches(entry, compiled, null)) return;
+    keepFlags[index] = 1;
+    visible.push(entry.domIndex);
   });
-  setLogFilteringMode(isFiltering);
-  lensState.visibleCount = isFiltering ? visible.length : lensState.data.entries.length;
+  // Khi khong loc thi giu nguyen cach danh dau dang co: class tren container tat la moi dong tu
+  // hien lai, va dau tren dong van khop nen lan loc sau chi ghi dung phan chenh lech.
+  const mode = isFiltering ? pickRowMarkMode(visible.length, entries.length) : lensState.filterDomMode;
+  applyRowMarks(entries, keepFlags, isFiltering, mode);
+  setLogFilteringMode(isFiltering, mode);
+  lensState.visibleCount = isFiltering ? visible.length : entries.length;
   lensState.lastFilterResult = { visible, isBadPattern };
   buildView();
   return lensState.lastFilterResult;
@@ -2930,11 +3044,22 @@ function togglePayloadWrap(button) {
   button.className = 'fll-chip' + (payloadSheetState.isWrapped ? ' on' : '');
 }
 
-function renderPayloadToolbar(tabsHtml) {
+// Nut "Nhay toi dong" nam tren thanh cong cu dau tam truot, khong phai duoi cung: payload JSON dai
+// toi 10KB nen truoc day phai cuon het ca khoi du lieu moi thay no. Thanh nay con dinh lai khi cuon
+// (position:sticky) de doc giua chung van bam duoc.
+// Hai hang co chu dich, khong nhoi tat ca vao mot hang: do that tren panel 480px cho thay nhoi chung
+// thi tong be ngang cac nut vuot khung 61px va tu vo thanh hai hang loi lom.
+// Hang tren la tab Request/Response, hang duoi la hanh dong. Ca khoi dinh lai khi cuon.
+function renderPayloadToolbar(tabsHtml, domIndex, lineNo) {
+  const jump = domIndex == null ? '' :
+    '<button class="fll-btn fll-mini pri" data-jump="' + domIndex + '" ' +
+    'title="Cuộn bảng log tới đúng dòng này">&#8629; Dòng ' + lineNo + '</button>';
   const wrap = '<button class="fll-chip' + (payloadSheetState.isWrapped ? ' on' : '') +
     '" data-act="toggleWrap" title="Xuống dòng thay vì cuộn ngang">&#8629; Xuống dòng</button>';
-  if (!tabsHtml) return '<div class="fll-row fll-paybar">' + '<div class="fll-hd-sp"></div>' + wrap + '</div>';
-  return '<div class="fll-stabs">' + tabsHtml + '<div class="fll-hd-sp"></div>' + wrap + '</div>';
+  return '<div class="fll-paytop">' +
+    (tabsHtml ? '<div class="fll-stabs">' + tabsHtml + '</div>' : '') +
+    '<div class="fll-row fll-paybar">' + jump + '<div class="fll-hd-sp"></div>' + wrap + '</div>' +
+    '</div>';
 }
 
 function renderPayloadBody(domIndex, tabsHtml) {
@@ -2942,11 +3067,9 @@ function renderPayloadBody(domIndex, tabsHtml) {
   if (!entry) return null;
   const sections = buildPayloadSections(entry.raw);
   const body = sections.length
-    ? sections.map(renderPayloadSection).join('') +
-      '<div class="fll-row" style="margin-top:12px">' +
-      '<button class="fll-btn pri" data-jump="' + domIndex + '">Nhảy tới dòng ' + entry.lineNo + '</button></div>'
+    ? sections.map(renderPayloadSection).join('')
     : '<div class="fll-empty">Dòng này không có khối dữ liệu nào.</div>';
-  return { entry, html: renderPayloadToolbar(tabsHtml || '') + body };
+  return { entry, html: renderPayloadToolbar(tabsHtml || '', domIndex, entry.lineNo) + body };
 }
 
 function formatBytes(count) {
@@ -3125,7 +3248,11 @@ function renderSummaryTab() {
       isScoped ? full.levels.ERROR : null) +
     statCard(data.levels.WARNING, 'WARNING', LEVEL_COLOR.WARNING, 'data-level="WARNING"',
       isScoped ? full.levels.WARNING : null) +
-    statCard(full.sessionCount, 'phiên app', '#3ddc97', 'data-act="gotoTimeline"') +
+    // Bam vao day phai ra dung CHO LOC theo phien (tab Loc), khong phai tab Dien bien — truoc day
+    // no dan sang Dien bien trong khi cho chon phien lai nam o Loc. Mot phien thi khong co gi de
+    // chon, de nut bam duoc chi lam nguoi dung bam hut.
+    statCard(full.sessionCount, 'phiên app', '#3ddc97',
+      full.sessionCount > 1 ? 'data-act="gotoSessions"' : 'data-act="noop"') +
     statCard(data.gaps.length, 'khoảng lặng ≥ ' + full.gapThresholdLabel, LEVEL_COLOR.WARNING,
       'data-act="gotoTimeline"', isScoped ? full.gaps.length : null) +
     statCard(data.badHttpCalls.length, 'HTTP bất thường', LEVEL_COLOR.ERROR, 'data-act="gotoHttp"',
@@ -3831,8 +3958,8 @@ function disposeSelf(shouldRestorePage) {
   clearInputTimers();
   if (lensState.el.root) lensState.el.root.remove();
   if (shouldRestorePage) {
-    document.querySelectorAll('.fll-filtering, .fll-hit')
-      .forEach((el) => el.classList.remove('fll-filtering', 'fll-hit'));
+    document.querySelectorAll('.fll-filtering, .fll-dropping, .fll-drop, .fll-hit')
+      .forEach((el) => el.classList.remove('fll-filtering', 'fll-dropping', 'fll-drop', 'fll-hit'));
   }
 }
 
@@ -3944,8 +4071,8 @@ function rescan() {
 function closeLens() {
   const root = document.getElementById(ROOT_ID);
   if (root) root.remove();
-  document.querySelectorAll('.fll-filtering, .fll-hit')
-    .forEach((el) => el.classList.remove('fll-filtering', 'fll-hit'));
+  document.querySelectorAll('.fll-filtering, .fll-dropping, .fll-drop, .fll-hit')
+    .forEach((el) => el.classList.remove('fll-filtering', 'fll-dropping', 'fll-drop', 'fll-hit'));
   lensState.el.root = null;
   lensState.el.panel = null;
   lensState.data = null;
@@ -3962,8 +4089,8 @@ function detachLens() {
   // ke tiep. Con sot .fll-filtering/.fll-keep thi feedback moi chi hien vai chuc dong trong khi panel
   // bao "khong co bo loc nao" — dung kieu sai ma nguoi dung khong biet.
   setLogFilteringMode(false);
-  document.querySelectorAll('.fll-keep, .fll-hit')
-    .forEach((el) => el.classList.remove('fll-keep', 'fll-hit'));
+  document.querySelectorAll('.fll-keep, .fll-drop, .fll-hit')
+    .forEach((el) => el.classList.remove('fll-keep', 'fll-drop', 'fll-hit'));
   lensState.el = { root: null, panel: null };
   lensState.data = null;
   lensState.view = null;
@@ -4042,10 +4169,10 @@ function mountPanel() {
     'kéo giữa vùng sáng để dời, kéo mép để co giãn, nháy đúp để bỏ chọn."></div>' +
     '<div class="fll-maplbl"></div>' +
     '<div class="fll-body"></div>' +
-    '<footer class="fll-ft">' +
-    '<button class="fll-ico" data-act="prev" title="Trước (p)">◀</button>' +
+    '<footer class="fll-ft" hidden>' +
+    '<button class="fll-nav" data-act="prev" title="Dòng trước — phím p">&#9664;<em>p</em></button>' +
     '<div class="fll-info"></div>' +
-    '<button class="fll-ico" data-act="next" title="Sau (n)">▶</button></footer>' +
+    '<button class="fll-nav" data-act="next" title="Dòng sau — phím n"><em>n</em>&#9654;</button></footer>' +
     '<div class="fll-corner" title="Kéo để đổi cả chiều rộng và chiều cao"></div></div>';
 
   const panel = root.querySelector('.fll-panel');
@@ -4226,6 +4353,13 @@ function handleLensClick(event) {
   if (action === 'gotoIssues') return switchTab('iss');
   if (action === 'gotoHttp') return switchTab('http');
   if (action === 'gotoTimeline') return switchTab('tl');
+  if (action === 'gotoSessions') {
+    switchTab('flt');
+    // Tab Loc co 9 muc; nhay thang toi muc Phien app thay vi de nguoi dung tu do tim.
+    const chip = lensState.el.body && lensState.el.body.querySelector('[data-act="setSession"]');
+    if (chip) chip.scrollIntoView({ block: 'center' });
+    return undefined;
+  }
   if (action === 'issueLevel') {
     tabUiState.issueLevel = value;
     return renderTab();
