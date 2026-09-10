@@ -15,7 +15,8 @@ const ISSUE_PAGE_SIZE = 50;
 const TIMELINE_PAGE_SIZE = 80;
 
 const tabUiState = { issueLevel: 'all', issueQuery: '', httpOnlyBad: false, httpQuery: '', moduleQuery: '',
-  issueLimit: ISSUE_PAGE_SIZE, templateName: '', tlGroup: 'all', tlLimit: TIMELINE_PAGE_SIZE, showNoise: false };
+  issueLimit: ISSUE_PAGE_SIZE, templateName: '', tlKinds: new Set(), tlQuery: '',
+  tlLimit: TIMELINE_PAGE_SIZE, showNoise: false };
 
 function renderSparkline(indices, color) {
   const data = lensState.data;
@@ -671,24 +672,21 @@ function renderFilterTab() {
 // nghia: nguoi doc phai nho "hong la cham, xanh la man hinh" — khong ai nho. Nay moi loai co mot bieu
 // tuong + mot cai ten, va co ca hang chu giai ngay tren danh sach.
 const TIMELINE_KINDS = {
-  boot: { icon: '\uD83D\uDE80', label: 'App khởi động' },
-  gap: { icon: '\uD83D\uDCA4', label: 'Khoảng lặng, không có log' },
-  err: { icon: '\u274C', label: 'Nhóm lỗi' },
-  'jr-screen': { icon: '\uD83D\uDCF1', label: 'Màn hình hiện ra' },
-  'jr-move': { icon: '\uD83D\uDD00', label: 'Đổi luồng tính năng' },
-  'jr-tap': { icon: '\uD83D\uDC46', label: 'User chạm' },
-  'jr-saw': { icon: '\uD83D\uDC40', label: 'User nhìn thấy popup' },
-  'jr-fail': { icon: '\u26A0\uFE0F', label: 'Call BE fail' },
+  boot: { icon: '\uD83D\uDE80', label: 'App khởi động', short: 'Khởi động' },
+  gap: { icon: '\uD83D\uDCA4', label: 'Khoảng lặng, không có log', short: 'Lặng' },
+  err: { icon: '\u274C', label: 'Nhóm lỗi', short: 'Lỗi' },
+  'jr-screen': { icon: '\uD83D\uDCF1', label: 'Màn hình hiện ra', short: 'Màn hình' },
+  'jr-move': { icon: '\uD83D\uDD00', label: 'Đổi luồng tính năng', short: 'Đổi luồng' },
+  'jr-tap': { icon: '\uD83D\uDC46', label: 'User chạm', short: 'Chạm' },
+  'jr-saw': { icon: '\uD83D\uDC40', label: 'User nhìn thấy popup', short: 'Popup' },
+  'jr-fail': { icon: '\u26A0\uFE0F', label: 'Call BE fail', short: 'Call fail' },
 };
 
-const TIMELINE_GROUPS = [
-  { id: 'all', label: 'Tất cả' },
-  { id: 'app', label: 'App' },
-  { id: 'screen', label: 'Màn hình' },
-  { id: 'tap', label: 'Chạm' },
-  { id: 'saw', label: 'User thấy' },
-  { id: 'fail', label: 'API fail' },
-];
+// Truoc day day la sau nhom tho (App / Man hinh / Cham / User thay / API fail) trong khi moc thi co
+// tam loai — "App" gom ca khoi dong, khoang lang va nhom loi vao mot cho. Nay chip chinh la tung loai
+// moc, mang dung bieu tuong cua no, va chon duoc nhieu loai cung luc. Hang chu giai rieng bo di:
+// chip da vua la chu giai vua la bo loc.
+const TIMELINE_KIND_ORDER = ['boot', 'gap', 'err', 'jr-screen', 'jr-move', 'jr-tap', 'jr-saw', 'jr-fail'];
 
 function timelineIcon(kind) {
   const meta = TIMELINE_KINDS[kind];
@@ -696,23 +694,12 @@ function timelineIcon(kind) {
   return '<span class="fll-ev-ic" title="' + escapeHtml(meta.label) + '">' + meta.icon + '</span>';
 }
 
-// Chu giai nam ngay tren danh sach chu khong giau trong tooltip: bieu tuong nao cung phai hoc mot lan,
-// va cho de hoc nhat la ngay canh cho dung no.
-function timelineLegend(events) {
-  const kinds = Object.keys(TIMELINE_KINDS).filter((kind) => events.some((event) => event.kind === kind));
-  if (!kinds.length) return '';
-  return '<div class="fll-legend">' + kinds
-    .map((kind) => '<span><i>' + TIMELINE_KINDS[kind].icon + '</i>' +
-      escapeHtml(TIMELINE_KINDS[kind].label) + '</span>')
-    .join('') + '</div>';
-}
-
 function buildTimelineEvents(data) {
   const events = [];
 
   data.scopedEntries.forEach((entry) => {
     if (entry.isSessionStart) {
-      events.push({ ts: entry.ts, group: 'app', kind: 'boot', title: 'App khởi động — phiên ' + entry.session,
+      events.push({ ts: entry.ts, kind: 'boot', title: 'App khởi động — phiên ' + entry.session,
         detail: entry.message, index: entry.domIndex });
     }
   });
@@ -721,14 +708,14 @@ function buildTimelineEvents(data) {
   // lang nhung bam (va mui ten) lai tro toi dong SAU no — hai dau cach nhau ca tieng dong ho, nen nhin
   // vao thay giao dien tu mau thuan. Nay hien ca hai moc, va mui ten danh dau ca hai dau tren minimap.
   data.gaps.forEach((gap) => {
-    events.push({ ts: gap.before.ts, tsEnd: gap.after.ts, group: 'app', kind: 'gap',
+    events.push({ ts: gap.before.ts, tsEnd: gap.after.ts, kind: 'gap',
       title: 'Khoảng lặng ' + formatDuration(gap.ms),
       detail: 'dừng sau: ' + gap.before.message.slice(0, 90),
       index: gap.after.domIndex, aim: [gap.before.domIndex, gap.after.domIndex] });
   });
 
   data.groups.filter((group) => group.level === 'ERROR' && !isGroupMuted(group)).forEach((group) => {
-    events.push({ ts: group.firstTs, group: 'app', kind: 'err',
+    events.push({ ts: group.firstTs, kind: 'err',
       title: group.indices.length + '× ' + (group.module || 'ERROR'),
       detail: group.sample.slice(0, 90), index: group.indices[0] });
   });
@@ -736,7 +723,7 @@ function buildTimelineEvents(data) {
   // "Doi luong" (feature_source) di chung nhom voi man hinh: no cung la chuyen dich chuyen, va tach
   // ra thanh chip thu bay thi hang chip bat dau cuon ngang.
   data.journey.steps.forEach((step) => {
-    events.push({ ts: step.ts, group: step.kind === 'move' ? 'screen' : step.kind, kind: 'jr-' + step.kind,
+    events.push({ ts: step.ts, kind: 'jr-' + step.kind,
       title: step.label, detail: [step.detail, step.note].filter(Boolean).join(' · '),
       index: step.domIndex, count: step.count, ms: step.ms });
   });
@@ -747,29 +734,28 @@ function buildTimelineEvents(data) {
 function renderTimelineTab() {
   const data = getView();
   const all = buildTimelineEvents(data);
-  const events = tabUiState.tlGroup === 'all'
-    ? all
-    : all.filter((event) => event.group === tabUiState.tlGroup);
+  const picked = tabUiState.tlKinds;
 
-  const counts = {};
-  TIMELINE_GROUPS.forEach((choice) => {
-    counts[choice.id] = choice.id === 'all' ? all.length : all.filter((e) => e.group === choice.id).length;
-  });
-
-  let header = '<div class="fll-row" style="margin-bottom:9px">' + TIMELINE_GROUPS
-    .filter((choice) => counts[choice.id])
-    .map((choice) => '<button class="fll-chip' + (tabUiState.tlGroup === choice.id ? ' on' : '') +
-      '" data-act="tlGroup" data-value="' + choice.id + '">' + choice.label +
-      ' <em>' + counts[choice.id] + '</em></button>')
-    .join('') + '</div>';
+  let header = '<div class="fll-row" style="margin-bottom:9px">' +
+    '<button class="fll-chip' + (picked.size ? '' : ' on') + '" data-act="tlKindAll">Tất cả <em>' +
+    all.length + '</em></button>' +
+    TIMELINE_KIND_ORDER
+      .map((kind) => ({ kind, count: all.filter((event) => event.kind === kind).length }))
+      .filter((row) => row.count)
+      .map((row) => '<button class="fll-chip' + (picked.has(row.kind) ? ' on' : '') +
+        '" data-act="tlKind" data-value="' + row.kind + '" title="' +
+        escapeHtml(TIMELINE_KINDS[row.kind].label) + '"><i class="fll-chip-ic">' +
+        TIMELINE_KINDS[row.kind].icon + '</i>' + escapeHtml(TIMELINE_KINDS[row.kind].short) +
+        ' <em>' + row.count + '</em></button>')
+      .join('') + '</div>';
 
   // Loc theo phien ngay tai day. Truoc do muon xem rieng mot phien phai sang tab Loc roi quay lai —
   // ma dong thoi gian chinh la cho de y "phien nay khac phien kia cho nao" nhat.
   const sessionRow = renderSessionChipRow();
   if (sessionRow) header += '<div style="margin-bottom:9px">' + sessionRow + '</div>';
 
-  // Chip nguong khoang lang chi co nghia khi moc App dang hien.
-  if (tabUiState.tlGroup === 'all' || tabUiState.tlGroup === 'app') {
+  // Chip nguong khoang lang chi co nghia khi moc khoang lang dang hien.
+  if (!picked.size || picked.has('gap')) {
     header += '<div class="fll-row" style="margin-bottom:9px">' +
       [1000, 2000, 5000, 10000]
         .map((ms) => '<button class="fll-chip' + (lensState.gapThresholdMs === ms ? ' on' : '') +
@@ -787,12 +773,36 @@ function renderTimelineTab() {
       ? ' <b>Khoảng lặng chỉ cắt theo cửa sổ thời gian</b>, không đổi theo mức độ hay module.'
       : '') + '</div>';
 
-  header += timelineLegend(events);
+  header += '<input class="fll-in" id="fll-tlq" placeholder="Tìm trong mốc — tên màn, tên nút, mã lỗi..." ' +
+    'value="' + escapeHtml(tabUiState.tlQuery) + '" style="margin-bottom:9px">';
 
-  if (!events.length) return header + '<div class="fll-empty">Không có mốc nào đáng chú ý.</div>';
+  return header + '<div id="fll-tl-list">' + renderTimelineList() + '</div>';
+}
+
+// Tach rieng de o tim chi ve lai danh sach, khong dung toi chip va chu giai o tren — go mot phim ma
+// ve lai ca tab thi mat luon tieu diem trong o dang go.
+function renderTimelineList() {
+  const data = getView();
+  const all = buildTimelineEvents(data);
+  const picked = tabUiState.tlKinds;
+  const grouped = picked.size ? all.filter((event) => picked.has(event.kind)) : all;
+  const query = tabUiState.tlQuery.trim().toLowerCase();
+  const events = query
+    ? grouped.filter((event) => (event.title + ' ' + (event.detail || '')).toLowerCase().indexOf(query) >= 0)
+    : grouped;
+
+  if (!events.length) {
+    return '<div class="fll-empty">' +
+      (query ? 'Không mốc nào khớp "' + escapeHtml(tabUiState.tlQuery) + '".' : 'Không có mốc nào đáng chú ý.') +
+      '</div>';
+  }
+  const found = query
+    ? '<div class="fll-hint" style="margin:0 0 8px">Khớp <b>' + events.length + '</b>/' + grouped.length +
+      ' mốc.</div>'
+    : '';
 
   const shown = events.slice(0, tabUiState.tlLimit);
-  return header + '<div class="fll-tl">' + shown
+  return found + '<div class="fll-tl">' + shown
     .map((event) => '<div class="fll-ev ' + event.kind + '" data-jump="' + event.index + '"' +
       (event.aim ? ' data-aim="' + event.aim.join(',') + '"' : '') + '>' +
       '<div class="fll-ev-t">' + timelineIcon(event.kind) +

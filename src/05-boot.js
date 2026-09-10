@@ -538,14 +538,24 @@ function handleLensClick(event) {
     tabUiState.issueLevel = value;
     return renderTab();
   }
-  if (action === 'tlGroup') {
-    // Bam lai dung nhom dang chon = bo chon, quay ve xem tat ca.
-    tabUiState.tlGroup = tabUiState.tlGroup === value ? 'all' : value;
+  if (action === 'tlKind') {
+    // Chon duoc nhieu loai cung luc: "chi xem chạm + popup" la cau hay hoi nhat khi doc lai mot ca loi.
+    toggleSetValue(tabUiState.tlKinds, value);
+    tabUiState.tlLimit = TIMELINE_PAGE_SIZE;
+    return renderTab();
+  }
+  if (action === 'tlKindAll') {
+    tabUiState.tlKinds.clear();
     tabUiState.tlLimit = TIMELINE_PAGE_SIZE;
     return renderTab();
   }
   if (action === 'moreTimeline') {
     tabUiState.tlLimit += TIMELINE_PAGE_SIZE;
+    const list = document.getElementById('fll-tl-list');
+    if (list) {
+      list.innerHTML = renderTimelineList();
+      return undefined;
+    }
     return renderTab();
   }
   if (action === 'httpAll' || action === 'httpBad') {
@@ -632,6 +642,16 @@ function handleLensInput(event) {
     debounceInput('httpQuery', LIST_INPUT_DEBOUNCE_MS, () => {
       const list = document.getElementById('fll-http-list');
       if (list) list.innerHTML = renderHttpList();
+    });
+    return;
+  }
+  if (target.id === 'fll-tlq') {
+    tabUiState.tlQuery = target.value;
+    // Go lai tu dau thi tra ve trang dau, khong thi dang o "da hien 240 moc" ma loc con 3.
+    tabUiState.tlLimit = TIMELINE_PAGE_SIZE;
+    debounceInput('tlQuery', LIST_INPUT_DEBOUNCE_MS, () => {
+      const list = document.getElementById('fll-tl-list');
+      if (list) list.innerHTML = renderTimelineList();
     });
     return;
   }

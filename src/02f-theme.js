@@ -374,8 +374,8 @@ const PANEL_CSS = [
   '.fll-dur{font-size:10px;color:var(--mut);font-variant-numeric:tabular-nums;flex:0 0 auto}',
 
   /* ---------- timeline ---------- */
-  '.fll-tl{position:relative;padding-left:20px}',
-  '.fll-tl:before{content:"";position:absolute;left:5px;top:8px;bottom:8px;width:1px;background:var(--line)}',
+  '.fll-tl{position:relative;padding-left:26px}',
+  '.fll-tl:before{content:"";position:absolute;left:9px;top:8px;bottom:8px;width:1px;background:var(--line)}',
   '.fll-ev{position:relative;padding:9px 12px;margin-bottom:6px;border-radius:9px;background:var(--bg2);',
   'cursor:pointer;border:1px solid transparent;transition:.14s}',
   '.fll-ev:hover{border-color:var(--acc)}',
@@ -383,11 +383,13 @@ const PANEL_CSS = [
      la man hinh" — khong ai nho. Nay bieu tuong nam trong the, kem title va mot hang chu giai o tren. */
   '.fll-ev:before{content:"";position:absolute;left:-18px;top:17px;width:5px;height:5px;border-radius:50%;',
   'background:var(--line)}',
-  '.fll-ev-ic{flex:0 0 auto;width:15px;text-align:center;font-size:11.5px;line-height:1;',
+  /* Bieu tuong nam THANG TREN duong thoi gian chu khong trong the: nhin doc mot cot la quet duoc ca
+     chuoi su kien. Van la mot the that (khong phai :before) nen mang duoc title = ten loai moc.
+     Nen duc de no de len net ke cua duong thoi gian chay ben duoi. */
+  '.fll-ev-ic{position:absolute;left:-26px;top:7px;width:19px;height:19px;text-align:center;',
+  'font-size:14px;line-height:19px;border-radius:50%;background:var(--bg);',
   'font-family:"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif}',
-  '.fll-legend{display:flex;flex-wrap:wrap;gap:4px 12px;margin:0 0 10px;font-size:10px;color:var(--mut)}',
-  '.fll-legend span{display:inline-flex;align-items:center;gap:5px}',
-  '.fll-legend i{font-style:normal;font-size:11px;',
+  '.fll-chip-ic{font-style:normal;font-size:13px;line-height:1;',
   'font-family:"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif}',
   '.fll-ev-t{display:flex;align-items:center;gap:9px;font-size:11.5px;font-weight:600}',
   '.fll-ev-t em{margin-left:auto;font-style:normal;font-size:10px;color:var(--mut);font-variant-numeric:tabular-nums}',

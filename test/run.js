@@ -71,9 +71,9 @@ function loadLens() {
   const exportLine = 'globalThis.__LENS={analyzeLog,attachInsights,deriveStats,buildJourney,' +
     'parseKeyValueMap,renderSummaryTab,renderIssuesTab,renderHttpSection,renderSlowSections,' +
     'renderFilterTab,' +
-    'renderTimelineTab,renderConfigTab,buildConfigs,tabUiState,lensState,TAB_DEFS,TIMELINE_GROUPS,' +
+    'renderTimelineTab,renderConfigTab,buildConfigs,tabUiState,lensState,TAB_DEFS,' +
     'applyFilter,aimIndicesFor,sectionKey,isSectionOpen,setSectionOpen,loadOpenSections,' +
-    'buildTimelineEvents,formatDuration};';
+    'buildTimelineEvents,formatDuration,renderTimelineList,TIMELINE_KIND_ORDER,TIMELINE_KINDS};';
   const wired = src.replace(/\n\}\)\(\);\s*$/, '\n' + exportLine + '\n})();\n');
   if (wired === src) throw new Error('khong chen duoc dong export vao IIFE cua extension/lens.js');
   (0, eval)(wired);
@@ -597,13 +597,39 @@ check('phien app: tab Dien bien khong ve ba moc "App khoi dong" chong nhau', () 
   eq((html.match(/class="fll-ev boot"/g) || []).length, 2, 'so moc khoi dong tren dong thoi gian');
 });
 
-// Cham tron mau khong tu noi ra loai moc. Moi loai phai co bieu tuong + ten doc duoc.
+// Cham tron mau khong tu noi ra loai moc. Moi loai phai co bieu tuong + ten doc duoc, va chinh day
+// chip loc cung la hang chu giai — khong con hang chu giai rieng nua.
 check('dong thoi gian: moi loai moc co bieu tuong va ten', () => {
+  L.tabUiState.tlKinds = new Set();
   const html = L.renderTimelineTab();
-  ok(html.indexOf('class="fll-legend"') >= 0, 'phai co hang chu giai');
   ok(html.indexOf('class="fll-ev-ic" title="User chạm"') >= 0, 'moc cham phai co bieu tuong kem ten');
   ok(html.indexOf('class="fll-ev-ic" title="Khoảng lặng, không có log"') >= 0, 'moc khoang lang');
   ok(html.indexOf('class="fll-ev-ic" title="App khởi động"') >= 0, 'moc khoi dong');
+  ok(html.indexOf('data-act="tlKind" data-value="jr-tap"') >= 0, 'phai co chip loc theo loai moc');
+  ok(html.indexOf('class="fll-chip-ic">' + L.TIMELINE_KINDS['jr-tap'].icon) >= 0,
+    'chip phai mang dung bieu tuong cua loai do');
+});
+
+// Chon duoc NHIEU loai cung luc, khong phai mot nhom mot luc nhu truoc.
+check('dong thoi gian: loc theo nhieu loai moc cung luc', () => {
+  const all = L.buildTimelineEvents(L.lensState.data);
+  const taps = all.filter((event) => event.kind === 'jr-tap').length;
+  const boots = all.filter((event) => event.kind === 'boot').length;
+  ok(taps && boots, 'fixture phai co ca hai loai');
+  L.tabUiState.tlKinds = new Set(['jr-tap', 'boot']);
+  const html = L.renderTimelineList();
+  eq((html.match(/class="fll-ev jr-tap"/g) || []).length, taps, 'so moc cham');
+  eq((html.match(/class="fll-ev boot"/g) || []).length, boots, 'so moc khoi dong');
+  ok(html.indexOf('class="fll-ev jr-screen"') < 0, 'loai khong chon thi khong duoc hien');
+  L.tabUiState.tlKinds = new Set();
+});
+
+// O tim moc: chi ve lai danh sach, va phai bao ro khi khong co gi khop.
+check('dong thoi gian: o tim loc theo ten moc', () => {
+  L.tabUiState.tlQuery = 'khong-the-nao-co-chuoi-nay';
+  ok(L.renderTimelineList().indexOf('Không mốc nào khớp') >= 0, 'phai bao khong khop');
+  L.tabUiState.tlQuery = '';
+  ok(L.renderTimelineTab().indexOf('id="fll-tlq"') >= 0, 'tab phai co o tim');
 });
 
 // Bug that: hang "Khoang lang" hien gio cua dong TRUOC khoang lang, nhung bam (va mui ten) lai tro
@@ -631,14 +657,14 @@ check('thoi luong dai phai doc duoc', () => {
 
 renderAll('log day du');
 
-L.TIMELINE_GROUPS.forEach((group) => {
-  check('tab Dien bien — chip ' + group.label, () => {
-    L.tabUiState.tlGroup = group.id;
+L.TIMELINE_KIND_ORDER.forEach((kind) => {
+  check('tab Dien bien — chip ' + kind, () => {
+    L.tabUiState.tlKinds = new Set([kind]);
     const html = L.renderTimelineTab();
     eq((html.match(/<div/g) || []).length, (html.match(/<\/div>/g) || []).length, 'the <div> can bang');
   });
 });
-L.tabUiState.tlGroup = 'all';
+L.tabUiState.tlKinds = new Set();
 
 check('badge cua moi tab tinh duoc, khong ngã', () => {
   L.TAB_DEFS.forEach((tab) => {
