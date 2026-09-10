@@ -7,7 +7,9 @@ Trang admin chỉ có search theo text; tool này gom nhóm lỗi, thống kê, 
 > không gọi API, không gửi dữ liệu đi đâu. Repo này **không** chứa log thật hay dữ liệu người dùng —
 > mọi ví dụ trong code và tài liệu đều là dữ liệu bịa.
 
-Đo trên một log thật (4085 dòng, 1.1MB):
+Đo trên một log thật (4085 dòng, 1.1MB). Mọi con số `4085` trong tài liệu này đều là số đo trên
+chính log đó — chúng minh hoạ, **không tự cập nhật** (log thật không nằm trong repo). Số liệu về
+bản build thì ngược lại: khối ngay dưới do `build.sh` ghi lại mỗi lần build.
 
 | | Trang admin | Log Lens |
 |---|---|---|
@@ -22,23 +24,28 @@ Trang admin chỉ có search theo text; tool này gom nhóm lỗi, thống kê, 
 
 ---
 
-## Cài
+<!-- build-stats -->
+<!-- Khối này do build.sh ghi lại mỗi lần build. Đừng sửa tay. -->
 
-### Cách 1 — Extension (khuyên dùng, tự chạy)
+| | |
+|---|---|
+| `dist/lens.js` | **170 KB** (174,373 bytes) |
+| Nguồn | 3,933 dòng trong 7 file `src/` |
+| Dependency lúc chạy | không có |
+| Test | 43 phép thử, `node test/run.js` |
+
+<!-- /build-stats -->
+
+## Cài
 
 1. `chrome://extensions` (Brave: `brave://extensions`) → bật **Developer mode**
 2. **Load unpacked** → chọn thư mục `extension/`
 3. Mở một feedback bất kỳ. Khi bảng log render xong sẽ có pill `◆ Log Lens · N nhóm lỗi` ở góc dưới phải — bấm để mở panel.
 
-### Cách 2 — Bookmarklet (không cần cài, share được)
-
-1. Copy toàn bộ nội dung `dist/bookmarklet.txt` (một dòng, ~114KB — nếu trình duyệt từ chối lưu
-   bookmark dài như vậy thì dùng cách 1)
-2. Tạo bookmark mới trên thanh bookmark, dán chuỗi đó vào ô **URL**
-
-> Chrome/Brave chặn dán `javascript:` thẳng vào thanh địa chỉ — phải tạo bookmark rồi bấm nó.
-
-3. Mở feedback, chờ tab **Log 1** hiện log, rồi bấm bookmark.
+> Từng có thêm bản bookmarklet (một dòng `javascript:` dán vào bookmark, không cần cài). **Đã bỏ.**
+> Nó buộc mọi chuỗi trong `src/` phải nằm gọn một dòng để bước rút gọn không làm hỏng cú pháp, và
+> bản thân nó đã phình tới 198KB — quá dài để nhiều trình duyệt chịu lưu thành bookmark. Gỡ nó đi thì
+> `build.sh` chỉ còn một đầu ra, và `src/` không còn bị ràng buộc định dạng nào.
 
 ---
 
@@ -223,9 +230,10 @@ Kích thước được nhớ lại khi thu về pill rồi mở ra, và khi đ�
 Nối `src/*.js` theo thứ tự tên file thành một IIFE rồi xuất:
 
 - `dist/lens.js` + `extension/lens.js` — content script
-- `dist/bookmarklet.txt` — một dòng `javascript:`
 
-Build tự kiểm tra cú pháp cả bản gốc lẫn bản đã rút gọn + percent-encode.
+Build kiểm cú pháp (`node --check`), chạy bộ test (`node test/run.js`), rồi ghi số liệu thật của bản
+vừa build vào khối `<!-- build-stats -->` trong README. Trước đây số đó gõ tay, nên README ghi
+bookmarklet "~114KB" trong khi thực tế đã 177KB — sai suốt một thời gian dài mà không ai biết.
 
 `build.sh` nối mọi file trong `src/` theo thứ tự tên, nên thêm module chỉ cần đặt tên đúng chỗ.
 
@@ -381,14 +389,18 @@ Những chỗ đã tối ưu, đừng vô tình làm ngược lại:
 nhưng **loại bỏ**: nó làm `scrollHeight` sai (174378 → 82001) và nhảy dòng trượt mục tiêu,
 tức là hỏng đúng chức năng cốt lõi để đổi lấy tốc độ.
 
-Một lưu ý nữa: bấm bookmarklet lần thứ hai là chạy lại cả file, sinh một thế hệ closure mới.
+Một lưu ý nữa: chạy lại cả file (reload extension lúc tab đang mở) sinh một thế hệ closure mới.
 Thế hệ cũ vẫn còn listener và interval, sẽ thao tác lên panel của thế hệ mới.
 `disposePreviousInstance()` (qua `window.__feedbackLogLens`) dọn việc đó.
 
-**Extension và bookmarklet chạy ở hai world khác nhau, không thấy `window` của nhau.** Nếu vừa cài
-extension vừa bấm bookmarklet thì có hai instance, hai `#fll-root`, và lưới an toàn `root.isConnected`
-của bên cũ sẽ dựng lại root của nó mỗi 2 giây. Thứ duy nhất cả hai cùng nhìn thấy là DOM, nên instance
-mới ghi tên mình vào `data-fll-owner` trên thẻ `html`; bên cũ đọc thấy tên khác thì tự rút lui.
+**Còn một mốc dọn thứ hai đi qua DOM, không qua `window`.** Nếu có hai instance cùng sống thì có hai
+`#fll-root`, và lưới an toàn `root.isConnected` của bên cũ sẽ dựng lại root của nó mỗi 2 giây. Nên
+instance mới ghi tên mình vào `data-fll-owner` trên thẻ `html`; bên cũ đọc thấy tên khác thì tự rút lui.
+
+Mốc này ra đời từ thời còn bản bookmarklet — bookmarklet chạy ở page world, extension ở isolated
+world, hai bên không thấy `window` của nhau nên `window.__feedbackLogLens` không dọn chéo được. Bản
+bookmarklet đã bỏ, nhưng **chưa xác minh** được reload extension lúc tab đang mở thì thế hệ cũ nằm ở
+đâu, nên vẫn giữ mốc DOM này thay vì gỡ theo suy đoán.
 
 Ba chi tiết trong cơ chế đó, sai một cái là hỏng:
 

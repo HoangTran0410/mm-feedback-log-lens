@@ -759,12 +759,22 @@ function parseKeyValueMap(text) {
   if (!KV_MAP_HEAD_RE.test(text) || text.slice(-1) !== '}') return null;
   const result = {};
   let count = 0;
+  let lastKey = null;
   splitTopLevel(text.slice(1, -1)).forEach((part) => {
     const at = part.indexOf('=');
-    if (at < 0) return;
+    // Dinh dang nay khong bao quanh gia tri, nen gia tri co dau phay ben trong (bundle_sof=1,2)
+    // bi splitTopLevel xe doi va manh sau khong con dau '=' nao. Truoc day manh do bi bo di —
+    // mat du lieu ma khong bao gi. Do tren mot log that: 20 manh roi rung im lang, o moneysource,
+    // bundle_sof, list_sof, ref_id va ca title (title chinh la nhan popup trong "User da nhin thay gi").
+    // Chi noi lai manh KHONG co dau '=' nao; manh co '=' van xu ly y nhu truoc.
+    if (at < 0) {
+      if (lastKey !== null && typeof result[lastKey] === 'string') result[lastKey] += ',' + part;
+      return;
+    }
     const key = part.slice(0, at).trim();
     const value = part.slice(at + 1).trim();
     count += 1;
+    lastKey = key;
     if (KV_MAP_HEAD_RE.test(value)) {
       result[key] = parseKeyValueMap(value) || value;
       return;
@@ -3308,15 +3318,18 @@ const TAB_DEFS = [
   { id: 'tl', label: 'Diễn biến' },
 ];
 
-// Bam bookmarklet lan thu hai = chay lai ca file, sinh mot the he closure moi.
+// Chay lai ca file (reload extension khi tab dang mo) = sinh mot the he closure moi.
 // The he cu van con listener keydown tren document va interval dang chay: no se bat phim
 // roi thao tac len panel cua the he moi. Vi vay moi lan khoi dong phai don the he truoc qua bien global nay.
 const LENS_GLOBAL_KEY = '__feedbackLogLens';
 
-// Extension chay o isolated world, bookmarklet chay o page world: hai ben KHONG thay window cua nhau,
-// nen window[LENS_GLOBAL_KEY] khong don duoc cheo. Cai duy nhat ca hai cung nhin thay la DOM.
-// Instance nao khoi dong sau se ghi ten minh len the html; instance cu doc thay ten khac thi tu rut lui,
-// neu khong luoi an toan "root bi go thi gan lai" cua no se dung dai root cu ve moi 2 giay.
+// Con duong don qua window[LENS_GLOBAL_KEY] chi hoat dong khi hai the he dung chung mot window.
+// Moc thu hai nay di qua DOM nen khong phu thuoc dieu do: instance nao khoi dong sau se ghi ten minh
+// len the html; instance cu doc thay ten khac thi tu rut lui, neu khong luoi an toan "root bi go thi
+// gan lai" cua no se dung dai root cu ve moi 2 giay.
+// CHUA XAC MINH: co truong hop nao con lai khien hai the he KHONG chung window hay khong. Moc nay ra doi
+// tu thoi con ban bookmarklet chay o page world; ban bookmarklet da bo, nhung chua kiem duoc reload
+// extension luc tab dang mo thi the he cu nam o dau, nen giu lai.
 const LENS_OWNER_ATTR = 'data-fll-owner';
 const lensInstanceId = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 
@@ -3529,7 +3542,7 @@ function tickPageWatcher() {
     if (!lensState.isDismissed && hasLogRows()) startLens(!lensState.wasPanelOpen);
     return;
   }
-  // Mot instance moi hon da tiep quan (dang chay extension roi bam them bookmarklet): rut lui han.
+  // Mot instance moi hon da tiep quan: rut lui han.
   if (!isLensOwner()) {
     disposeSelf(false);
     return;
@@ -3907,13 +3920,7 @@ function startLens(startMinimized) {
   startPageWatcher();
 }
 
-const isExtensionContext = typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.id;
-
-if (hasLogRows()) {
-  startLens(false);
-} else if (!isExtensionContext) {
-  alert('Chưa thấy bảng log trên trang này.\nMở tab "Log 1" trong Feedback Detail rồi bấm lại bookmarklet.');
-}
+if (hasLogRows()) startLens(false);
 // Chay ca khi chua gan duoc: dieu huong trong SPA khong tai lai tai lieu, watcher nay la thu duy nhat
 // biet duoc "vua vao mot feedback detail moi".
 startPageWatcher();

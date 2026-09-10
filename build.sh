@@ -5,9 +5,8 @@
 # AI Agent: Claude Code
 # Model: claude-opus-5
 #
-# AI-GENERATED START — nối src/*.js thành một IIFE rồi xuất ra 2 dạng dùng được:
-#   dist/lens.js         -> content script cho extension
-#   dist/bookmarklet.txt -> một dòng javascript: dán vào bookmark
+# AI-GENERATED START — nối src/*.js thành một IIFE rồi xuất ra content script cho extension,
+# chạy bộ test, và ghi số liệu thật vào README (không ai gõ tay số nữa).
 set -euo pipefail
 cd "$(dirname "$0")"
 
@@ -21,27 +20,50 @@ mkdir -p dist extension
 
 cp dist/lens.js extension/lens.js
 
-# Bookmarklet: bỏ thụt đầu dòng, dòng comment `//` và dòng trống, rồi percent-encode toàn bộ.
-# Giữ nguyên xuống dòng (ASI) và không đụng vào nội dung chuỗi — mọi string trong src đều nằm gọn một dòng.
-{
-  printf 'javascript:'
-  sed -e 's|^[[:space:]]*||' -e '/^\/\//d' -e '/^$/d' dist/lens.js \
-    | perl -pe 's/([^A-Za-z0-9\-_.!~*()\x27])/sprintf("%%%02X", ord($1))/ge'
-} > dist/bookmarklet.txt
-
-echo "dist/lens.js         $(wc -c < dist/lens.js | tr -d ' ') bytes"
-echo "dist/bookmarklet.txt $(wc -c < dist/bookmarklet.txt | tr -d ' ') bytes"
-
-# Kiểm tra cả hai đầu ra, không chỉ bản gốc: bước sed có thể làm hỏng cú pháp bản rút gọn,
-# và bước percent-encode phải giải mã lại ra đúng byte cũ.
 node --check dist/lens.js
-node -e '
-const fs = require("fs");
-const url = fs.readFileSync("dist/bookmarklet.txt", "utf8");
-if (!url.startsWith("javascript:")) throw new Error("thiếu tiền tố javascript:");
-const code = decodeURIComponent(url.slice("javascript:".length));
-new Function(code);
-console.log("bookmarklet giải mã + parse OK (" + code.split("\n").length + " dòng)");
-'
-echo "cú pháp OK"
+TEST_OUT="$(node test/run.js)"
+echo "$TEST_OUT"
+
+# Số liệu trong README luôn là của bản vừa build. Trước đây gõ tay nên README ghi bookmarklet
+# "~114KB" trong khi thực tế đã 177KB — sai suốt mà không ai biết.
+node - "$TEST_OUT" <<'NODE'
+const fs = require('fs');
+
+const bytes = fs.statSync('dist/lens.js').size;
+const srcFiles = fs.readdirSync('src').filter((name) => name.endsWith('.js')).sort();
+const srcLines = srcFiles.reduce(
+  (sum, name) => sum + fs.readFileSync('src/' + name, 'utf8').split('\n').length, 0);
+const testCount = (/(\d+)\/(\d+)/.exec(process.argv[2] || '') || [])[2] || '?';
+const kb = (bytes / 1024).toFixed(0);
+
+const block = [
+  '<!-- build-stats -->',
+  '<!-- Khối này do build.sh ghi lại mỗi lần build. Đừng sửa tay. -->',
+  '',
+  '| | |',
+  '|---|---|',
+  '| `dist/lens.js` | **' + kb + ' KB** (' + bytes.toLocaleString('en-US') + ' bytes) |',
+  '| Nguồn | ' + srcLines.toLocaleString('en-US') + ' dòng trong ' + srcFiles.length + ' file `src/` |',
+  '| Dependency lúc chạy | không có |',
+  '| Test | ' + testCount + ' phép thử, `node test/run.js` |',
+  '',
+  '<!-- /build-stats -->',
+].join('\n');
+
+const readme = fs.readFileSync('README.md', 'utf8');
+const re = /<!-- build-stats -->[\s\S]*?<!-- \/build-stats -->/;
+if (!re.test(readme)) {
+  console.error('README.md thiếu khối <!-- build-stats --> ... <!-- /build-stats -->');
+  process.exit(1);
+}
+const updated = readme.replace(re, block);
+if (updated !== readme) {
+  fs.writeFileSync('README.md', updated);
+  console.log('README: cập nhật số liệu (' + kb + ' KB, ' + srcLines + ' dòng nguồn)');
+} else {
+  console.log('README: số liệu đã đúng');
+}
+NODE
+
+echo "dist/lens.js $(wc -c < dist/lens.js | tr -d ' ') bytes — cú pháp OK"
 # AI-GENERATED END

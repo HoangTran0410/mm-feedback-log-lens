@@ -433,12 +433,22 @@ function parseKeyValueMap(text) {
   if (!KV_MAP_HEAD_RE.test(text) || text.slice(-1) !== '}') return null;
   const result = {};
   let count = 0;
+  let lastKey = null;
   splitTopLevel(text.slice(1, -1)).forEach((part) => {
     const at = part.indexOf('=');
-    if (at < 0) return;
+    // Dinh dang nay khong bao quanh gia tri, nen gia tri co dau phay ben trong (bundle_sof=1,2)
+    // bi splitTopLevel xe doi va manh sau khong con dau '=' nao. Truoc day manh do bi bo di —
+    // mat du lieu ma khong bao gi. Do tren mot log that: 20 manh roi rung im lang, o moneysource,
+    // bundle_sof, list_sof, ref_id va ca title (title chinh la nhan popup trong "User da nhin thay gi").
+    // Chi noi lai manh KHONG co dau '=' nao; manh co '=' van xu ly y nhu truoc.
+    if (at < 0) {
+      if (lastKey !== null && typeof result[lastKey] === 'string') result[lastKey] += ',' + part;
+      return;
+    }
     const key = part.slice(0, at).trim();
     const value = part.slice(at + 1).trim();
     count += 1;
+    lastKey = key;
     if (KV_MAP_HEAD_RE.test(value)) {
       result[key] = parseKeyValueMap(value) || value;
       return;
