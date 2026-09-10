@@ -5,6 +5,7 @@ Created By: AI
 AI Agent: Claude Code
 Model: claude-opus-5
 */
+// @ts-check
 // AI-GENERATED START — keo tha panel, doi kich thuoc, nho lai vi tri
 // Tach ra tu src/03-shell.js (992 dong / 67 ham). Cac file src/*.js duoc build.sh noi lai
 // theo thu tu ten file va boc trong MOT IIFE nen van dung chung scope — tach chi de doc,
@@ -62,6 +63,9 @@ function enableDragAndResize(panel, header, edgeGrip, cornerGrip) {
       grabX: event.clientX - rect.left,
       grabY: event.clientY - rect.top,
       wasRightAnchored: isPanelRightAnchored(panel),
+      // Khai bao han o day thay vi gan them sau: gan them thi go sai ten mot chu la im lang hong.
+      /** @type {number | undefined} */
+      committedLeft: undefined,
     };
     mode = nextMode;
     if (nextMode !== 'edge') {
@@ -72,7 +76,6 @@ function enableDragAndResize(panel, header, edgeGrip, cornerGrip) {
       panel.style.width = rect.width + 'px';
       panel.style.height = rect.height + 'px';
     }
-    origin.committedLeft = undefined;
     panel.classList.add('fll-dragging');
     document.body.style.userSelect = 'none';
     window.addEventListener('mousemove', handleMove);

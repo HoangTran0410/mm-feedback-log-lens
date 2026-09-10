@@ -5,6 +5,7 @@ Created By: AI
 AI Agent: Claude Code
 Model: claude-opus-5
 */
+// @ts-check
 // AI-GENERATED START — gan panel vao trang, dieu phoi tab, uy quyen su kien, tu quet lai khi doi tab log
 
 const ROOT_ID = 'fll-root';
@@ -129,7 +130,9 @@ function renderTab() {
 // Ve lai het roi tra lai tieu diem + vi tri con tro + vi tri cuon.
 function renderTabPreservingFocus() {
   const body = lensState.el.body;
-  const active = document.activeElement;
+  // selectionStart/setSelectionRange chi co tren o nhap. Kiem bang typeof roi moi dung, con ep kieu
+  // o day la de trinh kiem kieu biet dieu do — khong doi hanh vi luc chay.
+  const active = /** @type {HTMLInputElement | null} */ (document.activeElement);
   const activeId = active && active.id;
   const hasSelection = active && typeof active.selectionStart === 'number';
   const selectionStart = hasSelection ? active.selectionStart : null;
@@ -140,7 +143,7 @@ function renderTabPreservingFocus() {
 
   if (body) body.scrollTop = scrollTop;
   if (!activeId) return;
-  const restored = document.getElementById(activeId);
+  const restored = /** @type {HTMLInputElement | null} */ (document.getElementById(activeId));
   if (!restored) return;
   restored.focus();
   if (selectionStart !== null && typeof restored.setSelectionRange === 'function') {
@@ -269,7 +272,6 @@ function startPageWatcher() {
 
 function showPill() {
   const root = lensState.el.root;
-  const data = lensState.data;
   const facetCount = getActiveFilterFacets().length;
   lensState.wasPanelOpen = false;
   root.innerHTML = '<style>' + PANEL_CSS + '</style>' +

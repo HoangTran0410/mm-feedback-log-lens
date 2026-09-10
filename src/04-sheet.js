@@ -5,6 +5,7 @@ Created By: AI
 AI Agent: Claude Code
 Model: claude-opus-5
 */
+// @ts-check
 // AI-GENERATED START — tam truot phu len than panel: xem payload JSON va gom cac dong cung mot ID
 
 const SHEET_MAX_RAW_LENGTH = 20000;

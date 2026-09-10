@@ -5,6 +5,7 @@ Created By: AI
 AI Agent: Claude Code
 Model: claude-opus-5
 */
+// @ts-check
 // AI-GENERATED START — dung lai thao tac cua user tu event MoMoTracker
 // Tach ra tu src/02-insights.js (946 dong). Cac file src/*.js duoc build.sh noi lai theo thu tu
 // ten file va boc trong MOT IIFE nen van dung chung scope — tach chi de doc.

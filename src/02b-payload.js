@@ -5,6 +5,7 @@ Created By: AI
 AI Agent: Claude Code
 Model: claude-opus-5
 */
+// @ts-check
 // AI-GENERATED START — tach khoi JSON trong dong log, va lop k=v dung chung cho ca tracker lan Grafana
 // Tach ra tu src/02-insights.js (946 dong). Cac file src/*.js duoc build.sh noi lai theo thu tu
 // ten file va boc trong MOT IIFE nen van dung chung scope — tach chi de doc.
@@ -50,6 +51,9 @@ const JSON_LITERAL_RE = /^(-?\d+(\.\d+)?([eE][-+]?\d+)?|true|false|null|\*{2,})$
 function findSafeJsonCut(text, start) {
   const frames = [];
   let safeCut = -1;
+  // Gan trong closure markSafe() ben duoi nen phai noi ro kieu: neu de tu suy tu `null`
+  // thi TypeScript thu hep con `never` va bao loi o cho doc lai.
+  /** @type {string[] | null} */
   let safeFrames = null;
   let isInString = false;
   let isEscaped = false;

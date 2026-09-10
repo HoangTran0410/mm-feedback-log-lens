@@ -21,6 +21,18 @@ mkdir -p dist extension
 cp dist/lens.js extension/lens.js
 
 node --check dist/lens.js
+
+# Kiem kieu bang tsc neu may co san. Co y KHONG bat buoc: build.sh phai chay duoc tren may khong cai
+# gi ngoai node. Moi file src/*.js co "// @ts-check" o dau, va vi chung khong co import/export nen
+# TypeScript coi chung la script dung chung mot global scope — dung nhu cach build.sh boc tat ca vao
+# mot IIFE. Khong sinh file nao: tsconfig.json dat noEmit.
+if command -v tsc >/dev/null 2>&1; then
+  tsc --noEmit
+  echo "kiểu OK (tsc)"
+else
+  echo "bỏ qua kiểm kiểu — máy không có tsc (cài: npm i -g typescript)"
+fi
+
 TEST_OUT="$(node test/run.js)"
 echo "$TEST_OUT"
 

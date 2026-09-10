@@ -5,6 +5,7 @@ Created By: AI
 AI Agent: Claude Code
 Model: claude-opus-5
 */
+// @ts-check
 // AI-GENERATED START — CSS cua panel Log Lens
 //
 // Ve do uu tien (specificity): trang admin dung antd nen phai reset, nhung reset KHONG duoc manh hon

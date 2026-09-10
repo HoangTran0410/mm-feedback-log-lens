@@ -5,6 +5,7 @@ Created By: AI
 AI Agent: Claude Code
 Model: claude-opus-5
 */
+// @ts-check
 // AI-GENERATED START — doc DOM log cua trang feedback admin, parse thanh entry co cau truc + thong ke
 // Cac file src/*.js duoc build.sh noi lai va boc trong MOT IIFE nen dung chung scope. Dat ten khong trung nhau.
 

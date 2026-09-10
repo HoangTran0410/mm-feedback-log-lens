@@ -5,6 +5,7 @@ Created By: AI
 AI Agent: Claude Code
 Model: claude-opus-5
 */
+// @ts-check
 // AI-GENERATED START — loi doc tu Grafana trace, va nhan dien nhieu cua chinh lop do luong
 // Tach ra tu src/02-insights.js (946 dong). Cac file src/*.js duoc build.sh noi lai theo thu tu
 // ten file va boc trong MOT IIFE nen van dung chung scope — tach chi de doc.

@@ -29,8 +29,8 @@ bản build thì ngược lại: khối ngay dưới do `build.sh` ghi lại m�
 
 | | |
 |---|---|
-| `dist/lens.js` | **191 KB** (195,769 bytes) |
-| Nguồn | 4,377 dòng trong 17 file `src/` |
+| `dist/lens.js` | **192 KB** (196,541 bytes) |
+| Nguồn | 4,400 dòng trong 17 file `src/` |
 | Dependency lúc chạy | không có |
 | Test | 63 phép thử, `node test/run.js` |
 
@@ -304,9 +304,25 @@ Nối `src/*.js` theo thứ tự tên file thành một IIFE rồi xuất:
 
 - `dist/lens.js` + `extension/lens.js` — content script
 
-Build kiểm cú pháp (`node --check`), chạy bộ test (`node test/run.js`), rồi ghi số liệu thật của bản
-vừa build vào khối `<!-- build-stats -->` trong README. Trước đây số đó gõ tay, nên README ghi
+Build kiểm cú pháp (`node --check`), **kiểm kiểu** (`tsc --noEmit`), chạy bộ test (`node test/run.js`),
+rồi ghi số liệu thật của bản vừa build vào khối `<!-- build-stats -->` trong README. Trước đây số đó gõ tay, nên README ghi
 bookmarklet "~114KB" trong khi thực tế đã 177KB — sai suốt một thời gian dài mà không ai biết.
+
+**Kiểm kiểu mà không đổi ngôn ngữ.** Mỗi file `src/*.js` mở đầu bằng `// @ts-check`, cấu hình ở
+`tsconfig.json` với `noEmit` — nên đây thuần tuý là một lớp kiểm, không có bước biên dịch, `dist/`
+không đổi một byte, và mã vẫn là JavaScript đọc thẳng được.
+
+Nó hoạt động được đúng nhờ cùng một tính chất mà `build.sh` dựa vào: các file `src/*.js` **không có
+`import`/`export`**, nên TypeScript coi chúng là *script* dùng chung một global scope — khớp y hệt việc
+`build.sh` bọc tất cả vào một IIFE. Không cần thêm `import` nào để chúng thấy nhau.
+
+`build.sh` chỉ chạy `tsc` **nếu máy có sẵn**, không có thì báo rồi đi tiếp — build phải chạy được trên
+máy chỉ cài `node`. Không thêm `package.json`, không thêm dependency lúc chạy.
+
+Lần bật đầu tiên nó bắt được 8 lỗi trên ~4400 dòng, trong đó hai chỗ đáng sửa thật chứ không phải
+nhiễu kiểu: một biến `data` khai báo rồi không dùng, và `origin.committedLeft` được gán thêm sau khi
+tạo object thay vì khai báo hẳn trong đó — kiểu gõ sai một chữ là hỏng im lặng. Còn lại là chỗ cần
+nói cho trình kiểm biết rằng phần tử đang thao tác là ô nhập.
 
 `build.sh` nối mọi file trong `src/` theo thứ tự tên, nên thêm module chỉ cần đặt tên đúng chỗ.
 

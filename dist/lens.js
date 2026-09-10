@@ -6,6 +6,7 @@ Created By: AI
 AI Agent: Claude Code
 Model: claude-opus-5
 */
+// @ts-check
 // AI-GENERATED START — doc DOM log cua trang feedback admin, parse thanh entry co cau truc + thong ke
 // Cac file src/*.js duoc build.sh noi lai va boc trong MOT IIFE nen dung chung scope. Dat ten khong trung nhau.
 
@@ -360,6 +361,7 @@ Created By: AI
 AI Agent: Claude Code
 Model: claude-opus-5
 */
+// @ts-check
 // AI-GENERATED START — thoi luong, ID lien ket, phien app, metadata feedback
 // Tach ra tu src/02-insights.js (946 dong). Cac file src/*.js duoc build.sh noi lai theo thu tu
 // ten file va boc trong MOT IIFE nen van dung chung scope — tach chi de doc.
@@ -497,6 +499,7 @@ Created By: AI
 AI Agent: Claude Code
 Model: claude-opus-5
 */
+// @ts-check
 // AI-GENERATED START — tach khoi JSON trong dong log, va lop k=v dung chung cho ca tracker lan Grafana
 // Tach ra tu src/02-insights.js (946 dong). Cac file src/*.js duoc build.sh noi lai theo thu tu
 // ten file va boc trong MOT IIFE nen van dung chung scope — tach chi de doc.
@@ -542,6 +545,9 @@ const JSON_LITERAL_RE = /^(-?\d+(\.\d+)?([eE][-+]?\d+)?|true|false|null|\*{2,})$
 function findSafeJsonCut(text, start) {
   const frames = [];
   let safeCut = -1;
+  // Gan trong closure markSafe() ben duoi nen phai noi ro kieu: neu de tu suy tu `null`
+  // thi TypeScript thu hep con `never` va bao loi o cho doc lai.
+  /** @type {string[] | null} */
   let safeFrames = null;
   let isInString = false;
   let isEscaped = false;
@@ -899,6 +905,7 @@ Created By: AI
 AI Agent: Claude Code
 Model: claude-opus-5
 */
+// @ts-check
 // AI-GENERATED START — dung lai thao tac cua user tu event MoMoTracker
 // Tach ra tu src/02-insights.js (946 dong). Cac file src/*.js duoc build.sh noi lai theo thu tu
 // ten file va boc trong MOT IIFE nen van dung chung scope — tach chi de doc.
@@ -1189,6 +1196,7 @@ Created By: AI
 AI Agent: Claude Code
 Model: claude-opus-5
 */
+// @ts-check
 // AI-GENERATED START — loi doc tu Grafana trace, va nhan dien nhieu cua chinh lop do luong
 // Tach ra tu src/02-insights.js (946 dong). Cac file src/*.js duoc build.sh noi lai theo thu tu
 // ten file va boc trong MOT IIFE nen van dung chung scope — tach chi de doc.
@@ -1308,6 +1316,7 @@ Created By: AI
 AI Agent: Claude Code
 Model: claude-opus-5
 */
+// @ts-check
 // AI-GENERATED START — gom moi thong ke phu thuoc "dang nhin nhung dong nao" vao mot cho
 // Tach ra tu src/02-insights.js (946 dong). Cac file src/*.js duoc build.sh noi lai theo thu tu
 // ten file va boc trong MOT IIFE nen van dung chung scope — tach chi de doc.
@@ -1354,6 +1363,7 @@ Created By: AI
 AI Agent: Claude Code
 Model: claude-opus-5
 */
+// @ts-check
 // AI-GENERATED START — CSS cua panel Log Lens
 //
 // Ve do uu tien (specificity): trang admin dung antd nen phai reset, nhung reset KHONG duoc manh hon
@@ -1721,6 +1731,7 @@ Created By: AI
 AI Agent: Claude Code
 Model: claude-opus-5
 */
+// @ts-check
 // AI-GENERATED START — hang so dung chung, lensState, tat tieng chu ky, ham dinh dang
 // Tach ra tu src/03-shell.js (992 dong / 67 ham). Cac file src/*.js duoc build.sh noi lai
 // theo thu tu ten file va boc trong MOT IIFE nen van dung chung scope — tach chi de doc,
@@ -1848,6 +1859,7 @@ Created By: AI
 AI Agent: Claude Code
 Model: claude-opus-5
 */
+// @ts-check
 // AI-GENERATED START — nhay toi dong log, duyet ket qua khop, thanh dieu huong duoi
 // Tach ra tu src/03-shell.js (992 dong / 67 ham). Cac file src/*.js duoc build.sh noi lai
 // theo thu tu ten file va boc trong MOT IIFE nen van dung chung scope — tach chi de doc,
@@ -1919,6 +1931,7 @@ Created By: AI
 AI Agent: Claude Code
 Model: claude-opus-5
 */
+// @ts-check
 // AI-GENERATED START — loi bo loc: bien dieu kien thanh ham, loc tap dong, dung view
 // Tach ra tu src/03-shell.js (992 dong / 67 ham). Cac file src/*.js duoc build.sh noi lai
 // theo thu tu ten file va boc trong MOT IIFE nen van dung chung scope — tach chi de doc,
@@ -2070,6 +2083,7 @@ Created By: AI
 AI Agent: Claude Code
 Model: claude-opus-5
 */
+// @ts-check
 // AI-GENERATED START — permalink qua hash URL va mau bo loc luu san
 // Tach ra tu src/03-shell.js (992 dong / 67 ham). Cac file src/*.js duoc build.sh noi lai
 // theo thu tu ten file va boc trong MOT IIFE nen van dung chung scope — tach chi de doc,
@@ -2225,6 +2239,7 @@ Created By: AI
 AI Agent: Claude Code
 Model: claude-opus-5
 */
+// @ts-check
 // AI-GENERATED START — thanh bo loc thuong tru: chip facet, cua so thoi gian, go tung dieu kien
 // Tach ra tu src/03-shell.js (992 dong / 67 ham). Cac file src/*.js duoc build.sh noi lai
 // theo thu tu ten file va boc trong MOT IIFE nen van dung chung scope — tach chi de doc,
@@ -2363,6 +2378,7 @@ Created By: AI
 AI Agent: Claude Code
 Model: claude-opus-5
 */
+// @ts-check
 // AI-GENERATED START — minimap mat do log va thao tac keo chon khoang thoi gian tren no
 // Tach ra tu src/03-shell.js (992 dong / 67 ham). Cac file src/*.js duoc build.sh noi lai
 // theo thu tu ten file va boc trong MOT IIFE nen van dung chung scope — tach chi de doc,
@@ -2593,6 +2609,7 @@ Created By: AI
 AI Agent: Claude Code
 Model: claude-opus-5
 */
+// @ts-check
 // AI-GENERATED START — keo tha panel, doi kich thuoc, nho lai vi tri
 // Tach ra tu src/03-shell.js (992 dong / 67 ham). Cac file src/*.js duoc build.sh noi lai
 // theo thu tu ten file va boc trong MOT IIFE nen van dung chung scope — tach chi de doc,
@@ -2650,6 +2667,9 @@ function enableDragAndResize(panel, header, edgeGrip, cornerGrip) {
       grabX: event.clientX - rect.left,
       grabY: event.clientY - rect.top,
       wasRightAnchored: isPanelRightAnchored(panel),
+      // Khai bao han o day thay vi gan them sau: gan them thi go sai ten mot chu la im lang hong.
+      /** @type {number | undefined} */
+      committedLeft: undefined,
     };
     mode = nextMode;
     if (nextMode !== 'edge') {
@@ -2660,7 +2680,6 @@ function enableDragAndResize(panel, header, edgeGrip, cornerGrip) {
       panel.style.width = rect.width + 'px';
       panel.style.height = rect.height + 'px';
     }
-    origin.committedLeft = undefined;
     panel.classList.add('fll-dragging');
     document.body.style.userSelect = 'none';
     window.addEventListener('mousemove', handleMove);
@@ -2788,6 +2807,7 @@ Created By: AI
 AI Agent: Claude Code
 Model: claude-opus-5
 */
+// @ts-check
 // AI-GENERATED START — tam truot phu len than panel: xem payload JSON va gom cac dong cung mot ID
 
 const SHEET_MAX_RAW_LENGTH = 20000;
@@ -3007,6 +3027,7 @@ Created By: AI
 AI Agent: Claude Code
 Model: claude-opus-5
 */
+// @ts-check
 // AI-GENERATED START — noi dung 6 tab: Tong quan, Van de, HTTP, Cham, Loc, Dien bien
 
 // Dung log that co 262 nhom sau khi gom; ve het mot luot la mot chuoi HTML rat lon va phai
@@ -3728,6 +3749,7 @@ Created By: AI
 AI Agent: Claude Code
 Model: claude-opus-5
 */
+// @ts-check
 // AI-GENERATED START — gan panel vao trang, dieu phoi tab, uy quyen su kien, tu quet lai khi doi tab log
 
 const ROOT_ID = 'fll-root';
@@ -3852,7 +3874,9 @@ function renderTab() {
 // Ve lai het roi tra lai tieu diem + vi tri con tro + vi tri cuon.
 function renderTabPreservingFocus() {
   const body = lensState.el.body;
-  const active = document.activeElement;
+  // selectionStart/setSelectionRange chi co tren o nhap. Kiem bang typeof roi moi dung, con ep kieu
+  // o day la de trinh kiem kieu biet dieu do — khong doi hanh vi luc chay.
+  const active = /** @type {HTMLInputElement | null} */ (document.activeElement);
   const activeId = active && active.id;
   const hasSelection = active && typeof active.selectionStart === 'number';
   const selectionStart = hasSelection ? active.selectionStart : null;
@@ -3863,7 +3887,7 @@ function renderTabPreservingFocus() {
 
   if (body) body.scrollTop = scrollTop;
   if (!activeId) return;
-  const restored = document.getElementById(activeId);
+  const restored = /** @type {HTMLInputElement | null} */ (document.getElementById(activeId));
   if (!restored) return;
   restored.focus();
   if (selectionStart !== null && typeof restored.setSelectionRange === 'function') {
@@ -3992,7 +4016,6 @@ function startPageWatcher() {
 
 function showPill() {
   const root = lensState.el.root;
-  const data = lensState.data;
   const facetCount = getActiveFilterFacets().length;
   lensState.wasPanelOpen = false;
   root.innerHTML = '<style>' + PANEL_CSS + '</style>' +

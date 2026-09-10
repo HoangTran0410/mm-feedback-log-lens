@@ -5,6 +5,7 @@ Created By: AI
 AI Agent: Claude Code
 Model: claude-opus-5
 */
+// @ts-check
 // AI-GENERATED START — permalink qua hash URL va mau bo loc luu san
 // Tach ra tu src/03-shell.js (992 dong / 67 ham). Cac file src/*.js duoc build.sh noi lai
 // theo thu tu ten file va boc trong MOT IIFE nen van dung chung scope — tach chi de doc,

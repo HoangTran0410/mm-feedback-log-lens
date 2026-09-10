@@ -5,6 +5,7 @@ Created By: AI
 AI Agent: Claude Code
 Model: claude-opus-5
 */
+// @ts-check
 // AI-GENERATED START — noi dung 6 tab: Tong quan, Van de, HTTP, Cham, Loc, Dien bien
 
 // Dung log that co 262 nhom sau khi gom; ve het mot luot la mot chuoi HTML rat lon va phai
