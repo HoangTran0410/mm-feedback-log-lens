@@ -29,10 +29,10 @@ bản build thì ngược lại: khối ngay dưới do `build.sh` ghi lại m�
 
 | | |
 |---|---|
-| `extension/lens.js` | **199 KB** (204,174 bytes) |
-| Nguồn | 4,534 dòng trong 17 file `src/` |
+| `extension/lens.js` | **217 KB** (221,729 bytes) |
+| Nguồn | 4,877 dòng trong 18 file `src/` |
 | Dependency lúc chạy | không có |
-| Test | 66 phép thử, `node test/run.js` |
+| Test | 78 phép thử, `node test/run.js` |
 
 <!-- /build-stats -->
 
@@ -57,6 +57,7 @@ bản build thì ngược lại: khối ngay dưới do `build.sh` ghi lại m�
 | **Vấn đề** | Thật sự có mấy loại lỗi khác nhau? Mỗi loại bao nhiêu lần, lúc nào? Có sự cố hạ tầng nào đứng sau không? |
 | **HTTP** | Call nào fail, `errorCode` bao nhiêu, call nào không có response? |
 | **Chậm** | Thao tác nào tốn thời gian nhất? |
+| **Cấu hình** | Lúc đó máy này chạy với cấu hình gì — nhánh A/B nào, cờ nào bật, BE và webadmin đẩy xuống cái gì. Tab tự ẩn khi log không có dòng cấu hình nào. |
 | **Lọc** | Chỉ hiện dòng của module X / mức ERROR / phiên 2 / khớp regex. |
 | **Diễn biến** | Một dòng thời gian: user bấm gì, thấy popup gì, app đứng im lúc nào, lỗi nổ ở đâu. |
 
@@ -90,7 +91,7 @@ Ba thứ **cố ý không** scope:
   khoảng lặng thì sinh ra những khoảng giả giữa hai lỗi, sai bản chất.
 - **Chuỗi theo ID** cũng không scope: xem một request thì phải xem trọn vẹn.
 
-### Năm thứ tiết kiệm nhiều thời gian nhất
+### Những thứ tiết kiệm nhiều thời gian nhất
 
 **Miniapp tải lỗi.** `feature_miniapp_load` có một nhóm `stage` báo hiệu user vừa nhìn thấy màn lỗi
 chứ không phải chỉ số đo: `scr_fail_loading_miniapp`, `toast_fail_loading_miniapp`,
@@ -103,6 +104,37 @@ không phải sai tên.
 `auto_screen_displayed` lúc `state=load`, và của `auto_load_progress_tracked`), không phải số tính ra.
 Tab Chậm vốn gom mọi `duration=` vào một rổ mà không gắn với màn nào; mục này gắn được, và trên log
 production dùng để thử nó lôi ra ngay màn `Feedback` mất **30 268ms**.
+
+**Cấu hình máy đó đang chạy.** Hai máy cùng bản app vẫn có thể chạy hai đoạn code khác nhau, và log
+có ghi lại điều đó — chỉ là nằm rải rác ở hơn mười dạng dòng khác nhau, đều ở mức INFO nên không nhóm
+lỗi nào đụng tới. Tab **Cấu hình** gom lại theo khóa, chia theo **nguồn đọc được ngay trên dòng đó**:
+
+| Nguồn | Đọc từ đâu | Ví dụ moi được từ log thật |
+|---|---|---|
+| A/B testing | `ABTestingExpTag(namespace=…, tag=…)`, `ABTest tag for namespace X => Y` | `FULLSCREEN_OPTIMZATION = new_full_screen` |
+| BE trả về | `Persist … key=… raw={…}`, `@@DynamicConfig :: responseBody:`, `…ConfigResponseDTO(…)` | `sentry_remote_config = {"enable":true,"handledRate":0.3,…}` |
+| Webadmin | dòng có chữ `webadmin`, `AppFeatureUpdater`, `OMEGA FEATURE TESTINGS` | `mustHave:[tabbar_promotion,tabbar_home,…]` |
+| CDN | `@@ configs >> fetchConfig >> url:` | `PaymentError.json`, `design_system_7.json` |
+| App đã áp dụng | `@@SentryKMP ::`, `ApiSpamDetector: Config:` | `tracesSampleRate=1.0 hasPersistedRemoteConfig=true` |
+| Chưa rõ nguồn | dòng tự gọi mình là config, có JSON, nhưng không nói lấy từ đâu | `onGetConfigBanner getConfig {…}` |
+
+Nhãn nguồn **không suy đoán**: khóa nào dòng log không tự khai nguồn thì nằm ở "Chưa rõ nguồn" chứ
+không bị gán bừa vào BE.
+
+Một khóa ghi nhiều lần cùng giá trị chỉ chiếm một hàng. Ghi ra giá trị **khác** thì mọi giá trị cùng
+hiện, kèm giờ và số dòng để bấm sang so — nhãn ghi đúng thứ đo được (*"N giá trị khác nhau"*) chứ
+không phải *"đổi N lần"*: nhiều giá trị đôi khi chỉ vì payload mang theo `cmdId` khác nhau mỗi call.
+Trên log production thử nghiệm, `AutopickConfigResponseDTO` ra 6 giá trị đúng vì lý do đó.
+
+**Hai cái bẫy đã chặn sẵn** (đều có test): dòng payload khuyến mãi dài 5000 ký tự có chữ
+`displayConfig=` nằm *sau* dấu `{` — không tính là cấu hình, vì chữ "config" phải đứng **trước** khối
+JSON thì dòng đó mới thật sự nói về cấu hình. Và động từ `configure`/`configured` (báo xong một bước)
+bị loại riêng, còn `configuration` thì vẫn nhận.
+
+Call BE có chữ `config` trên **đường dẫn** (đã bỏ query, nên `?displayConfig=` của API khác không lọt
+vào) được kéo riêng thành một mục cuối tab, dùng lại đúng hàng của tab HTTP nên vẫn bấm `{ }` xem
+payload được. Nhờ mục này, log production không có dòng cấu hình nội bộ nào vẫn trả lời được câu
+"app xin cấu hình gì từ BE".
 
 **Cố ý không ghép cặp `stage`.** Nhìn qua thì `<stage>_start` / `<stage>_status` trông như ghép được
 thành cặp để tính "bước nào chưa xong". Nhưng trên log thật, UAT có `miniapp_load_start` ×14 mà không

@@ -61,7 +61,8 @@ function loadLens() {
   const src = fs.readFileSync(path.join(REPO, 'extension/lens.js'), 'utf8');
   const exportLine = 'globalThis.__LENS={analyzeLog,attachInsights,deriveStats,buildJourney,' +
     'parseKeyValueMap,renderSummaryTab,renderIssuesTab,renderHttpTab,renderSlowTab,renderFilterTab,' +
-    'renderTimelineTab,tabUiState,lensState,TAB_DEFS,TIMELINE_GROUPS,applyFilter};';
+    'renderTimelineTab,renderConfigTab,buildConfigs,tabUiState,lensState,TAB_DEFS,TIMELINE_GROUPS,' +
+    'applyFilter};';
   const wired = src.replace(/\n\}\)\(\);\s*$/, '\n' + exportLine + '\n})();\n');
   if (wired === src) throw new Error('khong chen duoc dong export vao IIFE cua extension/lens.js');
   (0, eval)(wired);
@@ -202,7 +203,9 @@ check('nhom theo nhan bo detail khi cac buoc khac boi canh', () => {
 });
 
 check('tab HTTP van doc dong [Method:] nhu cu', () => {
-  eq(data.httpCalls.length, 2, 'so call HTTP ghep tu dong [Method:]');
+  // 3 = hai call nghiep vu + mot call xin cau hinh (call thu ba cung phai ghep req/res binh thuong,
+  // viec no duoc tab Cau hinh muon lai khong duoc dong gi den tab HTTP).
+  eq(data.httpCalls.length, 3, 'so call HTTP ghep tu dong [Method:]');
   eq(data.badHttpCalls.length, 1, 'call bat thuong (errorCode 404)');
 });
 
@@ -372,7 +375,8 @@ check('phan biet co traceFail that hay chi co dong khong bi cat', () => {
 function renderAll(label) {
   L.TAB_DEFS.forEach((tab) => {
     const render = { sum: L.renderSummaryTab, iss: L.renderIssuesTab, http: L.renderHttpTab,
-      slow: L.renderSlowTab, flt: L.renderFilterTab, tl: L.renderTimelineTab }[tab.id];
+      slow: L.renderSlowTab, cfg: L.renderConfigTab, flt: L.renderFilterTab,
+      tl: L.renderTimelineTab }[tab.id];
     check('render tab ' + tab.label + ' — ' + label, () => {
       const html = render();
       const opens = (html.match(/<div/g) || []).length;
@@ -383,6 +387,72 @@ function renderAll(label) {
     });
   });
 }
+
+/* ------------------------------------------------------------ tab Cau hinh */
+
+const cfg = data.configs;
+const cfgKey = (source, key) => cfg.bySource[source].find((item) => item.key === key);
+
+check('cau hinh: doc duoc du 4 nguon co trong fixture', () => {
+  ok(cfgKey('be', 'cau_hinh_bia'), 'thieu khoa tu Persist ... raw=');
+  ok(cfgKey('wa', 'tabbar_bia'), 'thieu khoa webadmin');
+  ok(cfgKey('cdn', 'bang_loi_bia.json'), 'thieu file config tren CDN');
+  ok(cfgKey('ab', 'BIA_THU_NGHIEM'), 'thieu namespace A/B');
+});
+
+check('cau hinh: gia tri va ghi chu lay dung', () => {
+  eq(cfgKey('wa', 'tabbar_bia').latest.value, '200K', 'gia tri webadmin');
+  eq(cfgKey('ab', 'BIA_THU_NGHIEM').latest.value, 'nhanh_moi', 'nhanh A/B');
+  ok(cfgKey('ab', 'BIA_THU_NGHIEM').note.indexOf('bia.2') >= 0, 'ghi chu phai co ten thi nghiem');
+  ok(cfgKey('be', 'cau_hinh_bia').latest.value.indexOf('"tiLe":0.3') >= 0, 'raw JSON');
+});
+
+// Hai dong A/B ghi CUNG mot tag: dem 2 lan xuat hien nhung chi MOT gia tri.
+// Neu cho nao do so sanh sai thi cho nay bao "2 gia tri khac nhau" ma thuc te khong doi gi.
+check('cau hinh: ghi lai cung gia tri thi khong tinh la doi', () => {
+  const item = cfgKey('ab', 'BIA_THU_NGHIEM');
+  eq(item.count, 2, 'so dong');
+  eq(item.values.length, 1, 'so gia tri khac nhau');
+  eq(item.changed, false, 'changed');
+});
+
+check('cau hinh: doi gia tri thi giu ca hai va len dau bang', () => {
+  const item = cfgKey('be', 'cau_hinh_doi');
+  eq(item.values.length, 2, 'so gia tri');
+  eq(item.changed, true, 'changed');
+  eq(item.values[0].value, '{"enable":true}', 'gia tri cu');
+  eq(item.latest.value, '{"enable":false}', 'gia tri moi nhat');
+  eq(cfg.items[0].key, 'cau_hinh_doi', 'khoa co nhieu gia tri phai xep truoc');
+});
+
+// Nut "JSON" chi duoc hien khi GIA TRI that su co JSON. Do tren ca dong log thi hong: dong nao cung
+// co "[Module: ...]" nen hang nao cung moc ra nut, bam vao lai rong.
+check('cau hinh: nut JSON chi hien khi gia tri co JSON that', () => {
+  eq(cfgKey('be', 'cau_hinh_bia').latest.hasJson, true, 'gia tri raw={...} phai co nut');
+  eq(cfgKey('wa', 'tabbar_bia').latest.hasJson, false, 'gia tri "200K" khong duoc co nut');
+  eq(cfgKey('cdn', 'bang_loi_bia.json').latest.hasJson, false, 'gia tri la url, khong co nut');
+});
+
+check('cau hinh: call BE xin cau hinh tach rieng khoi bang khoa', () => {
+  eq(cfg.calls.length, 1, 'so call');
+  eq(cfg.calls[0].path, '/user-config/lay-bia', 'duong dan');
+  ok(!cfg.items.some((item) => item.key.indexOf('user-config') >= 0),
+    'call HTTP khong duoc lot vao bang khoa');
+});
+
+// Hai cai bay: payload khuyen mai dai (chu displayConfig nam SAU dau "{") va dong tu "configure".
+check('cau hinh: khong nhan nham payload va dong tu configure', () => {
+  const all = cfg.items.map((item) => item.key).join(' | ');
+  ok(all.indexOf('onMoKhuyenMai') < 0, 'payload khuyen mai lot vao: ' + all);
+  ok(all.indexOf('configure') < 0, 'dong "configure xong" lot vao: ' + all);
+});
+
+check('cau hinh: tab tu an khi log khong co cau hinh nao', () => {
+  const tab = L.TAB_DEFS.find((item) => item.id === 'cfg');
+  ok(tab && typeof tab.hide === 'function', 'tab Cau hinh phai co ham hide');
+  eq(tab.hide(data), false, 'log fixture co cau hinh nen KHONG duoc an');
+  eq(tab.hide({ configs: L.buildConfigs([], []) }), true, 'log rong thi phai an');
+});
 
 renderAll('log day du');
 

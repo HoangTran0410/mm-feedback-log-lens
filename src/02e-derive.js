@@ -32,6 +32,7 @@ function deriveStats(entries) {
     events: countBy(entries, (entry) => entry.event),
     journey: buildJourney(entries),
     traceIssues: buildTraceIssues(entries),
+    configs: buildConfigs(entries, httpCalls),
   };
 }
 

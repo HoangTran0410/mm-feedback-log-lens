@@ -14,6 +14,10 @@ const TAB_DEFS = [
   { id: 'iss', label: 'Vấn đề', badge: countUnmutedErrorGroups, danger: true },
   { id: 'http', label: 'HTTP', badge: (data) => data.httpCalls.length },
   { id: 'slow', label: 'Chậm' },
+  // Tab duy nhat co the tu an: log nao khong co dong cau hinh nao thi tab bien mat thay vi hien
+  // mot tab rong. Panel chi rong 480px, moi tab thua deu an vao cho cua tab con lai.
+  { id: 'cfg', label: 'Cấu hình', badge: (data) => data.configs.total || null,
+    hide: (data) => !data.configs.hasAny },
   { id: 'flt', label: 'Lọc', badge: () => getActiveFilterFacets().length || null, tone: 'act' },
   { id: 'tl', label: 'Diễn biến' },
 ];
@@ -107,6 +111,10 @@ function scanLog() {
   lensState.el.lastHit = null;
   lensState.isFiltering = false;
   lensState.visibleCount = data.entries.length;
+  // Doi sang log khac (trang admin thay noi dung ma khong tai lai) co the lam tab dang mo bien mat.
+  // Khong bat lai thi than panel ve tab do trong khi tren thanh tab khong con nut nao sang.
+  const current = TAB_DEFS.find((tab) => tab.id === lensState.tab);
+  if (current && current.hide && current.hide(data)) lensState.tab = 'sum';
   return data;
 }
 
@@ -117,6 +125,7 @@ function renderTab() {
   else if (lensState.tab === 'iss') body.innerHTML = renderIssuesTab();
   else if (lensState.tab === 'http') body.innerHTML = renderHttpTab();
   else if (lensState.tab === 'slow') body.innerHTML = renderSlowTab();
+  else if (lensState.tab === 'cfg') body.innerHTML = renderConfigTab();
   else if (lensState.tab === 'flt') body.innerHTML = renderFilterTab();
   else body.innerHTML = renderTimelineTab();
   body.scrollTop = 0;
@@ -153,6 +162,7 @@ function renderTabPreservingFocus() {
 
 function renderTabBar() {
   lensState.el.tabs.innerHTML = TAB_DEFS
+    .filter((tab) => !(tab.hide && tab.hide(getView())))
     .map((tab) => {
       const count = tab.badge ? tab.badge(getView()) : null;
       const tone = tab.danger ? ' err' : tab.tone ? ' ' + tab.tone : '';

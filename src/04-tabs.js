@@ -723,4 +723,81 @@ function renderTimelineTab() {
         (events.length - shown.length) + ' mốc</button>'
       : '');
 }
+/* ---------------------------------------------------------------- Cấu hình */
+
+// Mot dong config co the dai 5000 ky tu. Hang chi hien mot doan; muon xem het thi bam "JSON" de
+// mo tam truot dung san (no da biet cat khoi JSON ra khoi dong log va to mau).
+function renderConfigValue(item, value, isLatest) {
+  const json = value.hasJson
+    ? '<button class="fll-btn fll-cfg-js" data-act="json" data-value="' + value.domIndex + '">JSON</button>'
+    : '';
+  return '<div class="fll-cfg-val' + (isLatest ? ' last' : '') + '" data-jump="' + value.domIndex + '">' +
+    '<div class="fll-cfg-vm">' + escapeHtml(value.time.slice(0, 8)) + ' · dòng ' + value.lineNo +
+    (isLatest && item.values.length > 1 ? ' · mới nhất' : '') + '</div>' +
+    '<div class="fll-cfg-v">' + escapeHtml(value.value.slice(0, 260)) +
+    (value.value.length > 260 ? '…' : '') + '</div>' + json + '</div>';
+}
+
+// Mot dong config co the dai 5000 ky tu. Hang chi hien mot doan; muon xem het thi bam "JSON" de
+// mo tam truot dung san (no da biet cat khoi JSON ra khoi dong log va to mau).
+// Khoa nao co nhieu gia tri khac nhau thi bay het ra (toi da 4 gia tri gan nhat) — chinh cho lech
+// nhau moi la thu can nhin, gap lai chi con "gia tri cuoi" thi mat luon.
+function renderConfigRow(item) {
+  const many = item.values.length > 1
+    ? '<i class="fll-cfg-chg">' + item.values.length + ' giá trị khác nhau</i>'
+    : '';
+  const note = item.note ? '<i class="fll-cfg-note">' + escapeHtml(item.note) + '</i>' : '';
+  const shown = item.values.slice(-4);
+  const values = shown
+    .map((value, index) => renderConfigValue(item, value, index === shown.length - 1))
+    .join('');
+  return '<div class="fll-cfg' + (item.changed ? ' chg' : '') + '">' +
+    '<div class="fll-cfg-hd"><b>' + escapeHtml(item.key) + '</b>' + many + note +
+    '<em>' + (item.count > 1 ? item.count + '&times;' : '1 dòng') + '</em></div>' +
+    (item.values.length > shown.length
+      ? '<div class="fll-cfg-vm">(còn ' + (item.values.length - shown.length) + ' giá trị cũ hơn)</div>'
+      : '') +
+    values + '</div>';
+}
+
+function renderConfigSection(source, rows) {
+  if (!rows.length) return '';
+  const meta = CONFIG_SOURCE_META[source];
+  return '<div class="fll-sec">' + meta.label + ' — ' + rows.length + '</div>' +
+    '<div class="fll-hint" style="margin-bottom:8px">' + meta.hint + '</div>' +
+    rows.map(renderConfigRow).join('');
+}
+
+// Cac call nay nam o module HTTP nen vong quet cau hinh co y bo qua. Dung lai hang cua tab HTTP
+// (co san nut xem payload) thay vi ve kieu rieng — cung mot thu thi phai nhin giong nhau.
+function renderConfigCallSection(cfg, view) {
+  if (!cfg.calls.length) return '';
+  return '<div class="fll-sec">Call BE xin cấu hình — ' + cfg.calls.length + '</div>' +
+    '<div class="fll-hint" style="margin-bottom:8px">Call có chữ <code>config</code> trên đường dẫn ' +
+    '(đã bỏ query, nên <code>?displayConfig=</code> của API khác không lọt vào đây). Bấm ' +
+    '<code>{ }</code> để xem giá trị BE trả về.</div>' +
+    cfg.calls.map((call) => renderHttpCall(call, view)).join('');
+}
+
+function renderConfigTab() {
+  const view = getView();
+  const cfg = view.configs;
+  const header = '<div class="fll-hint" style="margin-bottom:10px">Mọi giá trị cấu hình app <b>nhận được</b> ' +
+    'hoặc <b>áp dụng</b> trong log này, gom theo khóa. Một khóa ghi nhiều lần cùng giá trị thì chỉ hiện ' +
+    'một hàng; ghi ra giá trị <b>khác</b> thì cả các giá trị đó cùng hiện và hàng lên đầu bảng. ' +
+    'Nhiều giá trị có thể là cấu hình đổi giữa phiên (thứ dễ làm bug chỉ tái hiện được một lần), ' +
+    'cũng có thể chỉ vì payload mang theo id/thời điểm khác nhau mỗi lần — bấm từng dòng mà so.</div>';
+  if (!cfg.hasAny) {
+    return header + '<div class="fll-empty">Log này không có dòng cấu hình nào đọc được.</div>';
+  }
+  const summary = '<div class="fll-stats">' +
+    statCard(cfg.total, 'khóa cấu hình', LEVEL_COLOR.INFO, 'data-act="noop"') +
+    statCard(cfg.changedCount, 'đổi giữa chừng',
+      cfg.changedCount ? LEVEL_COLOR.WARNING : '', 'data-act="noop"') +
+    statCard(cfg.lineCount, 'dòng log gốc', '', 'data-act="noop"') + '</div>';
+  return header + summary +
+    CONFIG_SOURCE_ORDER.map((source) => renderConfigSection(source, cfg.bySource[source])).join('') +
+    renderConfigCallSection(cfg, view);
+}
+
 // AI-GENERATED END

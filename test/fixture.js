@@ -127,6 +127,31 @@ function build() {
   grafana('traceFail', 'flow=nen_tang, step=ManHinhMot_goi_api_ALPHA_fail, appId=vn.gia.lap, errorCode=200.0, errorMessage=null');
   grafana('traceFail', 'flow=nen_tang, step=ManHinhHai_goi_api_BETA_fail, appId=vn.gia.lap, errorCode=200.0, errorMessage=null');
 
+  // --- CAU HINH: mot dai dien cho moi nguon ma tab Cau hinh biet doc.
+  // Gia tri deu bia, nhung DANG dong thi giu y het log that (do la thu bo doc dua vao).
+  line('INFO', '[Module: BaoLoiBia] Persist CauHinhBia key=cau_hinh_bia raw={"enable":true,"tiLe":0.3,"danhSach":[]}');
+  line('INFO', '[Module: SYNC, FEATURE] reddotFlow getLocalized > webadmin config tabbar_bia 200K');
+  line('INFO', '[Module: KhoCauHinh] @@ configs >> fetchConfig >> url: https://gia.lap/json/bang_loi_bia.json');
+  line('INFO', '@@ abTesting >> logTagConfig :: config: ABTestingExpTag(namespace=BIA_THU_NGHIEM, ' +
+    'exp_definition=bia, exp_name=bia.2, tag=nhanh_moi, last_updated=1740000000000000)');
+  // Cung namespace, ghi lai lan hai voi CUNG gia tri -> chi duoc tinh la MOT gia tri
+  line('INFO', '@@ abTesting >> getABTestFlow :: namespace: BIA_THU_NGHIEM - config: ' +
+    'ABTestingExpTag(namespace=BIA_THU_NGHIEM, exp_definition=bia, exp_name=bia.2, tag=nhanh_moi, ' +
+    'last_updated=1740000000000000) - defaultFlow: mac_dinh - cacheOnly: false');
+  // Khoa nay DOI gia tri giua phien -> phai ra "2 gia tri khac nhau"
+  line('INFO', '[Module: BaoLoiBia] Persist CauHinhBia key=cau_hinh_doi raw={"enable":true}');
+  line('INFO', '[Module: BaoLoiBia] Persist CauHinhBia key=cau_hinh_doi raw={"enable":false}', 200);
+  // Call BE xin cau hinh: nam o module HTTP nen phai ra o muc rieng, khong lan vao bang khoa
+  line('INFO', '[Module: HTTP] [Method: GET] [URL: https://gia.lap/user-config/lay-bia] ' +
+    '--RequestPayload: {"cmdId":"CMD-BIA-3"}');
+  line('INFO', '[Module: HTTP] [Method: GET] [URL: https://gia.lap/user-config/lay-bia] ' +
+    '--ResponsePayload: {"cmdId":"CMD-BIA-3","errorCode":0} --status: 200');
+  // MOI NHU: payload dai mo dau bang "{" roi moi co chu displayConfig -> KHONG duoc coi la cau hinh
+  line('INFO', '[ManBia] onMoKhuyenMai === {man=ManBia, displayConfig=BiaOffline, danhSach=[1,2,3], ' +
+    'ghiChu=day la payload khuyen mai chu khong phai cau hinh, dai qua 120 ky tu de giong log that}');
+  // "configure" la dong tu bao xong mot buoc, khong mang gia tri cau hinh -> cung khong duoc nhan
+  line('INFO', '[Module: DonDep] @@ bia >> DonDepBia >> configure xong [tongMs=1ms, buocMs=0ms]');
+
   return lines.slice();
 }
 

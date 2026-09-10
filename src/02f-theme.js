@@ -168,6 +168,30 @@ const PANEL_CSS = [
   '.fll-slow-txt{position:relative;flex:1;min-width:0;font-family:var(--mono);font-size:10.5px;color:#cfc8dd;',
   'overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
 
+  /* ---------- bang cau hinh ---------- */
+  /* Hang co the chua mot khoi JSON dai; .fll-cfg-v gioi han 3 dong roi cat, con ban day du thi
+     xem qua nut JSON. Khong dung white-space:nowrap nhu cac bang khac vi gia tri cau hinh doc
+     theo chieu ngang thi mat nghia. */
+  '.fll-cfg{position:relative;padding:9px 12px 9px;margin-bottom:5px;border-radius:9px;',
+  'background:var(--bg2);border:1px solid var(--line);transition:.14s}',
+  '.fll-cfg.chg{border-left:2px solid var(--warn)}',
+  '.fll-cfg-hd{display:flex;align-items:center;gap:7px;flex-wrap:wrap;font-size:11.5px;font-weight:600}',
+  '.fll-cfg-hd b{font-weight:700;word-break:break-word}',
+  '.fll-cfg-hd em{margin-left:auto;font-style:normal;font-size:10px;color:var(--mut);',
+  'font-variant-numeric:tabular-nums;flex:0 0 auto}',
+  '.fll-cfg-chg{font-style:normal;font-size:9.5px;font-weight:700;padding:1px 6px;border-radius:20px;',
+  'background:rgba(255,182,72,.18);color:var(--warn)}',
+  '.fll-cfg-note{font-style:normal;font-size:9.5px;font-weight:600;padding:1px 6px;border-radius:20px;',
+  'background:var(--bg3);color:var(--mut)}',
+  '.fll-cfg-val{margin-top:6px;padding:6px 9px;border-radius:7px;background:var(--bg);',
+  'border:1px solid transparent;cursor:pointer;transition:.14s}',
+  '.fll-cfg-val:hover{border-color:var(--acc)}',
+  '.fll-cfg-val.last{background:var(--bg3)}',
+  '.fll-cfg-vm{font-size:9.5px;color:var(--mut);font-variant-numeric:tabular-nums}',
+  '.fll-cfg-v{margin-top:3px;font-family:var(--mono);font-size:10.5px;line-height:1.5;color:#cfc8dd;',
+  'word-break:break-all;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}',
+  '.fll-cfg-js{margin-top:6px;padding:4px 10px;font-size:10px}',
+
   /* ---------- nut nho trong hang, va nut tat tieng ---------- */
   '.fll-ico.fll-mini{width:24px;height:24px;font-size:10px;border-radius:6px;background:var(--bg3);flex:0 0 auto}',
   '.fll-ico.fll-mute{width:22px;height:22px;font-size:11px;opacity:.4;flex:0 0 auto;margin-left:2px}',
