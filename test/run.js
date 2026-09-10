@@ -603,9 +603,9 @@ check('phien app: tab Dien bien khong ve ba moc "App khoi dong" chong nhau', () 
 check('dong thoi gian: moi loai moc co bieu tuong va ten', () => {
   L.tabUiState.tlKinds = new Set();
   const html = L.renderTimelineTab();
-  ok(html.indexOf('class="fll-ev-ic" title="User chạm"') >= 0, 'moc cham phai co bieu tuong kem ten');
-  ok(html.indexOf('class="fll-ev-ic" title="Khoảng lặng, không có log"') >= 0, 'moc khoang lang');
-  ok(html.indexOf('class="fll-ev-ic" title="App khởi động"') >= 0, 'moc khoi dong');
+  ok(html.indexOf('class="fll-ev-ic" data-tip="User chạm"') >= 0, 'moc cham phai co bieu tuong kem ten');
+  ok(html.indexOf('class="fll-ev-ic" data-tip="Khoảng lặng, không có log"') >= 0, 'moc khoang lang');
+  ok(html.indexOf('class="fll-ev-ic" data-tip="App khởi động"') >= 0, 'moc khoi dong');
   ok(html.indexOf('data-act="tlKind" data-value="jr-tap"') >= 0, 'phai co chip loc theo loai moc');
   ok(html.indexOf('class="fll-chip-ic">' + L.TIMELINE_KINDS['jr-tap'].icon) >= 0,
     'chip phai mang dung bieu tuong cua loai do');
@@ -674,7 +674,7 @@ check('o lau tren man: giu ca tong lan lan lau nhat', () => {
   });
   const html = L.renderSummaryTab();
   if (journey.screens.some((row) => row.ms > 0)) {
-    ok(html.indexOf('lần vào, lần lâu nhất') >= 0, 'hang phai co title noi ro tong va lan lau nhat');
+    ok(html.indexOf('lần vào, lần lâu nhất') >= 0, 'hang phai co chu giai noi ro tong va lan lau nhat');
   }
 });
 
@@ -697,6 +697,36 @@ check('minimap: khong phong to thi khung ve la ca log', () => {
   L.lensState.mapZoom = { from: 111, to: 222 };
   eq(JSON.stringify(L.minimapBounds()), '{"from":111,"to":222}', 'dang phong thi lay dung vung do');
   L.lensState.mapZoom = null;
+});
+
+// Do tre truoc khi hien title="" cua trinh duyet do HE DIEU HANH quyet dinh, khong doi duoc bang CSS
+// hay JS. Panel nay day chu giai nen luot chuot qua la tooltip nhay lien tuc. Moi chu giai phai di qua
+// data-tip de con tu ve — con sot title= nao la cai do lai nhay nhu cu.
+check('chu giai: khong con thuoc tinh title= nao trong HTML sinh ra', () => {
+  const html = [L.renderSummaryTab(), L.renderIssuesTab(), L.renderConfigTab(),
+    L.renderFilterTab(), L.renderTimelineTab()].join('');
+  const sot = html.match(/\stitle="/g) || [];
+  eq(sot.length, 0, 'con ' + sot.length + ' cho dung title= thay vi data-tip=');
+  ok(html.indexOf('data-tip="') >= 0, 'va phai that su co data-tip');
+});
+
+// Lui TUNG NAC chu khong nhay thang ve ca log: phong ba nac roi muon xem lai nac hai thi khong phai
+// phong lai tu dau.
+check('minimap: lui tung nac phong to', () => {
+  L.lensState.mapZoom = null;
+  L.lensState.mapZoomStack = [];
+  const nac1 = { from: 100, to: 900 };
+  const nac2 = { from: 300, to: 500 };
+  L.lensState.mapZoomStack.push(L.lensState.mapZoom);
+  L.lensState.mapZoom = nac1;
+  L.lensState.mapZoomStack.push(L.lensState.mapZoom);
+  L.lensState.mapZoom = nac2;
+  eq(L.lensState.mapZoomStack.length, 2, 'hai nac da luu');
+  L.lensState.mapZoom = L.lensState.mapZoomStack.pop();
+  eq(JSON.stringify(L.lensState.mapZoom), JSON.stringify(nac1), 'lui mot nac ve nac 1');
+  L.lensState.mapZoom = L.lensState.mapZoomStack.pop();
+  eq(L.lensState.mapZoom, null, 'lui tiep la ve ca log');
+  L.lensState.mapZoomStack = [];
 });
 
 renderAll('log day du');

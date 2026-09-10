@@ -55,7 +55,7 @@ function renderMinimap() {
         ? formatClock(bounds.from + ((bounds.to - bounds.from) * index) / MINIMAP_BUCKETS) +
           ' · ' + bucket.total + ' dòng (' + bucket.ERROR + ' lỗi, ' + bucket.WARNING + ' cảnh báo)'
         : 'không có log';
-      return '<i data-bucket="' + bucket.firstIndex + '" title="' + escapeHtml(title) + '" style="height:' +
+      return '<i data-bucket="' + bucket.firstIndex + '" data-tip="' + escapeHtml(title) + '" style="height:' +
         height.toFixed(1) + '%;background:' + color + '"></i>';
     })
     .join('');
@@ -72,8 +72,10 @@ function renderMinimap() {
     '<span>' + formatClock(bounds.from) + '</span>' +
     '<span class="fll-maptext"></span>' +
     (lensState.mapZoom
-      ? '<button class="fll-mapzoom on" data-act="mapZoomOut" title="Thu về toàn bộ log">' +
-        formatClock(bounds.to) + ' &#10005;</button>'
+      ? '<button class="fll-mapzoom on" data-act="mapZoomOut" data-tip="Lùi một nấc phóng to' +
+        (lensState.mapZoomStack.length > 1
+          ? ' — còn ' + (lensState.mapZoomStack.length - 1) + ' nấc nữa mới về cả log'
+          : ' — về lại cả log') + '">' + formatClock(bounds.to) + ' &#8617;</button>'
       : '<span>' + formatClock(bounds.to) + '</span>');
   lensState.el.map.classList.toggle('fll-map-zoomed', !!lensState.mapZoom);
   lensState.el.mapText = lensState.el.mapLabel.querySelector('.fll-maptext');
@@ -97,7 +99,7 @@ function updateMinimapRange() {
     lensState.el.mapText.innerHTML = escapeHtml(formatClock(range.from) + ' → ' + formatClock(range.to) +
       ' · ' + formatDuration(range.to - range.from)) +
       (canZoomFurther(range, bounds) ? ' <button class="fll-mapzoom" data-act="mapZoomIn" ' +
-        'title="Phóng minimap vào đúng khoảng này để nhìn rõ từng mốc">&#8596; phóng to</button>' : '');
+        'data-tip="Phóng minimap vào đúng khoảng này để nhìn rõ từng mốc">&#8596; phóng to</button>' : '');
     return;
   }
   lensState.el.mapText.textContent = lensState.mapZoom

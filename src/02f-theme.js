@@ -131,6 +131,13 @@ const PANEL_CSS = [
   '.fll-maptext.aiming{opacity:1;color:#fff;font-weight:700;font-variant-numeric:tabular-nums}',
   '.fll-cursor{position:absolute;top:0;bottom:0;width:2px;background:var(--acc);pointer-events:none;',
   'box-shadow:0 0 10px var(--acc);opacity:0;transition:.12s}',
+  /* Tooltip tu ve. position:fixed va nam trong #fll-root (khong phai .fll-panel, panel co
+     overflow:hidden se cat mat no). z-index tren ca tam truot lan lop mui ten. */
+  '.fll-tip{position:fixed;z-index:2147483001;max-width:300px;padding:7px 10px;border-radius:8px;',
+  'background:#0d0b12;border:1px solid var(--line);color:var(--txt);font-size:10.5px;line-height:1.5;',
+  'box-shadow:0 8px 26px rgba(0,0,0,.6);pointer-events:none;white-space:normal;word-break:break-word;',
+  'font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}',
+
   /* Nut phong to nam ngay trong dong nhan duoi minimap — cho duy nhat vua lien quan vua khong an
      mat cho cua chinh minimap. */
   '.fll-mapzoom{font-size:9px;font-weight:700;padding:1px 7px;border-radius:20px;cursor:pointer;',

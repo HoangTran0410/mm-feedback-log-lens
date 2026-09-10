@@ -1544,6 +1544,13 @@ const PANEL_CSS = [
   '.fll-maptext.aiming{opacity:1;color:#fff;font-weight:700;font-variant-numeric:tabular-nums}',
   '.fll-cursor{position:absolute;top:0;bottom:0;width:2px;background:var(--acc);pointer-events:none;',
   'box-shadow:0 0 10px var(--acc);opacity:0;transition:.12s}',
+  /* Tooltip tu ve. position:fixed va nam trong #fll-root (khong phai .fll-panel, panel co
+     overflow:hidden se cat mat no). z-index tren ca tam truot lan lop mui ten. */
+  '.fll-tip{position:fixed;z-index:2147483001;max-width:300px;padding:7px 10px;border-radius:8px;',
+  'background:#0d0b12;border:1px solid var(--line);color:var(--txt);font-size:10.5px;line-height:1.5;',
+  'box-shadow:0 8px 26px rgba(0,0,0,.6);pointer-events:none;white-space:normal;word-break:break-word;',
+  'font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}',
+
   /* Nut phong to nam ngay trong dong nhan duoi minimap — cho duy nhat vua lien quan vua khong an
      mat cho cua chinh minimap. */
   '.fll-mapzoom{font-size:9px;font-weight:700;padding:1px 7px;border-radius:20px;cursor:pointer;',
@@ -2196,9 +2203,13 @@ const lensState = {
   },
   // Muc dang di chuot qua, de biet luc nao phai ve lai mui ten len minimap (va luc nao thi thoi).
   aimEl: null,
+  // Phan tu chuot dang dung tren, de biet luc nao phai hien tooltip tu ve (va luc nao thi thoi).
+  tipEl: null,
   // Khoang thoi gian minimap dang VE (null = ve nguyen ca log). Doc lap voi bo loc: phong to chi doi
   // cai nhin, khong doi tap dong dang hien.
   mapZoom: null,
+  // Cac nac phong to truoc do, de lui tung nac mot thay vi nhay thang ve ca log.
+  mapZoomStack: [],
   el: {},
 };
 
@@ -2834,7 +2845,7 @@ function refreshFilterBar() {
     (forced ? ' · ' + forced + ' dòng ngoài lọc' : '') + '</span>' +
     '<div class="fll-fchips">' + facets
       .map((facet) => '<span class="fll-fchip"><b>' + escapeHtml(facet.label) + '</b>' +
-        '<button data-act="clearFacet" data-value="' + facet.id + '" title="Bỏ điều kiện này">&times;</button>' +
+        '<button data-act="clearFacet" data-value="' + facet.id + '" data-tip="Bỏ điều kiện này">&times;</button>' +
         '</span>')
       .join('') +
     '<button class="fll-fclear" data-act="clearFilters">Xoá tất cả</button></div>';
@@ -2930,7 +2941,7 @@ function renderMinimap() {
         ? formatClock(bounds.from + ((bounds.to - bounds.from) * index) / MINIMAP_BUCKETS) +
           ' · ' + bucket.total + ' dòng (' + bucket.ERROR + ' lỗi, ' + bucket.WARNING + ' cảnh báo)'
         : 'không có log';
-      return '<i data-bucket="' + bucket.firstIndex + '" title="' + escapeHtml(title) + '" style="height:' +
+      return '<i data-bucket="' + bucket.firstIndex + '" data-tip="' + escapeHtml(title) + '" style="height:' +
         height.toFixed(1) + '%;background:' + color + '"></i>';
     })
     .join('');
@@ -2947,8 +2958,10 @@ function renderMinimap() {
     '<span>' + formatClock(bounds.from) + '</span>' +
     '<span class="fll-maptext"></span>' +
     (lensState.mapZoom
-      ? '<button class="fll-mapzoom on" data-act="mapZoomOut" title="Thu về toàn bộ log">' +
-        formatClock(bounds.to) + ' &#10005;</button>'
+      ? '<button class="fll-mapzoom on" data-act="mapZoomOut" data-tip="Lùi một nấc phóng to' +
+        (lensState.mapZoomStack.length > 1
+          ? ' — còn ' + (lensState.mapZoomStack.length - 1) + ' nấc nữa mới về cả log'
+          : ' — về lại cả log') + '">' + formatClock(bounds.to) + ' &#8617;</button>'
       : '<span>' + formatClock(bounds.to) + '</span>');
   lensState.el.map.classList.toggle('fll-map-zoomed', !!lensState.mapZoom);
   lensState.el.mapText = lensState.el.mapLabel.querySelector('.fll-maptext');
@@ -2972,7 +2985,7 @@ function updateMinimapRange() {
     lensState.el.mapText.innerHTML = escapeHtml(formatClock(range.from) + ' → ' + formatClock(range.to) +
       ' · ' + formatDuration(range.to - range.from)) +
       (canZoomFurther(range, bounds) ? ' <button class="fll-mapzoom" data-act="mapZoomIn" ' +
-        'title="Phóng minimap vào đúng khoảng này để nhìn rõ từng mốc">&#8596; phóng to</button>' : '');
+        'data-tip="Phóng minimap vào đúng khoảng này để nhìn rõ từng mốc">&#8596; phóng to</button>' : '');
     return;
   }
   lensState.el.mapText.textContent = lensState.mapZoom
@@ -3602,7 +3615,7 @@ function collapsifySections(container, tabId) {
     container.insertBefore(wrap, node);
     node.setAttribute('data-act', 'tglSec');
     node.setAttribute('data-value', key);
-    node.setAttribute('title', 'Bấm để mở / thu mục này');
+    node.setAttribute('data-tip', 'Bấm để mở / thu mục này');
     node.insertAdjacentHTML('afterbegin', '<span class="fll-caret">&#9656;</span>');
     wrap.appendChild(node);
     bodyOfCurrentSection = document.createElement('div');
@@ -3633,6 +3646,96 @@ function revealElement(el) {
     }
     node = node.parentElement;
   }
+}
+// AI-GENERATED END
+/*
+File: src/03j-tooltip.js
+Created At: 2026-09-10 23:00:00 +07:00
+Created By: AI
+AI Agent: Claude Code
+Model: claude-opus-5
+*/
+// @ts-check
+// AI-GENERATED START — tooltip tu ve, thay cho thuoc tinh title="" cua trinh duyet
+//
+// Vi sao phai tu ve: do tre truoc khi hien title="" do HE DIEU HANH quyet dinh, khong co CSS hay JS
+// nao doi duoc. Panel nay day chu giai — moi hang, moi chip, moi tieu de muc deu co mot cai — nen luot
+// chuot qua la tooltip nhay lien tuc va che mat phan giao dien phia sau. Doi sang data-tip roi tu ve
+// thi kiem soat duoc ba thu: cho bao lau moi hien, rong toi da bao nhieu, va hien o dau.
+//
+// Dat trong #fll-root chu khong trong .fll-panel: panel co overflow:hidden nen tooltip sat mep panel
+// se bi cat mat mot nua.
+
+const TOOLTIP_DELAY_MS = 600;
+// Lech xuong duoi va sang phai con tro. Chuot thuong di tu tren xuong / tu trai sang, nen huong nay
+// che vao cho nguoi dung VUA roi khoi, khong che cho ho dang nhin toi.
+const TOOLTIP_OFFSET_X = 14;
+const TOOLTIP_OFFSET_Y = 18;
+const TOOLTIP_MARGIN = 8;
+
+let tooltipTimer = 0;
+
+function ensureTooltip() {
+  const root = lensState.el.root;
+  if (!root) return null;
+  if (lensState.el.tip && lensState.el.tip.parentNode === root) return lensState.el.tip;
+  const tip = document.createElement('div');
+  tip.className = 'fll-tip';
+  tip.hidden = true;
+  root.appendChild(tip);
+  lensState.el.tip = tip;
+  return tip;
+}
+
+function clearTooltipTimer() {
+  if (!tooltipTimer) return;
+  clearTimeout(tooltipTimer);
+  tooltipTimer = 0;
+}
+
+function hideTooltip() {
+  clearTooltipTimer();
+  lensState.tipEl = null;
+  if (lensState.el.tip) lensState.el.tip.hidden = true;
+}
+
+// Do xong moi dat: phai hien ra thi moi biet no rong cao bao nhieu de con lat len / day vao trong man.
+function placeTooltip(el, clientX, clientY) {
+  const text = el.getAttribute('data-tip');
+  if (!text || !el.isConnected) return;
+  const tip = ensureTooltip();
+  if (!tip) return;
+  tip.textContent = text;
+  tip.hidden = false;
+
+  const box = tip.getBoundingClientRect();
+  let left = clientX + TOOLTIP_OFFSET_X;
+  let top = clientY + TOOLTIP_OFFSET_Y;
+  if (left + box.width > window.innerWidth - TOOLTIP_MARGIN) {
+    left = Math.max(TOOLTIP_MARGIN, window.innerWidth - TOOLTIP_MARGIN - box.width);
+  }
+  // Khong du cho ben duoi thi lat len TREN con tro, chu khong ep sat day man hinh — ep sat day thi no
+  // nam de len chinh cai dang tro toi.
+  if (top + box.height > window.innerHeight - TOOLTIP_MARGIN) {
+    top = Math.max(TOOLTIP_MARGIN, clientY - TOOLTIP_OFFSET_Y - box.height);
+  }
+  tip.style.left = Math.round(left) + 'px';
+  tip.style.top = Math.round(top) + 'px';
+}
+
+function handleLensTooltip(event) {
+  const target = event.target;
+  const hit = target && target.closest ? target.closest('[data-tip]') : null;
+  if (hit === lensState.tipEl) return;
+  hideTooltip();
+  if (!hit) return;
+  lensState.tipEl = hit;
+  const clientX = event.clientX;
+  const clientY = event.clientY;
+  tooltipTimer = setTimeout(() => {
+    tooltipTimer = 0;
+    if (lensState.tipEl === hit) placeTooltip(hit, clientX, clientY);
+  }, TOOLTIP_DELAY_MS);
 }
 // AI-GENERATED END
 /*
@@ -3667,7 +3770,7 @@ function openSheet(title, subtitle, bodyHtml) {
     '<div class="fll-sheet-hd"><div><div class="fll-sheet-tt">' + escapeHtml(title) + '</div>' +
     '<div class="fll-sheet-sub">' + escapeHtml(subtitle) + '</div></div>' +
     '<div class="fll-hd-sp"></div>' +
-    '<button class="fll-ico" data-act="closeSheet" title="Đóng">×</button></div>' +
+    '<button class="fll-ico" data-act="closeSheet" data-tip="Đóng">×</button></div>' +
     '<div class="fll-sheet-body">' + bodyHtml + '</div>';
   panel.appendChild(sheet);
   lensState.el.sheet = sheet;
@@ -3785,9 +3888,9 @@ function togglePayloadWrap(button) {
 function renderPayloadToolbar(tabsHtml, domIndex, lineNo) {
   const jump = domIndex == null ? '' :
     '<button class="fll-btn fll-mini pri" data-jump="' + domIndex + '" ' +
-    'title="Cuộn bảng log tới đúng dòng này">&#8629; Dòng ' + lineNo + '</button>';
+    'data-tip="Cuộn bảng log tới đúng dòng này">&#8629; Dòng ' + lineNo + '</button>';
   const wrap = '<button class="fll-chip' + (payloadSheetState.isWrapped ? ' on' : '') +
-    '" data-act="toggleWrap" title="Xuống dòng thay vì cuộn ngang">&#8629; Xuống dòng</button>';
+    '" data-act="toggleWrap" data-tip="Xuống dòng thay vì cuộn ngang">&#8629; Xuống dòng</button>';
   return '<div class="fll-paytop">' +
     (tabsHtml ? '<div class="fll-stabs">' + tabsHtml + '</div>' : '') +
     '<div class="fll-row fll-paybar">' + jump + '<div class="fll-hd-sp"></div>' + wrap + '</div>' +
@@ -3966,7 +4069,7 @@ function renderFeedbackBanner() {
   return '<div class="fll-focus">' +
     '<div class="fll-focus-t">User gửi lúc <b>' + formatClock(data.lastTs) + '</b>' +
     (context['Entry Point'] ? ' từ <b>' + escapeHtml(context['Entry Point']) + '</b>' : '') + '</div>' +
-    (bits.length ? '<div class="fll-focus-d" title="' +
+    (bits.length ? '<div class="fll-focus-d" data-tip="' +
       escapeHtml(bits.join(' · ') + (device ? '\n' + device : '')) + '">' +
       escapeHtml(bits.join(' · ')) + '</div>' : '') +
     '<div class="fll-focus-hint">Vấn đề thường nằm ở cuối log — thu hẹp lại:</div>' +
@@ -4004,7 +4107,7 @@ function renderSummaryTab() {
     '</div>';
 
   if (full.outOfOrder > 0) {
-    html += '<div class="fll-note" title="Logger flush theo lô (' + full.batchCount +
+    html += '<div class="fll-note" data-tip="Logger flush theo lô (' + full.batchCount +
       ' mốc END OF BATCH). Minimap, khoảng lặng và tab Timeline đều đã sắp lại theo timestamp thật.">' +
       '<span>&#9888;</span><div><b>' + full.outOfOrder + ' dòng có timestamp lùi về trước</b> — ' +
       'thứ tự dòng không phải thứ tự thời gian.</div></div>';
@@ -4014,7 +4117,7 @@ function renderSummaryTab() {
   const levelTotal = Math.max(1, LEVEL_ORDER.reduce((sum, level) => sum + data.levels[level], 0));
   html += '<div class="fll-lvbar">' + LEVEL_ORDER
     .map((level) => '<i style="width:' + ((data.levels[level] / levelTotal) * 100).toFixed(2) + '%;background:' +
-      LEVEL_COLOR[level] + '" title="' + level + ': ' + data.levels[level] + '"></i>')
+      LEVEL_COLOR[level] + '" data-tip="' + level + ': ' + data.levels[level] + '"></i>')
     .join('') + '</div>';
   html += '<div class="fll-lvkey">' + LEVEL_ORDER
     .map((level) => '<button class="fll-chip" data-level="' + level + '">' +
@@ -4065,7 +4168,7 @@ function renderGroupCard(group, groupIndex) {
     (group.module ? '<span class="fll-mod">' + escapeHtml(group.module) + '</span>' : '') +
     '<span class="fll-when">' + formatClock(group.firstTs) +
     (group.indices.length > 1 ? ' &rarr; ' + formatClock(group.lastTs) : '') + '</span>' +
-    '<button class="fll-ico fll-mute" data-act="mute" data-value="' + groupIndex + '" title="' +
+    '<button class="fll-ico fll-mute" data-act="mute" data-value="' + groupIndex + '" data-tip="' +
     (muted ? 'Bật lại nhóm này' : 'Tắt tiếng chữ ký này, nhớ cho các feedback sau') + '">' +
     (muted ? '&#128266;' : '&#128263;') + '</button></div>' +
     '<div class="fll-msg">' + escapeHtml(group.sample) + '</div>' +
@@ -4192,7 +4295,7 @@ function renderTraceFailCard(row, rowIndex) {
     meta.push(escapeHtml(row.steps.slice(0, 3).join(', ')) +
       (row.steps.length > 3 ? ' +' + (row.steps.length - 3) : ''));
   }
-  return '<div class="fll-grp err" data-tracefail="' + rowIndex + '" title="' +
+  return '<div class="fll-grp err" data-tracefail="' + rowIndex + '" data-tip="' +
     escapeHtml(row.apps.join('\n')) + '">' +
     '<div class="fll-grp-top">' +
     '<span class="fll-cnt">' + row.count + '&times;</span>' +
@@ -4240,16 +4343,16 @@ function renderHttpCall(call, data) {
   const correlation = findCorrelationForEntry(data.entries[payloadIndex]);
   const payloadButton = '<button class="fll-ico fll-mini" data-act="payload" data-req="' +
     (call.reqIndex == null ? '' : call.reqIndex) + '" data-res="' +
-    (call.resIndex == null ? '' : call.resIndex) + '" title="Xem payload request / response">{ }</button>';
+    (call.resIndex == null ? '' : call.resIndex) + '" data-tip="Xem payload request / response">{ }</button>';
   return '<div class="fll-call" data-call="' + data.httpCalls.indexOf(call) + '">' +
     '<span class="fll-verb">' + escapeHtml(call.method) + '</span>' +
     '<span class="' + statusClass + '">' + escapeHtml(statusText) + '</span>' +
-    '<span class="fll-path" title="' + escapeHtml(call.url) + '">' + escapeHtml(call.path) + '</span>' +
+    '<span class="fll-path" data-tip="' + escapeHtml(call.url) + '">' + escapeHtml(call.path) + '</span>' +
     '<span class="fll-dur">' + (call.duration != null ? formatDuration(call.duration) : call.time.slice(0, 8)) +
     '</span>' +
     payloadButton +
     (correlation ? '<button class="fll-ico fll-mini" data-act="correlate" data-value="' +
-      escapeHtml(correlation.value) + '" title="Gom theo ' + correlation.key + '">&#128279;</button>' : '') +
+      escapeHtml(correlation.value) + '" data-tip="Gom theo ' + correlation.key + '">&#128279;</button>' : '') +
     '</div>';
 }
 
@@ -4386,7 +4489,7 @@ function renderScreenDwellSection(view) {
     'nên khoảng cách vắt qua hai phiên app, hoặc dài quá ' + MAX_PLAUSIBLE_DURATION_MS / 60000 +
     ' phút (app nằm dưới nền chứ không phải người dùng ngồi nhìn), đều bị bỏ.</div>' +
     '<div class="fll-rank">' + screens.slice(0, 8)
-      .map((row) => '<div class="fll-rk" data-jscreen="' + escapeHtml(row.key) + '" title="' +
+      .map((row) => '<div class="fll-rk" data-jscreen="' + escapeHtml(row.key) + '" data-tip="' +
         row.count + ' lần vào, lần lâu nhất ' + formatDuration(row.maxMs) + '">' +
         '<u style="width:' + ((row.ms / peak) * 100).toFixed(1) + '%"></u>' +
         '<span>' + escapeHtml(row.key) + '</span>' +
@@ -4435,7 +4538,7 @@ function renderSessionChipRow() {
         const count = tally.get(session.index) || 0;
         return '<button class="fll-chip' + (lensState.filter.session === session.index ? ' on' : '') +
           (count ? '' : ' dim') + '" data-act="setSession" data-value="' + session.index +
-          '" title="Bắt đầu ' + formatClock(session.startTs) + '">Phiên ' + session.index +
+          '" data-tip="Bắt đầu ' + formatClock(session.startTs) + '">Phiên ' + session.index +
           ' <em>' + count + '</em></button>';
       })
       .join('') +
@@ -4466,12 +4569,12 @@ function renderTemplateSection() {
 
   const chips = templates.length
     ? '<div class="fll-lvkey" style="margin-bottom:8px">' + templates
-      .map((template) => '<span class="fll-fchip fll-tpl" title="' +
+      .map((template) => '<span class="fll-fchip fll-tpl" data-tip="' +
         escapeHtml(describeTemplatePayload(template.payload)) + '">' +
         '<b data-act="applyTemplate" data-value="' + escapeHtml(template.name) + '">' +
         escapeHtml(template.name) + '</b>' +
         '<button data-act="deleteTemplate" data-value="' + escapeHtml(template.name) +
-        '" title="Xoá mẫu">&times;</button></span>')
+        '" data-tip="Xoá mẫu">&times;</button></span>')
       .join('') + '</div>'
     : '<div class="fll-hint" style="margin-bottom:8px">Chưa có mẫu nào. Đặt điều kiện rồi lưu lại ' +
       'để lần sau áp một phát.</div>';
@@ -4571,7 +4674,7 @@ const TIMELINE_KIND_ORDER = ['boot', 'gap', 'err', 'jr-screen', 'jr-move', 'jr-t
 function timelineIcon(kind) {
   const meta = TIMELINE_KINDS[kind];
   if (!meta) return '';
-  return '<span class="fll-ev-ic" title="' + escapeHtml(meta.label) + '">' + meta.icon + '</span>';
+  return '<span class="fll-ev-ic" data-tip="' + escapeHtml(meta.label) + '">' + meta.icon + '</span>';
 }
 
 function buildTimelineEvents(data) {
@@ -4623,7 +4726,7 @@ function renderTimelineTab() {
       .map((kind) => ({ kind, count: all.filter((event) => event.kind === kind).length }))
       .filter((row) => row.count)
       .map((row) => '<button class="fll-chip' + (picked.has(row.kind) ? ' on' : '') +
-        '" data-act="tlKind" data-value="' + row.kind + '" title="' +
+        '" data-act="tlKind" data-value="' + row.kind + '" data-tip="' +
         escapeHtml(TIMELINE_KINDS[row.kind].label) + '"><i class="fll-chip-ic">' +
         TIMELINE_KINDS[row.kind].icon + '</i>' + escapeHtml(TIMELINE_KINDS[row.kind].short) +
         ' <em>' + row.count + '</em></button>')
@@ -4645,7 +4748,7 @@ function renderTimelineTab() {
 
   // Bon con so o dau doan nay da nam san tren chip va tren phu de panel. Giu lai mot cau — cai duy
   // nhat khong nhin ra duoc tu giao dien.
-  header += '<div class="fll-hint" style="margin:0 0 10px" title="Bước tương tác đọc từ event ' +
+  header += '<div class="fll-hint" style="margin:0 0 10px" data-tip="Bước tương tác đọc từ event ' +
     'MoMoTracker, đều ghi ở mức INFO nên tab Vấn đề không đếm chúng.">Sắp theo thời gian thật, ' +
     'không theo thứ tự dòng. Bước giống hệt nhau cách nhau dưới 1s gộp thành <b>N&times;</b> — ' +
     'bấm vẫn duyệt đủ từng dòng.' +
@@ -4724,7 +4827,7 @@ function renderConfigValue(item, value, isLatest) {
 // nhau moi la thu can nhin, gap lai chi con "gia tri cuoi" thi mat luon.
 function renderConfigRow(item) {
   const many = item.values.length > 1
-    ? '<i class="fll-cfg-chg" title="Khoá này ghi ra ' + item.values.length + ' giá trị khác nhau. ' +
+    ? '<i class="fll-cfg-chg" data-tip="Khoá này ghi ra ' + item.values.length + ' giá trị khác nhau. ' +
       'Có thể là cấu hình đổi giữa phiên — thứ dễ làm bug chỉ tái hiện được một lần. Cũng có thể chỉ ' +
       'vì payload mang theo id hoặc thời điểm khác nhau mỗi lần: bấm từng dòng dưới đây mà so.">' +
       item.values.length + ' giá trị khác nhau</i>'
@@ -4737,7 +4840,7 @@ function renderConfigRow(item) {
   // Ban than tieu de khoa cung bam duoc: duyet HET moi dong cua khoa do, ke ca cac gia tri cu.
   return '<div class="fll-cfg' + (item.changed ? ' chg' : '') + '">' +
     '<div class="fll-cfg-hd" data-lines="' + item.indices.join(',') + '" data-label="' +
-    escapeHtml(item.key) + '" title="Bấm để duyệt cả ' + item.count + ' dòng của khoá này">' +
+    escapeHtml(item.key) + '" data-tip="Bấm để duyệt cả ' + item.count + ' dòng của khoá này">' +
     '<b>' + escapeHtml(item.key) + '</b>' + many + note +
     '<em>' + (item.count > 1 ? item.count + '&times;' : '1 dòng') + '</em></div>' +
     (item.values.length > shown.length
@@ -4900,6 +5003,7 @@ function scanLog() {
   lensState.visibleCount = data.entries.length;
   // Sang log khac thi khoang dang phong to khong con nghia gi.
   lensState.mapZoom = null;
+  lensState.mapZoomStack = [];
   // Doi sang log khac (trang admin thay noi dung ma khong tai lai) co the lam tab dang mo bien mat.
   // Khong bat lai thi than panel ve tab do trong khi tren thanh tab khong con nut nao sang.
   const current = TAB_DEFS.find((tab) => tab.id === lensState.tab);
@@ -4917,6 +5021,7 @@ function renderTab() {
   else body.innerHTML = renderTimelineTab();
   // Muc dang tro toi vua bi thay the -> mui ten tro vao hu khong, don truoc khi gom muc.
   hideAim();
+  hideTooltip();
   collapsifySections(body, lensState.tab);
   body.scrollTop = 0;
   renderTabBar();
@@ -5092,20 +5197,20 @@ function mountPanel() {
     '<header class="fll-hd"><span class="fll-dot"></span>' +
     '<div><div class="fll-tt">Feedback Log Lens</div><div class="fll-sub"></div></div>' +
     '<div class="fll-hd-sp"></div>' +
-    '<button class="fll-ico" data-act="rescan" title="Quét lại (khi đổi tab log)">⟳</button>' +
-    '<button class="fll-ico" data-act="minimize" title="Thu nhỏ (Esc)">–</button>' +
-    '<button class="fll-ico" data-act="close" title="Đóng hẳn — Alt+L để mở lại">×</button></header>' +
+    '<button class="fll-ico" data-act="rescan" data-tip="Quét lại (khi đổi tab log)">⟳</button>' +
+    '<button class="fll-ico" data-act="minimize" data-tip="Thu nhỏ (Esc)">–</button>' +
+    '<button class="fll-ico" data-act="close" data-tip="Đóng hẳn — Alt+L để mở lại">×</button></header>' +
     '<nav class="fll-tabs"></nav>' +
     '<div class="fll-bar" hidden></div>' +
-    '<div class="fll-map" title="Bấm để nhảy tới mốc đó. Kéo để chọn khoảng thời gian; ' +
+    '<div class="fll-map" data-tip="Bấm để nhảy tới mốc đó. Kéo để chọn khoảng thời gian; ' +
     'kéo giữa vùng sáng để dời, kéo mép để co giãn, nháy đúp để bỏ chọn."></div>' +
     '<div class="fll-maplbl"></div>' +
     '<div class="fll-body"></div>' +
     '<footer class="fll-ft" hidden>' +
-    '<button class="fll-nav" data-act="prev" title="Dòng trước — phím p">&#9664;<em>p</em></button>' +
+    '<button class="fll-nav" data-act="prev" data-tip="Dòng trước — phím p">&#9664;<em>p</em></button>' +
     '<div class="fll-info"></div>' +
-    '<button class="fll-nav" data-act="next" title="Dòng sau — phím n"><em>n</em>&#9654;</button></footer>' +
-    '<div class="fll-corner" title="Kéo để đổi cả chiều rộng và chiều cao"></div></div>';
+    '<button class="fll-nav" data-act="next" data-tip="Dòng sau — phím n"><em>n</em>&#9654;</button></footer>' +
+    '<div class="fll-corner" data-tip="Kéo để đổi cả chiều rộng và chiều cao"></div></div>';
 
   const panel = root.querySelector('.fll-panel');
   lensState.el.panel = panel;
@@ -5290,12 +5395,14 @@ function handleLensClick(event) {
   }
   if (action === 'mapZoomIn') {
     const range = getVisibleTimeRange();
+    // Nho nac dang dung truoc khi phong sau, de con lui tung nac. Nac dau tien la null = ca log.
+    lensState.mapZoomStack.push(lensState.mapZoom);
     lensState.mapZoom = { from: range.from, to: range.to };
     renderMinimap();
     return undefined;
   }
   if (action === 'mapZoomOut') {
-    lensState.mapZoom = null;
+    lensState.mapZoom = lensState.mapZoomStack.length ? lensState.mapZoomStack.pop() : null;
     renderMinimap();
     return undefined;
   }
@@ -5498,6 +5605,12 @@ function startLens(startMinimized) {
 
   root.addEventListener('click', handleLensClick);
   root.addEventListener('input', handleLensInput);
+  root.addEventListener('mouseover', handleLensTooltip);
+  root.addEventListener('mouseleave', hideTooltip);
+  // Bam vao dau la dang lam viec khac, khong con doi doc chu giai nua. 'scroll' bat o pha capture vi
+  // no khong noi bot len.
+  root.addEventListener('mousedown', hideTooltip);
+  root.addEventListener('scroll', hideTooltip, true);
   window.addEventListener('keydown', handleShortcut, LENS_KEY_LISTENER_OPTIONS);
 
   lensState.isDismissed = false;

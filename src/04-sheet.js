@@ -30,7 +30,7 @@ function openSheet(title, subtitle, bodyHtml) {
     '<div class="fll-sheet-hd"><div><div class="fll-sheet-tt">' + escapeHtml(title) + '</div>' +
     '<div class="fll-sheet-sub">' + escapeHtml(subtitle) + '</div></div>' +
     '<div class="fll-hd-sp"></div>' +
-    '<button class="fll-ico" data-act="closeSheet" title="Đóng">×</button></div>' +
+    '<button class="fll-ico" data-act="closeSheet" data-tip="Đóng">×</button></div>' +
     '<div class="fll-sheet-body">' + bodyHtml + '</div>';
   panel.appendChild(sheet);
   lensState.el.sheet = sheet;
@@ -148,9 +148,9 @@ function togglePayloadWrap(button) {
 function renderPayloadToolbar(tabsHtml, domIndex, lineNo) {
   const jump = domIndex == null ? '' :
     '<button class="fll-btn fll-mini pri" data-jump="' + domIndex + '" ' +
-    'title="Cuộn bảng log tới đúng dòng này">&#8629; Dòng ' + lineNo + '</button>';
+    'data-tip="Cuộn bảng log tới đúng dòng này">&#8629; Dòng ' + lineNo + '</button>';
   const wrap = '<button class="fll-chip' + (payloadSheetState.isWrapped ? ' on' : '') +
-    '" data-act="toggleWrap" title="Xuống dòng thay vì cuộn ngang">&#8629; Xuống dòng</button>';
+    '" data-act="toggleWrap" data-tip="Xuống dòng thay vì cuộn ngang">&#8629; Xuống dòng</button>';
   return '<div class="fll-paytop">' +
     (tabsHtml ? '<div class="fll-stabs">' + tabsHtml + '</div>' : '') +
     '<div class="fll-row fll-paybar">' + jump + '<div class="fll-hd-sp"></div>' + wrap + '</div>' +

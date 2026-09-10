@@ -75,7 +75,7 @@ function collapsifySections(container, tabId) {
     container.insertBefore(wrap, node);
     node.setAttribute('data-act', 'tglSec');
     node.setAttribute('data-value', key);
-    node.setAttribute('title', 'Bấm để mở / thu mục này');
+    node.setAttribute('data-tip', 'Bấm để mở / thu mục này');
     node.insertAdjacentHTML('afterbegin', '<span class="fll-caret">&#9656;</span>');
     wrap.appendChild(node);
     bodyOfCurrentSection = document.createElement('div');

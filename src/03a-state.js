@@ -65,9 +65,13 @@ const lensState = {
   },
   // Muc dang di chuot qua, de biet luc nao phai ve lai mui ten len minimap (va luc nao thi thoi).
   aimEl: null,
+  // Phan tu chuot dang dung tren, de biet luc nao phai hien tooltip tu ve (va luc nao thi thoi).
+  tipEl: null,
   // Khoang thoi gian minimap dang VE (null = ve nguyen ca log). Doc lap voi bo loc: phong to chi doi
   // cai nhin, khong doi tap dong dang hien.
   mapZoom: null,
+  // Cac nac phong to truoc do, de lui tung nac mot thay vi nhay thang ve ca log.
+  mapZoomStack: [],
   el: {},
 };
 

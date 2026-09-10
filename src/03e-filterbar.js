@@ -101,7 +101,7 @@ function refreshFilterBar() {
     (forced ? ' · ' + forced + ' dòng ngoài lọc' : '') + '</span>' +
     '<div class="fll-fchips">' + facets
       .map((facet) => '<span class="fll-fchip"><b>' + escapeHtml(facet.label) + '</b>' +
-        '<button data-act="clearFacet" data-value="' + facet.id + '" title="Bỏ điều kiện này">&times;</button>' +
+        '<button data-act="clearFacet" data-value="' + facet.id + '" data-tip="Bỏ điều kiện này">&times;</button>' +
         '</span>')
       .join('') +
     '<button class="fll-fclear" data-act="clearFilters">Xoá tất cả</button></div>';

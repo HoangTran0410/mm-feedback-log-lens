@@ -113,6 +113,7 @@ function scanLog() {
   lensState.visibleCount = data.entries.length;
   // Sang log khac thi khoang dang phong to khong con nghia gi.
   lensState.mapZoom = null;
+  lensState.mapZoomStack = [];
   // Doi sang log khac (trang admin thay noi dung ma khong tai lai) co the lam tab dang mo bien mat.
   // Khong bat lai thi than panel ve tab do trong khi tren thanh tab khong con nut nao sang.
   const current = TAB_DEFS.find((tab) => tab.id === lensState.tab);
@@ -130,6 +131,7 @@ function renderTab() {
   else body.innerHTML = renderTimelineTab();
   // Muc dang tro toi vua bi thay the -> mui ten tro vao hu khong, don truoc khi gom muc.
   hideAim();
+  hideTooltip();
   collapsifySections(body, lensState.tab);
   body.scrollTop = 0;
   renderTabBar();
@@ -305,20 +307,20 @@ function mountPanel() {
     '<header class="fll-hd"><span class="fll-dot"></span>' +
     '<div><div class="fll-tt">Feedback Log Lens</div><div class="fll-sub"></div></div>' +
     '<div class="fll-hd-sp"></div>' +
-    '<button class="fll-ico" data-act="rescan" title="Quét lại (khi đổi tab log)">⟳</button>' +
-    '<button class="fll-ico" data-act="minimize" title="Thu nhỏ (Esc)">–</button>' +
-    '<button class="fll-ico" data-act="close" title="Đóng hẳn — Alt+L để mở lại">×</button></header>' +
+    '<button class="fll-ico" data-act="rescan" data-tip="Quét lại (khi đổi tab log)">⟳</button>' +
+    '<button class="fll-ico" data-act="minimize" data-tip="Thu nhỏ (Esc)">–</button>' +
+    '<button class="fll-ico" data-act="close" data-tip="Đóng hẳn — Alt+L để mở lại">×</button></header>' +
     '<nav class="fll-tabs"></nav>' +
     '<div class="fll-bar" hidden></div>' +
-    '<div class="fll-map" title="Bấm để nhảy tới mốc đó. Kéo để chọn khoảng thời gian; ' +
+    '<div class="fll-map" data-tip="Bấm để nhảy tới mốc đó. Kéo để chọn khoảng thời gian; ' +
     'kéo giữa vùng sáng để dời, kéo mép để co giãn, nháy đúp để bỏ chọn."></div>' +
     '<div class="fll-maplbl"></div>' +
     '<div class="fll-body"></div>' +
     '<footer class="fll-ft" hidden>' +
-    '<button class="fll-nav" data-act="prev" title="Dòng trước — phím p">&#9664;<em>p</em></button>' +
+    '<button class="fll-nav" data-act="prev" data-tip="Dòng trước — phím p">&#9664;<em>p</em></button>' +
     '<div class="fll-info"></div>' +
-    '<button class="fll-nav" data-act="next" title="Dòng sau — phím n"><em>n</em>&#9654;</button></footer>' +
-    '<div class="fll-corner" title="Kéo để đổi cả chiều rộng và chiều cao"></div></div>';
+    '<button class="fll-nav" data-act="next" data-tip="Dòng sau — phím n"><em>n</em>&#9654;</button></footer>' +
+    '<div class="fll-corner" data-tip="Kéo để đổi cả chiều rộng và chiều cao"></div></div>';
 
   const panel = root.querySelector('.fll-panel');
   lensState.el.panel = panel;
@@ -503,12 +505,14 @@ function handleLensClick(event) {
   }
   if (action === 'mapZoomIn') {
     const range = getVisibleTimeRange();
+    // Nho nac dang dung truoc khi phong sau, de con lui tung nac. Nac dau tien la null = ca log.
+    lensState.mapZoomStack.push(lensState.mapZoom);
     lensState.mapZoom = { from: range.from, to: range.to };
     renderMinimap();
     return undefined;
   }
   if (action === 'mapZoomOut') {
-    lensState.mapZoom = null;
+    lensState.mapZoom = lensState.mapZoomStack.length ? lensState.mapZoomStack.pop() : null;
     renderMinimap();
     return undefined;
   }
@@ -711,6 +715,12 @@ function startLens(startMinimized) {
 
   root.addEventListener('click', handleLensClick);
   root.addEventListener('input', handleLensInput);
+  root.addEventListener('mouseover', handleLensTooltip);
+  root.addEventListener('mouseleave', hideTooltip);
+  // Bam vao dau la dang lam viec khac, khong con doi doc chu giai nua. 'scroll' bat o pha capture vi
+  // no khong noi bot len.
+  root.addEventListener('mousedown', hideTooltip);
+  root.addEventListener('scroll', hideTooltip, true);
   window.addEventListener('keydown', handleShortcut, LENS_KEY_LISTENER_OPTIONS);
 
   lensState.isDismissed = false;

@@ -89,7 +89,7 @@ function renderFeedbackBanner() {
   return '<div class="fll-focus">' +
     '<div class="fll-focus-t">User gửi lúc <b>' + formatClock(data.lastTs) + '</b>' +
     (context['Entry Point'] ? ' từ <b>' + escapeHtml(context['Entry Point']) + '</b>' : '') + '</div>' +
-    (bits.length ? '<div class="fll-focus-d" title="' +
+    (bits.length ? '<div class="fll-focus-d" data-tip="' +
       escapeHtml(bits.join(' · ') + (device ? '\n' + device : '')) + '">' +
       escapeHtml(bits.join(' · ')) + '</div>' : '') +
     '<div class="fll-focus-hint">Vấn đề thường nằm ở cuối log — thu hẹp lại:</div>' +
@@ -127,7 +127,7 @@ function renderSummaryTab() {
     '</div>';
 
   if (full.outOfOrder > 0) {
-    html += '<div class="fll-note" title="Logger flush theo lô (' + full.batchCount +
+    html += '<div class="fll-note" data-tip="Logger flush theo lô (' + full.batchCount +
       ' mốc END OF BATCH). Minimap, khoảng lặng và tab Timeline đều đã sắp lại theo timestamp thật.">' +
       '<span>&#9888;</span><div><b>' + full.outOfOrder + ' dòng có timestamp lùi về trước</b> — ' +
       'thứ tự dòng không phải thứ tự thời gian.</div></div>';
@@ -137,7 +137,7 @@ function renderSummaryTab() {
   const levelTotal = Math.max(1, LEVEL_ORDER.reduce((sum, level) => sum + data.levels[level], 0));
   html += '<div class="fll-lvbar">' + LEVEL_ORDER
     .map((level) => '<i style="width:' + ((data.levels[level] / levelTotal) * 100).toFixed(2) + '%;background:' +
-      LEVEL_COLOR[level] + '" title="' + level + ': ' + data.levels[level] + '"></i>')
+      LEVEL_COLOR[level] + '" data-tip="' + level + ': ' + data.levels[level] + '"></i>')
     .join('') + '</div>';
   html += '<div class="fll-lvkey">' + LEVEL_ORDER
     .map((level) => '<button class="fll-chip" data-level="' + level + '">' +
@@ -188,7 +188,7 @@ function renderGroupCard(group, groupIndex) {
     (group.module ? '<span class="fll-mod">' + escapeHtml(group.module) + '</span>' : '') +
     '<span class="fll-when">' + formatClock(group.firstTs) +
     (group.indices.length > 1 ? ' &rarr; ' + formatClock(group.lastTs) : '') + '</span>' +
-    '<button class="fll-ico fll-mute" data-act="mute" data-value="' + groupIndex + '" title="' +
+    '<button class="fll-ico fll-mute" data-act="mute" data-value="' + groupIndex + '" data-tip="' +
     (muted ? 'Bật lại nhóm này' : 'Tắt tiếng chữ ký này, nhớ cho các feedback sau') + '">' +
     (muted ? '&#128266;' : '&#128263;') + '</button></div>' +
     '<div class="fll-msg">' + escapeHtml(group.sample) + '</div>' +
@@ -315,7 +315,7 @@ function renderTraceFailCard(row, rowIndex) {
     meta.push(escapeHtml(row.steps.slice(0, 3).join(', ')) +
       (row.steps.length > 3 ? ' +' + (row.steps.length - 3) : ''));
   }
-  return '<div class="fll-grp err" data-tracefail="' + rowIndex + '" title="' +
+  return '<div class="fll-grp err" data-tracefail="' + rowIndex + '" data-tip="' +
     escapeHtml(row.apps.join('\n')) + '">' +
     '<div class="fll-grp-top">' +
     '<span class="fll-cnt">' + row.count + '&times;</span>' +
@@ -363,16 +363,16 @@ function renderHttpCall(call, data) {
   const correlation = findCorrelationForEntry(data.entries[payloadIndex]);
   const payloadButton = '<button class="fll-ico fll-mini" data-act="payload" data-req="' +
     (call.reqIndex == null ? '' : call.reqIndex) + '" data-res="' +
-    (call.resIndex == null ? '' : call.resIndex) + '" title="Xem payload request / response">{ }</button>';
+    (call.resIndex == null ? '' : call.resIndex) + '" data-tip="Xem payload request / response">{ }</button>';
   return '<div class="fll-call" data-call="' + data.httpCalls.indexOf(call) + '">' +
     '<span class="fll-verb">' + escapeHtml(call.method) + '</span>' +
     '<span class="' + statusClass + '">' + escapeHtml(statusText) + '</span>' +
-    '<span class="fll-path" title="' + escapeHtml(call.url) + '">' + escapeHtml(call.path) + '</span>' +
+    '<span class="fll-path" data-tip="' + escapeHtml(call.url) + '">' + escapeHtml(call.path) + '</span>' +
     '<span class="fll-dur">' + (call.duration != null ? formatDuration(call.duration) : call.time.slice(0, 8)) +
     '</span>' +
     payloadButton +
     (correlation ? '<button class="fll-ico fll-mini" data-act="correlate" data-value="' +
-      escapeHtml(correlation.value) + '" title="Gom theo ' + correlation.key + '">&#128279;</button>' : '') +
+      escapeHtml(correlation.value) + '" data-tip="Gom theo ' + correlation.key + '">&#128279;</button>' : '') +
     '</div>';
 }
 
@@ -509,7 +509,7 @@ function renderScreenDwellSection(view) {
     'nên khoảng cách vắt qua hai phiên app, hoặc dài quá ' + MAX_PLAUSIBLE_DURATION_MS / 60000 +
     ' phút (app nằm dưới nền chứ không phải người dùng ngồi nhìn), đều bị bỏ.</div>' +
     '<div class="fll-rank">' + screens.slice(0, 8)
-      .map((row) => '<div class="fll-rk" data-jscreen="' + escapeHtml(row.key) + '" title="' +
+      .map((row) => '<div class="fll-rk" data-jscreen="' + escapeHtml(row.key) + '" data-tip="' +
         row.count + ' lần vào, lần lâu nhất ' + formatDuration(row.maxMs) + '">' +
         '<u style="width:' + ((row.ms / peak) * 100).toFixed(1) + '%"></u>' +
         '<span>' + escapeHtml(row.key) + '</span>' +
@@ -558,7 +558,7 @@ function renderSessionChipRow() {
         const count = tally.get(session.index) || 0;
         return '<button class="fll-chip' + (lensState.filter.session === session.index ? ' on' : '') +
           (count ? '' : ' dim') + '" data-act="setSession" data-value="' + session.index +
-          '" title="Bắt đầu ' + formatClock(session.startTs) + '">Phiên ' + session.index +
+          '" data-tip="Bắt đầu ' + formatClock(session.startTs) + '">Phiên ' + session.index +
           ' <em>' + count + '</em></button>';
       })
       .join('') +
@@ -589,12 +589,12 @@ function renderTemplateSection() {
 
   const chips = templates.length
     ? '<div class="fll-lvkey" style="margin-bottom:8px">' + templates
-      .map((template) => '<span class="fll-fchip fll-tpl" title="' +
+      .map((template) => '<span class="fll-fchip fll-tpl" data-tip="' +
         escapeHtml(describeTemplatePayload(template.payload)) + '">' +
         '<b data-act="applyTemplate" data-value="' + escapeHtml(template.name) + '">' +
         escapeHtml(template.name) + '</b>' +
         '<button data-act="deleteTemplate" data-value="' + escapeHtml(template.name) +
-        '" title="Xoá mẫu">&times;</button></span>')
+        '" data-tip="Xoá mẫu">&times;</button></span>')
       .join('') + '</div>'
     : '<div class="fll-hint" style="margin-bottom:8px">Chưa có mẫu nào. Đặt điều kiện rồi lưu lại ' +
       'để lần sau áp một phát.</div>';
@@ -694,7 +694,7 @@ const TIMELINE_KIND_ORDER = ['boot', 'gap', 'err', 'jr-screen', 'jr-move', 'jr-t
 function timelineIcon(kind) {
   const meta = TIMELINE_KINDS[kind];
   if (!meta) return '';
-  return '<span class="fll-ev-ic" title="' + escapeHtml(meta.label) + '">' + meta.icon + '</span>';
+  return '<span class="fll-ev-ic" data-tip="' + escapeHtml(meta.label) + '">' + meta.icon + '</span>';
 }
 
 function buildTimelineEvents(data) {
@@ -746,7 +746,7 @@ function renderTimelineTab() {
       .map((kind) => ({ kind, count: all.filter((event) => event.kind === kind).length }))
       .filter((row) => row.count)
       .map((row) => '<button class="fll-chip' + (picked.has(row.kind) ? ' on' : '') +
-        '" data-act="tlKind" data-value="' + row.kind + '" title="' +
+        '" data-act="tlKind" data-value="' + row.kind + '" data-tip="' +
         escapeHtml(TIMELINE_KINDS[row.kind].label) + '"><i class="fll-chip-ic">' +
         TIMELINE_KINDS[row.kind].icon + '</i>' + escapeHtml(TIMELINE_KINDS[row.kind].short) +
         ' <em>' + row.count + '</em></button>')
@@ -768,7 +768,7 @@ function renderTimelineTab() {
 
   // Bon con so o dau doan nay da nam san tren chip va tren phu de panel. Giu lai mot cau — cai duy
   // nhat khong nhin ra duoc tu giao dien.
-  header += '<div class="fll-hint" style="margin:0 0 10px" title="Bước tương tác đọc từ event ' +
+  header += '<div class="fll-hint" style="margin:0 0 10px" data-tip="Bước tương tác đọc từ event ' +
     'MoMoTracker, đều ghi ở mức INFO nên tab Vấn đề không đếm chúng.">Sắp theo thời gian thật, ' +
     'không theo thứ tự dòng. Bước giống hệt nhau cách nhau dưới 1s gộp thành <b>N&times;</b> — ' +
     'bấm vẫn duyệt đủ từng dòng.' +
@@ -847,7 +847,7 @@ function renderConfigValue(item, value, isLatest) {
 // nhau moi la thu can nhin, gap lai chi con "gia tri cuoi" thi mat luon.
 function renderConfigRow(item) {
   const many = item.values.length > 1
-    ? '<i class="fll-cfg-chg" title="Khoá này ghi ra ' + item.values.length + ' giá trị khác nhau. ' +
+    ? '<i class="fll-cfg-chg" data-tip="Khoá này ghi ra ' + item.values.length + ' giá trị khác nhau. ' +
       'Có thể là cấu hình đổi giữa phiên — thứ dễ làm bug chỉ tái hiện được một lần. Cũng có thể chỉ ' +
       'vì payload mang theo id hoặc thời điểm khác nhau mỗi lần: bấm từng dòng dưới đây mà so.">' +
       item.values.length + ' giá trị khác nhau</i>'
@@ -860,7 +860,7 @@ function renderConfigRow(item) {
   // Ban than tieu de khoa cung bam duoc: duyet HET moi dong cua khoa do, ke ca cac gia tri cu.
   return '<div class="fll-cfg' + (item.changed ? ' chg' : '') + '">' +
     '<div class="fll-cfg-hd" data-lines="' + item.indices.join(',') + '" data-label="' +
-    escapeHtml(item.key) + '" title="Bấm để duyệt cả ' + item.count + ' dòng của khoá này">' +
+    escapeHtml(item.key) + '" data-tip="Bấm để duyệt cả ' + item.count + ' dòng của khoá này">' +
     '<b>' + escapeHtml(item.key) + '</b>' + many + note +
     '<em>' + (item.count > 1 ? item.count + '&times;' : '1 dòng') + '</em></div>' +
     (item.values.length > shown.length

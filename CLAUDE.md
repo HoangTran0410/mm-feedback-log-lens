@@ -52,8 +52,14 @@ khác lại thấy đóng. Mọi tiêu đề mục phải đi qua `secTitle(titl
 **`hide()` của tab đọc data ĐẦY ĐỦ, không phải view đang lọc.** Lọc hẹp lại thì tab tự ẩn sẽ biến mất
 giữa chừng. Tab có hay không là tính chất của cả log; nội dung bên trong mới chạy theo bộ lọc.
 
-**Chữ hướng dẫn trên giao diện: một câu.** Giải thích dài để trong `title` của chính phần tử nó nói về.
-Panel chỉ rộng 480px, mỗi câu thừa đẩy nội dung thật xuống dưới màn.
+**Chữ hướng dẫn trên giao diện: một câu.** Giải thích dài để trong chú giải của chính phần tử nó nói
+về. Panel chỉ rộng 480px, mỗi câu thừa đẩy nội dung thật xuống dưới màn.
+
+**Chú giải dùng `data-tip`, KHÔNG dùng `title`.** Độ trễ trước khi hiện `title=""` do hệ điều hành
+quyết định — không CSS hay JS nào đổi được. Panel này có tới 120 chỗ mang chú giải, nên lướt chuột qua
+là tooltip của trình duyệt nhảy liên tục và che mất giao diện phía sau. `src/03j-tooltip.js` tự vẽ:
+chờ 600ms, rộng tối đa 300px, đặt lệch xuống dưới - sang phải con trỏ (hướng người dùng vừa rời khỏi),
+lật lên trên khi sát đáy màn. Có một phép thử quét HTML của cả năm tab và bắt lỗi nếu còn sót `title=`.
 
 ---
 
