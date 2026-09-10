@@ -936,6 +936,18 @@ check('tom tat: bao ro khi log bi noi doi', () => {
   L.lensState.data.duplicate = goc;
 });
 
+// Do tren log that 9363 dong: phu de header ghi "34 khoang lang" trong khi the thong ke ghi 28 — hai
+// con so cho cung mot thu. Nguoi doc khong biet tin cai nao.
+check('phu de header va the thong ke phai dem khoang lang giong nhau', () => {
+  const gapsThat = data.gaps.filter((gap) => gap.cause !== 'background').length;
+  const nen = data.gaps.length - gapsThat;
+  ok(nen >= 1, 'fixture phai co it nhat mot khoang do xuong nen');
+  const html = L.renderSummaryTab();
+  const the = /<b[^>]*>(\d+)<\/b><span>khoảng lặng/.exec(html);
+  ok(the, 'phai tim duoc the thong ke khoang lang');
+  eq(Number(the[1]), gapsThat, 'the thong ke phai la so da tru phan xuong nen');
+});
+
 renderAll('log day du');
 
 L.TIMELINE_KIND_ORDER.forEach((kind) => {

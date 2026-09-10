@@ -189,8 +189,13 @@ function switchTab(tabId) {
 
 function refreshHeader() {
   const data = lensState.data;
+  // Phai tru phan "app xuong nen" y het the thong ke o Tong quan. Do tren log that 9363 dong: phu de
+  // ghi 34 trong khi the ghi 28 — hai con so cho cung mot thu, nguoi doc khong biet tin cai nao.
+  const gaps = data.gaps.filter((gap) => gap.cause !== 'background');
+  const background = data.gaps.length - gaps.length;
   lensState.el.sub.textContent = data.entries.length + ' dòng · ' + data.sessionCount + ' phiên · ' +
-    data.levels.ERROR + ' lỗi · ' + data.gaps.length + ' khoảng lặng';
+    data.levels.ERROR + ' lỗi · ' + gaps.length + ' khoảng lặng' +
+    (background ? ' · ' + background + ' lần xuống nền' : '');
 }
 
 // Dem con cua container (O(1)) thay vi querySelectorAll ca tai lieu 8000+ node moi 2 giay.
@@ -637,14 +642,24 @@ function toggleSetValue(set, value) {
   else set.add(value);
 }
 
+// Doi nhan nut roi tra lai. Phai co ca nhanh HONG: navigator.clipboard tu choi khi tab khong duoc lay
+// net (hoac trinh duyet chan), luc do promise reject va truoc day nut dung im — nguoi dung tuong da
+// copy xong roi di dan, dan ra thu cu.
 function copyTextToClipboard(text, button, doneLabel) {
-  navigator.clipboard.writeText(text).then(() => {
-    const original = button.textContent;
-    button.textContent = doneLabel;
+  const original = button.textContent;
+  const show = (label) => {
+    button.textContent = label;
     setTimeout(() => {
       button.textContent = original;
     }, 1600);
-  });
+  };
+  if (!navigator.clipboard) {
+    show('Trình duyệt chặn copy');
+    return;
+  }
+  navigator.clipboard.writeText(text)
+    .then(() => show(doneLabel))
+    .catch(() => show('Không copy được — bấm vào panel rồi thử lại'));
 }
 
 function copyVisibleLines(button) {

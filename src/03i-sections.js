@@ -114,13 +114,26 @@ function sectionRows(container, box) {
 //
 // Danh doi: o nay loc tren DOM DA VE, nen muc nao phan trang (danh sach nhom loi) thi no chi tim trong
 // trang dang hien. Vi vay muc nao DA co o tim rieng (tim tren toan bo du lieu) thi bo qua, khong chen.
+// Nhieu muc chi ve mot phan (bang xep hang cat con 8 hang, danh sach nhom co phan trang) trong khi
+// badge tren tieu de ghi TONG. O tim chi tim duoc phan da ve, nen no phai noi ro dieu do — neu khong
+// se ra canh "muc ghi 64 module, go ten mot module co that, bao khong khop".
+function sectionShownTotal(sectionBody) {
+  const header = sectionBody.parentElement && sectionBody.parentElement.querySelector('.fll-secbdg');
+  const badge = header ? parseInt(header.textContent, 10) : NaN;
+  return Number.isNaN(badge) ? 0 : badge;
+}
+
 function addSectionSearch(sectionBody) {
   if (sectionBody.querySelector('input')) return;
   const container = sectionRowContainer(sectionBody);
-  if (sectionRows(container, null).length < SECTION_SEARCH_MIN_ROWS) return;
+  const shown = sectionRows(container, null).length;
+  if (shown < SECTION_SEARCH_MIN_ROWS) return;
+  const total = sectionShownTotal(sectionBody);
   const box = document.createElement('input');
   box.className = 'fll-in fll-secq';
-  box.setAttribute('placeholder', 'Tìm nhanh trong mục này...');
+  box.setAttribute('placeholder', total > shown
+    ? 'Tìm trong ' + shown + ' mục đang hiện (mục có ' + total + ')...'
+    : 'Tìm nhanh trong mục này...');
   sectionBody.insertBefore(box, sectionBody.firstChild);
 }
 
@@ -146,7 +159,9 @@ function filterSectionRows(box) {
     note.className = 'fll-hint fll-secq-note';
     sectionBody.insertBefore(note, box.nextSibling);
   }
-  note.textContent = shown ? 'Khớp ' + shown + '/' + rows.length : 'Không mục nào khớp.';
+  const total = sectionShownTotal(sectionBody);
+  const chuaVe = total > rows.length ? ' — mục có ' + total + ', ô này chỉ tìm trong phần đang hiện' : '';
+  note.textContent = (shown ? 'Khớp ' + shown + '/' + rows.length : 'Không mục nào khớp') + chuaVe + '.';
 }
 
 // Dong/mo TAI CHO, khong ve lai ca tab: ve lai se mat vi tri cuon va lam mat luon o tim dang go do.
