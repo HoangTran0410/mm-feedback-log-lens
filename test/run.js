@@ -446,6 +446,33 @@ check('cau hinh: nut JSON chi hien khi gia tri co JSON that', () => {
   eq(cfgKey('cdn', 'bang_loi_bia.json').latest.hasJson, false, 'gia tri la url, khong co nut');
 });
 
+// Bug that: mot khoa ghi 4 lan cung mot gia tri chi giu duoc chi so cua dong dau. Bam vao la nhay toi
+// dong do roi ket — thanh duoi khong co gi de duyet vi no chi biet danh sach khop bo loc.
+check('cau hinh: giu du chi so dong de duyet duoc ca nhom', () => {
+  const abKey = cfgKey('ab', 'BIA_THU_NGHIEM');
+  eq(abKey.count, 2, 'so dong cua khoa');
+  eq(abKey.indices.length, 2, 'phai giu ca hai chi so o cap nhom');
+  eq(abKey.values.length, 1, 'van chi mot gia tri');
+  eq(abKey.values[0].indices.length, 2, 'ca hai dong deu thuoc gia tri do');
+  const doi = cfgKey('be', 'cau_hinh_doi');
+  eq(doi.indices.length, 2, 'khoa doi gia tri: hai dong');
+  eq(doi.values[0].indices.length, 1, 'moi gia tri mot dong');
+  eq(doi.values[1].indices.length, 1, 'moi gia tri mot dong');
+});
+
+check('cau hinh: hang va tieu de khoa deu phat ra data-lines de duyet', () => {
+  const html = L.renderConfigTab();
+  const abKey = cfgKey('ab', 'BIA_THU_NGHIEM');
+  ok(html.indexOf('data-lines="' + abKey.indices.join(',') + '"') >= 0,
+    'tieu de khoa phai mang du chi so');
+  ok(html.indexOf('data-lines="' + abKey.values[0].indices.join(',') + '"') >= 0,
+    'hang gia tri phai mang du chi so');
+  ok(html.indexOf('data-jump="' + abKey.values[0].domIndex + '"') < 0,
+    'khong duoc quay lai data-jump: nhay mot dong thi khong duyet duoc nhom');
+  eq(L.aimIndicesFor({ dataset: { lines: abKey.indices.join(',') } }).length, abKey.indices.length,
+    'mui ten cung phai danh dau ca nhom');
+});
+
 check('cau hinh: call BE xin cau hinh tach rieng khoi bang khoa', () => {
   eq(cfg.calls.length, 1, 'so call');
   eq(cfg.calls[0].path, '/user-config/lay-bia', 'duong dan');
@@ -565,7 +592,18 @@ check('phien app: ba moc sat nhau chi la MOT lan khoi dong', () => {
 
 check('phien app: tab Dien bien khong ve ba moc "App khoi dong" chong nhau', () => {
   const html = L.renderTimelineTab();
-  eq((html.match(/App khởi động/g) || []).length, 2, 'so moc khoi dong tren dong thoi gian');
+  // Dem the hang, khong dem chu: chu "App khoi dong" con nam ca trong hang chu giai va trong
+  // title cua bieu tuong.
+  eq((html.match(/class="fll-ev boot"/g) || []).length, 2, 'so moc khoi dong tren dong thoi gian');
+});
+
+// Cham tron mau khong tu noi ra loai moc. Moi loai phai co bieu tuong + ten doc duoc.
+check('dong thoi gian: moi loai moc co bieu tuong va ten', () => {
+  const html = L.renderTimelineTab();
+  ok(html.indexOf('class="fll-legend"') >= 0, 'phai co hang chu giai');
+  ok(html.indexOf('class="fll-ev-ic" title="User chạm"') >= 0, 'moc cham phai co bieu tuong kem ten');
+  ok(html.indexOf('class="fll-ev-ic" title="Khoảng lặng, không có log"') >= 0, 'moc khoang lang');
+  ok(html.indexOf('class="fll-ev-ic" title="App khởi động"') >= 0, 'moc khoi dong');
 });
 
 // Bug that: hang "Khoang lang" hien gio cua dong TRUOC khoang lang, nhung bam (va mui ten) lai tro

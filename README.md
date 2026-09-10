@@ -28,10 +28,11 @@ bản build thì ngược lại: khối ngay dưới do `build.sh` ghi lại m�
 
 | | |
 |---|---|
-| <img src="docs/tong-quan.png" width="330" alt="Tab Tổng quan: thẻ thống kê và các mục đã thu gọn"> | **Tổng quan.** Mọi mục thu sẵn, badge nói trong đó có gì. Khối trên cùng tự lấy nét vào mấy giây cuối trước lúc user bấm gửi feedback — chỗ vấn đề gần như luôn nằm. |
-| <img src="docs/mui-ten-minimap.png" width="330" alt="Mũi tên nối từ một call HTTP lên vị trí của nó trên minimap"> | **Rê chuột lên một hàng bất kỳ → mũi tên chỉ thẳng lên vị trí của nó trên minimap.** Hết phải tự dịch "09:13:51" ra "khoảng giữa log". Hàng đại diện nhiều dòng thì đánh dấu hết — thấy ngay nó rải đều hay dồn một chỗ. |
-| <img src="docs/loc.png" width="330" alt="Tab Lọc với ba bộ lọc đang bật, badge tô accent"> | **Lọc.** Thu hết mục lại mà vẫn biết đang lọc gì: badge chính là trạng thái bộ lọc. Thanh trên đầu và thanh dưới cùng đều đếm theo đúng tập dòng đang hiện. |
-| <img src="docs/cau-hinh.png" width="330" alt="Tab Cấu hình: nhánh A/B testing và cấu hình BE trả về"> | **Cấu hình.** Máy đó chạy với nhánh A/B nào, cờ nào bật, BE và webadmin đẩy xuống cái gì. Hai máy cùng bản app khác nhánh thì chạy hai đoạn code khác nhau — thứ hay bị bỏ sót nhất khi tái hiện bug. |
+| <img src="docs/tong-quan.png" width="320" alt="Tab Tổng quan: thẻ thống kê và các mục đã thu gọn"> | **Tổng quan.** Mọi mục thu sẵn, badge nói trong đó có gì. Khối trên cùng tự lấy nét vào mấy giây cuối trước lúc user bấm gửi feedback — chỗ vấn đề gần như luôn nằm. |
+| <img src="docs/mui-ten-minimap.png" width="320" alt="Mũi tên nối từ một call HTTP lên vị trí của nó trên minimap"> | **Rê chuột lên một hàng bất kỳ → mũi tên chỉ thẳng lên vị trí của nó trên minimap.** Hết phải tự dịch "09:13:51" ra "khoảng giữa log". Hàng đại diện nhiều dòng thì đánh dấu hết — thấy ngay nó rải đều hay dồn một chỗ. |
+| <img src="docs/dien-bien.png" width="320" alt="Tab Diễn biến: mỗi mốc có biểu tượng riêng và hàng chú giải"> | **Diễn biến.** Mỗi loại mốc một biểu tượng, kèm hàng chú giải ngay trên danh sách: 🚀 khởi động · 💤 khoảng lặng · ❌ nhóm lỗi · 📱 màn hình · 👆 chạm · 👀 popup · ⚠️ call fail. Đã sắp theo thời gian thật, không theo thứ tự dòng. |
+| <img src="docs/loc.png" width="320" alt="Tab Lọc với ba bộ lọc đang bật, badge tô accent"> | **Lọc.** Thu hết mục lại mà vẫn biết đang lọc gì: badge chính là trạng thái bộ lọc. Thanh trên đầu và thanh dưới cùng đều đếm theo đúng tập dòng đang hiện. |
+| <img src="docs/cau-hinh.png" width="320" alt="Tab Cấu hình: nhánh A/B testing và cấu hình BE trả về"> | **Cấu hình.** Máy đó chạy với nhánh A/B nào, cờ nào bật, BE và webadmin đẩy xuống cái gì. Hai máy cùng bản app khác nhánh thì chạy hai đoạn code khác nhau — thứ hay bị bỏ sót nhất khi tái hiện bug. |
 
 > Ảnh chụp trên một log **bịa** do `test/demo-log.js` sinh ra, không phải log thật của người dùng.
 
@@ -42,10 +43,10 @@ bản build thì ngược lại: khối ngay dưới do `build.sh` ghi lại m�
 
 | | |
 |---|---|
-| `extension/lens.js` | **238 KB** (244,174 bytes) |
-| Nguồn | 5,346 dòng trong 20 file `src/` |
+| `extension/lens.js` | **242 KB** (247,358 bytes) |
+| Nguồn | 5,400 dòng trong 20 file `src/` |
 | Dependency lúc chạy | không có |
-| Test | 83 phép thử, `node test/run.js` |
+| Test | 86 phép thử, `node test/run.js` |
 
 <!-- /build-stats -->
 

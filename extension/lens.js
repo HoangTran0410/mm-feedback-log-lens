@@ -1776,11 +1776,16 @@ const PANEL_CSS = [
   '.fll-ev{position:relative;padding:9px 12px;margin-bottom:6px;border-radius:9px;background:var(--bg2);',
   'cursor:pointer;border:1px solid transparent;transition:.14s}',
   '.fll-ev:hover{border-color:var(--acc)}',
-  '.fll-ev:before{content:"";position:absolute;left:-18px;top:15px;width:7px;height:7px;border-radius:50%;',
-  'background:var(--mut);box-shadow:0 0 0 3px var(--bg)}',
-  '.fll-ev.boot:before{background:var(--ok)}',
-  '.fll-ev.gap:before{background:var(--warn)}',
-  '.fll-ev.err:before{background:var(--err)}',
+  /* Cham tron mau o le trai da bo: mau khong tu noi ra nghia, nguoi doc phai nho "hong la cham, xanh
+     la man hinh" — khong ai nho. Nay bieu tuong nam trong the, kem title va mot hang chu giai o tren. */
+  '.fll-ev:before{content:"";position:absolute;left:-18px;top:17px;width:5px;height:5px;border-radius:50%;',
+  'background:var(--line)}',
+  '.fll-ev-ic{flex:0 0 auto;width:15px;text-align:center;font-size:11.5px;line-height:1;',
+  'font-family:"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif}',
+  '.fll-legend{display:flex;flex-wrap:wrap;gap:4px 12px;margin:0 0 10px;font-size:10px;color:var(--mut)}',
+  '.fll-legend span{display:inline-flex;align-items:center;gap:5px}',
+  '.fll-legend i{font-style:normal;font-size:11px;',
+  'font-family:"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif}',
   '.fll-ev-t{display:flex;align-items:center;gap:9px;font-size:11.5px;font-weight:600}',
   '.fll-ev-t em{margin-left:auto;font-style:normal;font-size:10px;color:var(--mut);font-variant-numeric:tabular-nums}',
   '.fll-ev-d{font-size:10.5px;color:var(--mut);margin-top:4px;font-family:var(--mono);overflow:hidden;',
@@ -1788,11 +1793,6 @@ const PANEL_CSS = [
 
   /* ---------- hanh trinh ---------- */
   /* Dung lai khung .fll-tl/.fll-ev cua Timeline, chi doi mau cham theo loai thao tac. */
-  '.fll-ev.jr-screen:before{background:var(--info)}',
-  '.fll-ev.jr-tap:before{background:var(--acc)}',
-  '.fll-ev.jr-saw:before{background:var(--warn)}',
-  '.fll-ev.jr-move:before{background:var(--ok)}',
-  '.fll-ev.jr-fail:before{background:var(--err)}',
   '.fll-ev.jr-saw{border-left:2px solid var(--warn)}',
   '.fll-ev.jr-fail{border-left:2px solid var(--err)}',
   '.fll-jms{font-size:9.5px;font-weight:700;color:var(--warn);background:rgba(255,182,72,.14);',
@@ -2041,17 +2041,24 @@ function buildConfigs(entries, httpCalls) {
     const id = hit.source + ' ' + hit.key;
     let group = groups.get(id);
     if (!group) {
-      group = { key: hit.key, source: hit.source, note: hit.note, count: 0, values: [] };
+      group = { key: hit.key, source: hit.source, note: hit.note, count: 0, values: [], indices: [] };
       groups.set(id, group);
     }
     group.count += 1;
+    group.indices.push(entry.domIndex);
     if (hit.note && !group.note) group.note = hit.note;
     // Chi ghi khi gia tri KHAC lan truoc. Nho vay values.length > 1 co dung mot nghia:
     // cau hinh nay doi giua chung phien — thu dang de y nhat khi "pha an".
+    // Nhung van phai gom DU chi so dong cua moi gia tri: mot khoa ghi 4 lan cung mot gia tri thi
+    // van la 4 dong log co that, phai duyet duoc ca bon chu khong chi nhay toi dong dau.
     const last = group.values[group.values.length - 1];
-    if (last && last.value === hit.value) return;
+    if (last && last.value === hit.value) {
+      last.indices.push(entry.domIndex);
+      return;
+    }
     group.values.push({
       value: hit.value,
+      indices: [entry.domIndex],
       domIndex: entry.domIndex,
       lineNo: entry.lineNo,
       time: entry.time,
@@ -3279,8 +3286,8 @@ Model: claude-opus-5
 // Ve bang MOT lop SVG phu len ca panel (pointer-events:none) chu khong chen the vao tung hang: nhu vay
 // khong renderer nao phai biet den chuyen nay, va tab moi them sau nay tu dong co luon.
 
-const AIM_SELECTOR = '[data-aim],[data-jump],[data-bucket],[data-group],[data-call],[data-saw],' +
-  '[data-apifail],[data-jscreen],[data-jtap],[data-jload],[data-tracefail]';
+const AIM_SELECTOR = '[data-aim],[data-lines],[data-jump],[data-bucket],[data-group],[data-call],' +
+  '[data-saw],[data-apifail],[data-jscreen],[data-jtap],[data-jload],[data-tracefail]';
 // Mot nhom loi co the co hang tram dong. Ve het thi minimap thanh mot mang do dac, nhin khong ra gi;
 // 60 vach da du day de thay "rai deu" hay "dom mot cho".
 const AIM_MAX_TICKS = 60;
@@ -3293,6 +3300,7 @@ function aimIndicesFor(el) {
   // data-aim di truoc data-jump: co nhung hang tro toi mot KHOANG (khoang lang co dau va cuoi) trong
   // khi cu bam thi chi nhay toi mot dong. Mui ten phai danh dau ca khoang do.
   if (data.aim != null) return data.aim.split(',').map(Number).filter((index) => !Number.isNaN(index));
+  if (data.lines != null) return data.lines.split(',').map(Number).filter((index) => !Number.isNaN(index));
   if (data.jump != null) return [Number(data.jump)];
   if (data.bucket != null) return Number(data.bucket) >= 0 ? [Number(data.bucket)] : [];
   if (data.group != null) {
@@ -4451,6 +4459,20 @@ function renderFilterTab() {
 // 29 moc, tab mong nhat trong ca panel. Buoc tuong tac cua user tung nam o mot tab rieng — nhung ca hai
 // deu la "sap theo timestamp that roi ve .fll-tl", tuc cung mot thu voi hai nguon khac nhau, va phai
 // nhay qua lai giua hai tab moi ghep duoc cau "user bam gi -> app dung im -> loi gi". Tron lam mot.
+// Truoc day loai moc chi phan biet bang MAU cua mot cham tron 7px o le trai. Mau khong tu noi ra
+// nghia: nguoi doc phai nho "hong la cham, xanh la man hinh" — khong ai nho. Nay moi loai co mot bieu
+// tuong + mot cai ten, va co ca hang chu giai ngay tren danh sach.
+const TIMELINE_KINDS = {
+  boot: { icon: '\uD83D\uDE80', label: 'App khởi động' },
+  gap: { icon: '\uD83D\uDCA4', label: 'Khoảng lặng, không có log' },
+  err: { icon: '\u274C', label: 'Nhóm lỗi' },
+  'jr-screen': { icon: '\uD83D\uDCF1', label: 'Màn hình hiện ra' },
+  'jr-move': { icon: '\uD83D\uDD00', label: 'Đổi luồng tính năng' },
+  'jr-tap': { icon: '\uD83D\uDC46', label: 'User chạm' },
+  'jr-saw': { icon: '\uD83D\uDC40', label: 'User nhìn thấy popup' },
+  'jr-fail': { icon: '\u26A0\uFE0F', label: 'Call BE fail' },
+};
+
 const TIMELINE_GROUPS = [
   { id: 'all', label: 'Tất cả' },
   { id: 'app', label: 'App' },
@@ -4459,6 +4481,23 @@ const TIMELINE_GROUPS = [
   { id: 'saw', label: 'User thấy' },
   { id: 'fail', label: 'API fail' },
 ];
+
+function timelineIcon(kind) {
+  const meta = TIMELINE_KINDS[kind];
+  if (!meta) return '';
+  return '<span class="fll-ev-ic" title="' + escapeHtml(meta.label) + '">' + meta.icon + '</span>';
+}
+
+// Chu giai nam ngay tren danh sach chu khong giau trong tooltip: bieu tuong nao cung phai hoc mot lan,
+// va cho de hoc nhat la ngay canh cho dung no.
+function timelineLegend(events) {
+  const kinds = Object.keys(TIMELINE_KINDS).filter((kind) => events.some((event) => event.kind === kind));
+  if (!kinds.length) return '';
+  return '<div class="fll-legend">' + kinds
+    .map((kind) => '<span><i>' + TIMELINE_KINDS[kind].icon + '</i>' +
+      escapeHtml(TIMELINE_KINDS[kind].label) + '</span>')
+    .join('') + '</div>';
+}
 
 function buildTimelineEvents(data) {
   const events = [];
@@ -4530,15 +4569,17 @@ function renderTimelineTab() {
         .join('') + '</div>';
   }
 
-  header += '<div class="fll-hint" style="margin:0 0 10px">' + data.sessionCount + ' phiên app · ' +
-    data.gaps.length + ' khoảng lặng · ' + countUnmutedErrorGroups(data) + ' nhóm lỗi · ' +
-    data.journey.steps.length + ' bước tương tác. Đã sắp theo thời gian thật, không theo thứ tự dòng. ' +
-    'Bước tương tác đọc từ event <b>MoMoTracker</b> (mức INFO) — log ghi lặp nên các bước giống hệt ' +
-    'nhau cách nhau dưới 1s đã gộp thành <b>N&times;</b>, bấm vào vẫn duyệt đủ từng dòng.' +
+  // Bon con so o dau doan nay da nam san tren chip va tren phu de panel. Giu lai mot cau — cai duy
+  // nhat khong nhin ra duoc tu giao dien.
+  header += '<div class="fll-hint" style="margin:0 0 10px" title="Bước tương tác đọc từ event ' +
+    'MoMoTracker, đều ghi ở mức INFO nên tab Vấn đề không đếm chúng.">Sắp theo thời gian thật, ' +
+    'không theo thứ tự dòng. Bước giống hệt nhau cách nhau dưới 1s gộp thành <b>N&times;</b> — ' +
+    'bấm vẫn duyệt đủ từng dòng.' +
     (data !== lensState.data
-      ? ' <b>Khoảng lặng chỉ cắt theo cửa sổ thời gian</b> — lọc theo mức độ hay module không đổi nó, ' +
-        'vì khoảng lặng là tính chất của đường thời gian chứ không phải của tập dòng.'
+      ? ' <b>Khoảng lặng chỉ cắt theo cửa sổ thời gian</b>, không đổi theo mức độ hay module.'
       : '') + '</div>';
+
+  header += timelineLegend(events);
 
   if (!events.length) return header + '<div class="fll-empty">Không có mốc nào đáng chú ý.</div>';
 
@@ -4546,7 +4587,7 @@ function renderTimelineTab() {
   return header + '<div class="fll-tl">' + shown
     .map((event) => '<div class="fll-ev ' + event.kind + '" data-jump="' + event.index + '"' +
       (event.aim ? ' data-aim="' + event.aim.join(',') + '"' : '') + '>' +
-      '<div class="fll-ev-t">' +
+      '<div class="fll-ev-t">' + timelineIcon(event.kind) +
       (event.count > 1 ? '<span class="fll-jn">' + event.count + '&times;</span>' : '') +
       escapeHtml(event.title) +
       (event.ms >= 1000 ? '<span class="fll-jms">' + formatDuration(event.ms) + '</span>' : '') +
@@ -4568,8 +4609,12 @@ function renderConfigValue(item, value, isLatest) {
   const json = value.hasJson
     ? '<button class="fll-btn fll-cfg-js" data-act="json" data-value="' + value.domIndex + '">JSON</button>'
     : '';
-  return '<div class="fll-cfg-val' + (isLatest ? ' last' : '') + '" data-jump="' + value.domIndex + '">' +
+  // data-lines chu khong phai data-jump: mot gia tri co the duoc ghi lai nhieu lan, bam vao phai
+  // duyet duoc ca chum bang n/p o thanh duoi chu khong dung lai o dong dau tien.
+  return '<div class="fll-cfg-val' + (isLatest ? ' last' : '') +
+    '" data-lines="' + value.indices.join(',') + '" data-label="' + escapeHtml(item.key) + '">' +
     '<div class="fll-cfg-vm">' + escapeHtml(value.time.slice(0, 8)) + ' · dòng ' + value.lineNo +
+    (value.indices.length > 1 ? ' · ' + value.indices.length + ' dòng' : '') +
     (isLatest && item.values.length > 1 ? ' · mới nhất' : '') + '</div>' +
     '<div class="fll-cfg-v">' + escapeHtml(value.value.slice(0, 260)) +
     (value.value.length > 260 ? '…' : '') + '</div>' + json + '</div>';
@@ -4591,8 +4636,11 @@ function renderConfigRow(item) {
   const values = shown
     .map((value, index) => renderConfigValue(item, value, index === shown.length - 1))
     .join('');
+  // Ban than tieu de khoa cung bam duoc: duyet HET moi dong cua khoa do, ke ca cac gia tri cu.
   return '<div class="fll-cfg' + (item.changed ? ' chg' : '') + '">' +
-    '<div class="fll-cfg-hd"><b>' + escapeHtml(item.key) + '</b>' + many + note +
+    '<div class="fll-cfg-hd" data-lines="' + item.indices.join(',') + '" data-label="' +
+    escapeHtml(item.key) + '" title="Bấm để duyệt cả ' + item.count + ' dòng của khoá này">' +
+    '<b>' + escapeHtml(item.key) + '</b>' + many + note +
     '<em>' + (item.count > 1 ? item.count + '&times;' : '1 dòng') + '</em></div>' +
     (item.values.length > shown.length
       ? '<div class="fll-cfg-vm">(còn ' + (item.values.length - shown.length) + ' giá trị cũ hơn)</div>'
@@ -4990,8 +5038,8 @@ function mountPanel() {
 /* ---------------------------------------------------------- uy quyen click */
 
 function handleLensClick(event) {
-  const hit = event.target.closest('[data-act],[data-tab],[data-jump],[data-group],[data-module],' +
-    '[data-level],[data-call],[data-bucket],[data-event],[data-saw],[data-apifail],' +
+  const hit = event.target.closest('[data-act],[data-tab],[data-lines],[data-jump],[data-group],' +
+    '[data-module],[data-level],[data-call],[data-bucket],[data-event],[data-saw],[data-apifail],' +
     '[data-jscreen],[data-jtap],[data-tracefail],[data-jload]');
   if (!hit) return;
   // groups/httpCalls doc theo view (dang loc thi la cua tap dang hien, dung nhu tab vua ve);
@@ -5001,6 +5049,12 @@ function handleLensClick(event) {
   const value = hit.getAttribute('data-value');
 
   if (hit.dataset.tab) return switchTab(hit.dataset.tab);
+  // data-lines = "hang nay ung voi tung nay dong log". Phai xet TRUOC data-jump: nhay mot dong thi
+  // thanh duoi khong co gi de duyet, nguoi dung ket o dong dau tien cua nhom.
+  if (hit.dataset.lines) {
+    const indices = hit.dataset.lines.split(',').map(Number).filter((index) => !Number.isNaN(index));
+    return setMatches(indices, hit.getAttribute('data-label') || (indices.length + ' dòng'));
+  }
   if (hit.dataset.jump) return jumpToIndex(Number(hit.dataset.jump));
   if (hit.dataset.bucket) {
     // Vua keo chon khoang xong: cu click di kem mouseup khong duoc bien thanh lenh nhay dong.

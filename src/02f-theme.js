@@ -379,11 +379,16 @@ const PANEL_CSS = [
   '.fll-ev{position:relative;padding:9px 12px;margin-bottom:6px;border-radius:9px;background:var(--bg2);',
   'cursor:pointer;border:1px solid transparent;transition:.14s}',
   '.fll-ev:hover{border-color:var(--acc)}',
-  '.fll-ev:before{content:"";position:absolute;left:-18px;top:15px;width:7px;height:7px;border-radius:50%;',
-  'background:var(--mut);box-shadow:0 0 0 3px var(--bg)}',
-  '.fll-ev.boot:before{background:var(--ok)}',
-  '.fll-ev.gap:before{background:var(--warn)}',
-  '.fll-ev.err:before{background:var(--err)}',
+  /* Cham tron mau o le trai da bo: mau khong tu noi ra nghia, nguoi doc phai nho "hong la cham, xanh
+     la man hinh" — khong ai nho. Nay bieu tuong nam trong the, kem title va mot hang chu giai o tren. */
+  '.fll-ev:before{content:"";position:absolute;left:-18px;top:17px;width:5px;height:5px;border-radius:50%;',
+  'background:var(--line)}',
+  '.fll-ev-ic{flex:0 0 auto;width:15px;text-align:center;font-size:11.5px;line-height:1;',
+  'font-family:"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif}',
+  '.fll-legend{display:flex;flex-wrap:wrap;gap:4px 12px;margin:0 0 10px;font-size:10px;color:var(--mut)}',
+  '.fll-legend span{display:inline-flex;align-items:center;gap:5px}',
+  '.fll-legend i{font-style:normal;font-size:11px;',
+  'font-family:"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif}',
   '.fll-ev-t{display:flex;align-items:center;gap:9px;font-size:11.5px;font-weight:600}',
   '.fll-ev-t em{margin-left:auto;font-style:normal;font-size:10px;color:var(--mut);font-variant-numeric:tabular-nums}',
   '.fll-ev-d{font-size:10.5px;color:var(--mut);margin-top:4px;font-family:var(--mono);overflow:hidden;',
@@ -391,11 +396,6 @@ const PANEL_CSS = [
 
   /* ---------- hanh trinh ---------- */
   /* Dung lai khung .fll-tl/.fll-ev cua Timeline, chi doi mau cham theo loai thao tac. */
-  '.fll-ev.jr-screen:before{background:var(--info)}',
-  '.fll-ev.jr-tap:before{background:var(--acc)}',
-  '.fll-ev.jr-saw:before{background:var(--warn)}',
-  '.fll-ev.jr-move:before{background:var(--ok)}',
-  '.fll-ev.jr-fail:before{background:var(--err)}',
   '.fll-ev.jr-saw{border-left:2px solid var(--warn)}',
   '.fll-ev.jr-fail{border-left:2px solid var(--err)}',
   '.fll-jms{font-size:9.5px;font-weight:700;color:var(--warn);background:rgba(255,182,72,.14);',

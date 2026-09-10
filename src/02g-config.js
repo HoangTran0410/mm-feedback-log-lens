@@ -173,17 +173,24 @@ function buildConfigs(entries, httpCalls) {
     const id = hit.source + ' ' + hit.key;
     let group = groups.get(id);
     if (!group) {
-      group = { key: hit.key, source: hit.source, note: hit.note, count: 0, values: [] };
+      group = { key: hit.key, source: hit.source, note: hit.note, count: 0, values: [], indices: [] };
       groups.set(id, group);
     }
     group.count += 1;
+    group.indices.push(entry.domIndex);
     if (hit.note && !group.note) group.note = hit.note;
     // Chi ghi khi gia tri KHAC lan truoc. Nho vay values.length > 1 co dung mot nghia:
     // cau hinh nay doi giua chung phien — thu dang de y nhat khi "pha an".
+    // Nhung van phai gom DU chi so dong cua moi gia tri: mot khoa ghi 4 lan cung mot gia tri thi
+    // van la 4 dong log co that, phai duyet duoc ca bon chu khong chi nhay toi dong dau.
     const last = group.values[group.values.length - 1];
-    if (last && last.value === hit.value) return;
+    if (last && last.value === hit.value) {
+      last.indices.push(entry.domIndex);
+      return;
+    }
     group.values.push({
       value: hit.value,
+      indices: [entry.domIndex],
       domIndex: entry.domIndex,
       lineNo: entry.lineNo,
       time: entry.time,

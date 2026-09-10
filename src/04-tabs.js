@@ -667,6 +667,20 @@ function renderFilterTab() {
 // 29 moc, tab mong nhat trong ca panel. Buoc tuong tac cua user tung nam o mot tab rieng — nhung ca hai
 // deu la "sap theo timestamp that roi ve .fll-tl", tuc cung mot thu voi hai nguon khac nhau, va phai
 // nhay qua lai giua hai tab moi ghep duoc cau "user bam gi -> app dung im -> loi gi". Tron lam mot.
+// Truoc day loai moc chi phan biet bang MAU cua mot cham tron 7px o le trai. Mau khong tu noi ra
+// nghia: nguoi doc phai nho "hong la cham, xanh la man hinh" — khong ai nho. Nay moi loai co mot bieu
+// tuong + mot cai ten, va co ca hang chu giai ngay tren danh sach.
+const TIMELINE_KINDS = {
+  boot: { icon: '\uD83D\uDE80', label: 'App khởi động' },
+  gap: { icon: '\uD83D\uDCA4', label: 'Khoảng lặng, không có log' },
+  err: { icon: '\u274C', label: 'Nhóm lỗi' },
+  'jr-screen': { icon: '\uD83D\uDCF1', label: 'Màn hình hiện ra' },
+  'jr-move': { icon: '\uD83D\uDD00', label: 'Đổi luồng tính năng' },
+  'jr-tap': { icon: '\uD83D\uDC46', label: 'User chạm' },
+  'jr-saw': { icon: '\uD83D\uDC40', label: 'User nhìn thấy popup' },
+  'jr-fail': { icon: '\u26A0\uFE0F', label: 'Call BE fail' },
+};
+
 const TIMELINE_GROUPS = [
   { id: 'all', label: 'Tất cả' },
   { id: 'app', label: 'App' },
@@ -675,6 +689,23 @@ const TIMELINE_GROUPS = [
   { id: 'saw', label: 'User thấy' },
   { id: 'fail', label: 'API fail' },
 ];
+
+function timelineIcon(kind) {
+  const meta = TIMELINE_KINDS[kind];
+  if (!meta) return '';
+  return '<span class="fll-ev-ic" title="' + escapeHtml(meta.label) + '">' + meta.icon + '</span>';
+}
+
+// Chu giai nam ngay tren danh sach chu khong giau trong tooltip: bieu tuong nao cung phai hoc mot lan,
+// va cho de hoc nhat la ngay canh cho dung no.
+function timelineLegend(events) {
+  const kinds = Object.keys(TIMELINE_KINDS).filter((kind) => events.some((event) => event.kind === kind));
+  if (!kinds.length) return '';
+  return '<div class="fll-legend">' + kinds
+    .map((kind) => '<span><i>' + TIMELINE_KINDS[kind].icon + '</i>' +
+      escapeHtml(TIMELINE_KINDS[kind].label) + '</span>')
+    .join('') + '</div>';
+}
 
 function buildTimelineEvents(data) {
   const events = [];
@@ -746,15 +777,17 @@ function renderTimelineTab() {
         .join('') + '</div>';
   }
 
-  header += '<div class="fll-hint" style="margin:0 0 10px">' + data.sessionCount + ' phiên app · ' +
-    data.gaps.length + ' khoảng lặng · ' + countUnmutedErrorGroups(data) + ' nhóm lỗi · ' +
-    data.journey.steps.length + ' bước tương tác. Đã sắp theo thời gian thật, không theo thứ tự dòng. ' +
-    'Bước tương tác đọc từ event <b>MoMoTracker</b> (mức INFO) — log ghi lặp nên các bước giống hệt ' +
-    'nhau cách nhau dưới 1s đã gộp thành <b>N&times;</b>, bấm vào vẫn duyệt đủ từng dòng.' +
+  // Bon con so o dau doan nay da nam san tren chip va tren phu de panel. Giu lai mot cau — cai duy
+  // nhat khong nhin ra duoc tu giao dien.
+  header += '<div class="fll-hint" style="margin:0 0 10px" title="Bước tương tác đọc từ event ' +
+    'MoMoTracker, đều ghi ở mức INFO nên tab Vấn đề không đếm chúng.">Sắp theo thời gian thật, ' +
+    'không theo thứ tự dòng. Bước giống hệt nhau cách nhau dưới 1s gộp thành <b>N&times;</b> — ' +
+    'bấm vẫn duyệt đủ từng dòng.' +
     (data !== lensState.data
-      ? ' <b>Khoảng lặng chỉ cắt theo cửa sổ thời gian</b> — lọc theo mức độ hay module không đổi nó, ' +
-        'vì khoảng lặng là tính chất của đường thời gian chứ không phải của tập dòng.'
+      ? ' <b>Khoảng lặng chỉ cắt theo cửa sổ thời gian</b>, không đổi theo mức độ hay module.'
       : '') + '</div>';
+
+  header += timelineLegend(events);
 
   if (!events.length) return header + '<div class="fll-empty">Không có mốc nào đáng chú ý.</div>';
 
@@ -762,7 +795,7 @@ function renderTimelineTab() {
   return header + '<div class="fll-tl">' + shown
     .map((event) => '<div class="fll-ev ' + event.kind + '" data-jump="' + event.index + '"' +
       (event.aim ? ' data-aim="' + event.aim.join(',') + '"' : '') + '>' +
-      '<div class="fll-ev-t">' +
+      '<div class="fll-ev-t">' + timelineIcon(event.kind) +
       (event.count > 1 ? '<span class="fll-jn">' + event.count + '&times;</span>' : '') +
       escapeHtml(event.title) +
       (event.ms >= 1000 ? '<span class="fll-jms">' + formatDuration(event.ms) + '</span>' : '') +
@@ -784,8 +817,12 @@ function renderConfigValue(item, value, isLatest) {
   const json = value.hasJson
     ? '<button class="fll-btn fll-cfg-js" data-act="json" data-value="' + value.domIndex + '">JSON</button>'
     : '';
-  return '<div class="fll-cfg-val' + (isLatest ? ' last' : '') + '" data-jump="' + value.domIndex + '">' +
+  // data-lines chu khong phai data-jump: mot gia tri co the duoc ghi lai nhieu lan, bam vao phai
+  // duyet duoc ca chum bang n/p o thanh duoi chu khong dung lai o dong dau tien.
+  return '<div class="fll-cfg-val' + (isLatest ? ' last' : '') +
+    '" data-lines="' + value.indices.join(',') + '" data-label="' + escapeHtml(item.key) + '">' +
     '<div class="fll-cfg-vm">' + escapeHtml(value.time.slice(0, 8)) + ' · dòng ' + value.lineNo +
+    (value.indices.length > 1 ? ' · ' + value.indices.length + ' dòng' : '') +
     (isLatest && item.values.length > 1 ? ' · mới nhất' : '') + '</div>' +
     '<div class="fll-cfg-v">' + escapeHtml(value.value.slice(0, 260)) +
     (value.value.length > 260 ? '…' : '') + '</div>' + json + '</div>';
@@ -807,8 +844,11 @@ function renderConfigRow(item) {
   const values = shown
     .map((value, index) => renderConfigValue(item, value, index === shown.length - 1))
     .join('');
+  // Ban than tieu de khoa cung bam duoc: duyet HET moi dong cua khoa do, ke ca cac gia tri cu.
   return '<div class="fll-cfg' + (item.changed ? ' chg' : '') + '">' +
-    '<div class="fll-cfg-hd"><b>' + escapeHtml(item.key) + '</b>' + many + note +
+    '<div class="fll-cfg-hd" data-lines="' + item.indices.join(',') + '" data-label="' +
+    escapeHtml(item.key) + '" title="Bấm để duyệt cả ' + item.count + ' dòng của khoá này">' +
+    '<b>' + escapeHtml(item.key) + '</b>' + many + note +
     '<em>' + (item.count > 1 ? item.count + '&times;' : '1 dòng') + '</em></div>' +
     (item.values.length > shown.length
       ? '<div class="fll-cfg-vm">(còn ' + (item.values.length - shown.length) + ' giá trị cũ hơn)</div>'

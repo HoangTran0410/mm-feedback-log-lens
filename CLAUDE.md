@@ -23,6 +23,10 @@ node test/demo-log.js /tmp/demo.html && cp extension/lens.js /tmp/lens.js
 cd /tmp && python3 -m http.server 8791     # phải qua http, file:// không chạy được extension
 ```
 
+Chụp thì **thu cửa sổ trình duyệt xuống ~1000px trước đã**. Bộ chụp màn hình có giới hạn bề ngang
+(~1568px); cửa sổ rộng hơn thì ảnh bị thu nhỏ rồi phóng lại — mờ, và vùng cắt lệch đi vì toạ độ đo
+bằng px CSS còn ảnh đã bị co. Cửa sổ hẹp hơn giới hạn đó thì tỉ lệ 1:1, cắt đúng khung panel.
+
 Test fixture (`test/fixture.js`) cũng bịa hoàn toàn, nhưng tái tạo đúng những ĐẶC TÍNH đã gặp trên log
 thật: ghi lặp, `trace_id` trùng, popup ở mức INFO, giá trị có dấu phẩy bên trong.
 

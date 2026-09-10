@@ -349,8 +349,8 @@ function mountPanel() {
 /* ---------------------------------------------------------- uy quyen click */
 
 function handleLensClick(event) {
-  const hit = event.target.closest('[data-act],[data-tab],[data-jump],[data-group],[data-module],' +
-    '[data-level],[data-call],[data-bucket],[data-event],[data-saw],[data-apifail],' +
+  const hit = event.target.closest('[data-act],[data-tab],[data-lines],[data-jump],[data-group],' +
+    '[data-module],[data-level],[data-call],[data-bucket],[data-event],[data-saw],[data-apifail],' +
     '[data-jscreen],[data-jtap],[data-tracefail],[data-jload]');
   if (!hit) return;
   // groups/httpCalls doc theo view (dang loc thi la cua tap dang hien, dung nhu tab vua ve);
@@ -360,6 +360,12 @@ function handleLensClick(event) {
   const value = hit.getAttribute('data-value');
 
   if (hit.dataset.tab) return switchTab(hit.dataset.tab);
+  // data-lines = "hang nay ung voi tung nay dong log". Phai xet TRUOC data-jump: nhay mot dong thi
+  // thanh duoi khong co gi de duyet, nguoi dung ket o dong dau tien cua nhom.
+  if (hit.dataset.lines) {
+    const indices = hit.dataset.lines.split(',').map(Number).filter((index) => !Number.isNaN(index));
+    return setMatches(indices, hit.getAttribute('data-label') || (indices.length + ' dòng'));
+  }
   if (hit.dataset.jump) return jumpToIndex(Number(hit.dataset.jump));
   if (hit.dataset.bucket) {
     // Vua keo chon khoang xong: cu click di kem mouseup khong duoc bien thanh lenh nhay dong.
