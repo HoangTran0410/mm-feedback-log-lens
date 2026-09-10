@@ -29,10 +29,10 @@ bản build thì ngược lại: khối ngay dưới do `build.sh` ghi lại m�
 
 | | |
 |---|---|
-| `dist/lens.js` | **178 KB** (181,837 bytes) |
-| Nguồn | 4,079 dòng trong 7 file `src/` |
+| `dist/lens.js` | **182 KB** (186,626 bytes) |
+| Nguồn | 4,159 dòng trong 7 file `src/` |
 | Dependency lúc chạy | không có |
-| Test | 55 phép thử, `node test/run.js` |
+| Test | 60 phép thử, `node test/run.js` |
 
 <!-- /build-stats -->
 
@@ -91,6 +91,35 @@ Ba thứ **cố ý không** scope:
 - **Chuỗi theo ID** cũng không scope: xem một request thì phải xem trọn vẹn.
 
 ### Năm thứ tiết kiệm nhiều thời gian nhất
+
+**Nhiễu từ chính hệ thống đo lường.** Đo trên **50 feedback production thật** (25 iOS, 25 Android,
+lấy qua API danh sách của trang admin): **1267 / 2488 dòng ERROR — 51% — không phải lỗi user gặp**,
+mà là lỗi của lớp tracing. **24 / 49 log có quá nửa số dòng ERROR** thuộc loại này.
+
+| chữ ký | dòng (trên 50 log) | nguyên nhân trong app |
+|---|---|---|
+| `GrafanaTrace.*:: no traceId` | 1099 | `withTraceId()` gọi `buffer.remove()` nên traceId chỉ dùng được một lần |
+| `grafana >> DefaultRequestQueue >> handleError` | 138 | hàng đợi gửi trace của chính Grafana lỗi |
+| `GrafanaTrace.* PaymentSession is null` | 30 | `resolveFormatter()` trả null khi Koin scope đã đóng |
+
+Chúng ghi bằng `logger.e` trực tiếp nên **không** bị cờ Debug Tool cắt — tức có mặt trên máy user thật,
+khác hẳn các dòng `@@ grafana >> startTrace` (chỉ 2/50 log có).
+
+Tab Vấn đề tách chúng thành một khối riêng ở cuối, không trộn vào danh sách chính và không tính vào
+chip đếm. Trên log UAT dùng để thử: **40/44 dòng ERROR là nhiễu**, tách xong còn đúng 4 dòng đáng đọc.
+
+Cố ý **không** tự động tắt tiếng: tắt tiếng là quyết định của người đọc, và đôi khi chính lớp đo lường
+hỏng lại là manh mối. Bấm một nút là xem lại được.
+
+**Đừng nhầm `available` với `hasGated`.** `available` chỉ nói log có dòng trace nào không — 68% log
+production có, vì vài dòng không bị cờ chặn. `hasGated` mới nói có `startTrace`/`traceFail` thật hay
+không — chỉ **4%** log production có. Nhìn nhầm `available` là tưởng log nào cũng có dữ liệu trace.
+
+**Mốc phiên app.** Nhận ba chuỗi thay vì một: `MomoDatabase init OK`, `@@ appSync >> syncStartApp`,
+`[PERF] SyncAppFeature, start`. Cả ba đều ghi đúng một lần mỗi lần process khởi động, ở mức INFO, và
+không bị cờ debug nào chặn (đã đọc source app). Chuỗi đầu có mặt ở **44/50** log production — 6 log
+còn lại cần mốc dự phòng, vì file log bị xoay vòng thì dòng khởi động là dòng bị cắt đầu tiên. Thêm
+hai mốc kia làm số phiên nhận ra trên log thử tăng từ 1 lên 3.
 
 **Lỗi từ Grafana trace.** Ngoài các nhóm chữ ký dòng log, tab Vấn đề còn đọc `traceFail` của
 `[Module: Grafana]`. Những dòng này mang sẵn `flow` + `step` + `errorCode` + `errorMessage` — mô tả

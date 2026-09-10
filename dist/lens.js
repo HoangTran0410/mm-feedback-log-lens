@@ -30,7 +30,11 @@ const RE_URL = /\[URL: (\S+?)\]/;
 const RE_STATUS = /--status: (\d+)/;
 const RE_ERRCODE = /"errorCode"\s*:\s*"?(-?\d+)|errorCode=(-?\d+)/;
 const RE_BATCH = /LOGGER: END OF BATCH/;
-const RE_SESSION = /MomoDatabase init OK/;
+// Ba moc deu ghi dung mot lan moi lan process khoi dong, deu o muc INFO va deu khong bi bat ky co
+// debug nao chan (da doc source app). Do tren 50 feedback production that: "MomoDatabase init OK"
+// co mat o 44/50 log — 6 log con lai can moc du phong, vi file log bi xoay vong thi dong khoi dong
+// la dong bi cat dau tien.
+const RE_SESSION = /MomoDatabase init OK|@@ appSync >> syncStartApp|\[PERF\] SyncAppFeature, start/;
 
 function getLogRowElements() {
   return Array.from(document.querySelectorAll(ROW_SELECTOR));
@@ -221,6 +225,9 @@ function buildIssueGroups(entries) {
         module: entry.module,
         signature: entry.signature,
         sample: entry.message,
+        // Loi cua chinh lop do luong, khong phai loi user gap. Danh dau ngay luc gom de tab Van de
+        // tach rieng ra — do tren 50 feedback production: 1267/2488 dong ERROR (51%) la loai nay.
+        noiseLabel: telemetryNoiseLabel(entry.message),
         indices: [],
         firstTs: entry.ts,
         lastTs: entry.ts,
@@ -1093,6 +1100,32 @@ function buildJourney(entries) {
   };
 }
 
+/* ------------------------------------------- nhieu tu chinh he thong do luong */
+
+// Do tren 50 feedback PRODUCTION that (25 iOS, 25 Android, ngay 2026-09-10): 2488 dong ERROR, trong do
+// 1267 dong (51%) khong phai loi user gap ma la loi cua chinh lop do luong. 24/49 log co qua nua so
+// dong ERROR la loai nay. Chung deu ghi bang logger.e truc tiep nen KHONG bi cat boi co Debug Tool —
+// tuc chung co mat tren may user that, khac han cac dong "@@ grafana >>" khac.
+//
+// Khong tu dong tat tieng: do la quyet dinh cua nguoi doc. Chi tach ra mot khoi rieng de danh sach
+// van de con lai la nhung thu dang doc.
+const TELEMETRY_NOISE_PATTERNS = [
+  // withTraceId() lam buffer.remove() nen traceId chi dung duoc mot lan; goi stop lan hai la mat.
+  { re: /GrafanaTrace\.\w+:: no traceId/, label: 'GrafanaTrace mất traceId' },
+  // resolveFormatter() tra null khi Koin scope da dong.
+  { re: /GrafanaTrace\.\w+ PaymentSession is null/, label: 'GrafanaTrace không có PaymentSession' },
+  { re: /GrafanaTrace\.exceptionHandler/, label: 'GrafanaTrace nuốt exception' },
+  // Hang doi gui trace cua chinh Grafana bi loi.
+  { re: /grafana >> DefaultRequestQueue >> handleError/, label: 'Hàng đợi gửi trace Grafana lỗi' },
+];
+
+function telemetryNoiseLabel(text) {
+  for (let i = 0; i < TELEMETRY_NOISE_PATTERNS.length; i += 1) {
+    if (TELEMETRY_NOISE_PATTERNS[i].re.test(text)) return TELEMETRY_NOISE_PATTERNS[i].label;
+  }
+  return '';
+}
+
 /* -------------------------------------------------- loi doc tu Grafana trace */
 
 // Grafana ghi o muc INFO nen khong dong nao lot vao buildIssueGroups, trong khi traceFail mang san
@@ -1162,7 +1195,14 @@ function buildTraceIssues(entries) {
       apps: Array.from(row.apps) }))
     .sort((a, b) => b.apps.length - a.apps.length || b.count - a.count);
 
-  return { available: lineCount > 0, lineCount, counts, fails };
+  // Phan biet hai chuyen khac han nhau:
+  // - gated: cac dong "@@ grafana >>" di qua GrafanaTracker.log(), bi cat boi co Debug Tool.
+  //   Do tren 50 feedback production that: chi 2/50 log (4%) co startTrace/traceFail.
+  // - available: co bat ky dong trace nao khong. Mot so dong ("generateOffsetBase", handleError)
+  //   ghi thang bang logger nen KHONG bi cat — 68% log production co chung. Neu chi nhin
+  //   available thi se tuong log nao cung co du lieu trace, trong khi thuc te gan nhu khong log nao co.
+  return { available: lineCount > 0, hasGated: counts.startTrace + counts.traceSuccess + counts.traceFail > 0,
+    lineCount, counts, fails };
 }
 
 // Moi thu phu thuoc "dang nhin nhung dong nao". Goi mot lan cho ca file luc quet,
@@ -2796,7 +2836,7 @@ const ISSUE_PAGE_SIZE = 50;
 const TIMELINE_PAGE_SIZE = 80;
 
 const tabUiState = { issueLevel: 'all', issueQuery: '', httpOnlyBad: false, httpQuery: '', moduleQuery: '',
-  issueLimit: ISSUE_PAGE_SIZE, templateName: '', tlGroup: 'all', tlLimit: TIMELINE_PAGE_SIZE };
+  issueLimit: ISSUE_PAGE_SIZE, templateName: '', tlGroup: 'all', tlLimit: TIMELINE_PAGE_SIZE, showNoise: false };
 
 function renderSparkline(indices, color) {
   const data = lensState.data;
@@ -2962,6 +3002,8 @@ function renderIssueList() {
   const view = getView();
   const query = tabUiState.issueQuery.toLowerCase();
   const groups = view.groups.filter((group) => {
+    // Nhieu do luong co khoi rieng ben duoi, khong tron vao day.
+    if (group.noiseLabel) return false;
     if (isGroupMuted(group) && !lensState.isShowingMuted) return false;
     if (tabUiState.issueLevel !== 'all' && group.level !== tabUiState.issueLevel) return false;
     if (!query) return true;
@@ -2981,6 +3023,7 @@ function renderIssuesTab() {
   const counts = { all: 0, ERROR: 0, WARNING: 0 };
   let mutedCount = 0;
   data.groups.forEach((group) => {
+    if (group.noiseLabel) return;
     if (isGroupMuted(group)) {
       mutedCount += 1;
       return;
@@ -3004,7 +3047,40 @@ function renderIssuesTab() {
     'Bấm &#128263; để tắt tiếng chữ ký nhiễu — nhớ luôn cho các feedback mở sau này.</div>' +
     renderTraceFailSection(data) +
     '<div class="fll-sec">Nhóm theo chữ ký dòng log</div>' +
-    '<div id="fll-issue-list">' + renderIssueList() + '</div>';
+    '<div id="fll-issue-list">' + renderIssueList() + '</div>' +
+    renderTelemetryNoiseSection(data);
+}
+
+// Do tren 50 feedback PRODUCTION that: 1267/2488 dong ERROR (51%) khong phai loi user gap ma la loi
+// cua chinh lop do luong, va 24/49 log co qua nua so dong ERROR la loai nay. De chung lan trong danh
+// sach thi nguoi doc mat mot nua thoi gian vao thu khong lien quan.
+// Tach ra chu KHONG tu dong tat tieng: tat tieng la quyet dinh cua nguoi doc, va doi khi chinh lop
+// do luong hong lai la manh moi.
+function renderTelemetryNoiseSection(data) {
+  const noise = data.groups.filter((group) => group.noiseLabel);
+  if (!noise.length) return '';
+
+  const lineCount = noise.reduce((sum, group) => sum + group.indices.length, 0);
+  const byLabel = new Map();
+  noise.forEach((group) => {
+    byLabel.set(group.noiseLabel, (byLabel.get(group.noiseLabel) || 0) + group.indices.length);
+  });
+  const breakdown = Array.from(byLabel, (pair) => pair[0] + ' <b>' + pair[1] + '</b>')
+    .sort()
+    .join(' · ');
+
+  return '<div class="fll-sec">Nhiễu từ hệ thống đo lường</div>' +
+    '<div class="fll-note" style="background:rgba(88,196,255,.08);border-color:rgba(88,196,255,.28);' +
+    'color:#bfe4ff"><span>&#9432;</span><div>' +
+    '<b>' + lineCount + ' dòng</b> trong ' + noise.length + ' nhóm là lỗi của <b>chính lớp đo lường</b>, ' +
+    'không phải lỗi user gặp — đã tách khỏi danh sách trên.<br>' +
+    '<span style="opacity:.75">' + breakdown + '</span></div></div>' +
+    '<button class="fll-btn" style="width:100%" data-act="toggleNoise">' +
+    (tabUiState.showNoise ? 'Ẩn lại' : 'Vẫn muốn xem ' + noise.length + ' nhóm này') + '</button>' +
+    (tabUiState.showNoise
+      ? '<div style="margin-top:8px">' +
+        noise.map((group) => renderGroupCard(group, data.groups.indexOf(group))).join('') + '</div>'
+      : '');
 }
 
 // Dat TRUOC danh sach nhom chu ky vi day la loai loi ma danh sach do khong the thay: Grafana ghi o
@@ -3895,6 +3971,10 @@ function handleLensClick(event) {
   if (action === 'mute') {
     const group = view.groups[Number(value)];
     if (group) toggleMutedSignature(group.key);
+    return renderTab();
+  }
+  if (action === 'toggleNoise') {
+    tabUiState.showNoise = !tabUiState.showNoise;
     return renderTab();
   }
   if (action === 'toggleMutedView') {

@@ -454,6 +454,10 @@ function handleLensClick(event) {
     if (group) toggleMutedSignature(group.key);
     return renderTab();
   }
+  if (action === 'toggleNoise') {
+    tabUiState.showNoise = !tabUiState.showNoise;
+    return renderTab();
+  }
   if (action === 'toggleMutedView') {
     lensState.isShowingMuted = !lensState.isShowingMuted;
     return renderTab();

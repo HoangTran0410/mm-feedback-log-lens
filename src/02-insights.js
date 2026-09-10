@@ -745,6 +745,32 @@ function buildJourney(entries) {
   };
 }
 
+/* ------------------------------------------- nhieu tu chinh he thong do luong */
+
+// Do tren 50 feedback PRODUCTION that (25 iOS, 25 Android, ngay 2026-09-10): 2488 dong ERROR, trong do
+// 1267 dong (51%) khong phai loi user gap ma la loi cua chinh lop do luong. 24/49 log co qua nua so
+// dong ERROR la loai nay. Chung deu ghi bang logger.e truc tiep nen KHONG bi cat boi co Debug Tool —
+// tuc chung co mat tren may user that, khac han cac dong "@@ grafana >>" khac.
+//
+// Khong tu dong tat tieng: do la quyet dinh cua nguoi doc. Chi tach ra mot khoi rieng de danh sach
+// van de con lai la nhung thu dang doc.
+const TELEMETRY_NOISE_PATTERNS = [
+  // withTraceId() lam buffer.remove() nen traceId chi dung duoc mot lan; goi stop lan hai la mat.
+  { re: /GrafanaTrace\.\w+:: no traceId/, label: 'GrafanaTrace mất traceId' },
+  // resolveFormatter() tra null khi Koin scope da dong.
+  { re: /GrafanaTrace\.\w+ PaymentSession is null/, label: 'GrafanaTrace không có PaymentSession' },
+  { re: /GrafanaTrace\.exceptionHandler/, label: 'GrafanaTrace nuốt exception' },
+  // Hang doi gui trace cua chinh Grafana bi loi.
+  { re: /grafana >> DefaultRequestQueue >> handleError/, label: 'Hàng đợi gửi trace Grafana lỗi' },
+];
+
+function telemetryNoiseLabel(text) {
+  for (let i = 0; i < TELEMETRY_NOISE_PATTERNS.length; i += 1) {
+    if (TELEMETRY_NOISE_PATTERNS[i].re.test(text)) return TELEMETRY_NOISE_PATTERNS[i].label;
+  }
+  return '';
+}
+
 /* -------------------------------------------------- loi doc tu Grafana trace */
 
 // Grafana ghi o muc INFO nen khong dong nao lot vao buildIssueGroups, trong khi traceFail mang san
@@ -814,7 +840,14 @@ function buildTraceIssues(entries) {
       apps: Array.from(row.apps) }))
     .sort((a, b) => b.apps.length - a.apps.length || b.count - a.count);
 
-  return { available: lineCount > 0, lineCount, counts, fails };
+  // Phan biet hai chuyen khac han nhau:
+  // - gated: cac dong "@@ grafana >>" di qua GrafanaTracker.log(), bi cat boi co Debug Tool.
+  //   Do tren 50 feedback production that: chi 2/50 log (4%) co startTrace/traceFail.
+  // - available: co bat ky dong trace nao khong. Mot so dong ("generateOffsetBase", handleError)
+  //   ghi thang bang logger nen KHONG bi cat — 68% log production co chung. Neu chi nhin
+  //   available thi se tuong log nao cung co du lieu trace, trong khi thuc te gan nhu khong log nao co.
+  return { available: lineCount > 0, hasGated: counts.startTrace + counts.traceSuccess + counts.traceFail > 0,
+    lineCount, counts, fails };
 }
 
 // Moi thu phu thuoc "dang nhin nhung dong nao". Goi mot lan cho ca file luc quet,

@@ -96,6 +96,12 @@ function build() {
   // --- event co ten nhung KHONG co params (log that co dang "... does not exist in Whitelist")
   line('INFO', '[Module: MoMoTracker] event: su_kien_bia does not exist in Whitelist');
 
+  // --- Nhieu tu chinh lop do luong: ghi o muc ERROR nen ĐANG lot vao nhom chu ky va lam nhieu.
+  // Ba dong, hai chu ky khac nhau. Tren log production that day chiem 51% so dong ERROR.
+  line('ERROR', '[Module: Grafana] @@ grafana >> DefaultRequestQueue >> handleError >> error: kotlin.Exception');
+  line('ERROR', '[AppID: vn.gia.lap] [KetQua] GrafanaTrace.stop:: no traceId GrafanaMetric(flow=luong_bia, step=buoc_bia)');
+  line('ERROR', '[AppID: vn.gia.lap] [KetQua] GrafanaTrace.stop:: no traceId GrafanaMetric(flow=luong_bia, step=buoc_khac)');
+
   // --- Grafana trace. traceFail o muc INFO nen khong nhom chu ky nao dem duoc.
   grafana('startTrace', 'flow=luong_bia, step=buoc_mot_start, appId=vn.gia.lap, errorCode=null, errorMessage=null');
   grafana('traceSuccess', 'flow=luong_bia, step=buoc_mot_success, appId=vn.gia.lap, errorCode=null, errorMessage=null');

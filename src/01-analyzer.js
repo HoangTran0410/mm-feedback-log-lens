@@ -29,7 +29,11 @@ const RE_URL = /\[URL: (\S+?)\]/;
 const RE_STATUS = /--status: (\d+)/;
 const RE_ERRCODE = /"errorCode"\s*:\s*"?(-?\d+)|errorCode=(-?\d+)/;
 const RE_BATCH = /LOGGER: END OF BATCH/;
-const RE_SESSION = /MomoDatabase init OK/;
+// Ba moc deu ghi dung mot lan moi lan process khoi dong, deu o muc INFO va deu khong bi bat ky co
+// debug nao chan (da doc source app). Do tren 50 feedback production that: "MomoDatabase init OK"
+// co mat o 44/50 log — 6 log con lai can moc du phong, vi file log bi xoay vong thi dong khoi dong
+// la dong bi cat dau tien.
+const RE_SESSION = /MomoDatabase init OK|@@ appSync >> syncStartApp|\[PERF\] SyncAppFeature, start/;
 
 function getLogRowElements() {
   return Array.from(document.querySelectorAll(ROW_SELECTOR));
@@ -220,6 +224,9 @@ function buildIssueGroups(entries) {
         module: entry.module,
         signature: entry.signature,
         sample: entry.message,
+        // Loi cua chinh lop do luong, khong phai loi user gap. Danh dau ngay luc gom de tab Van de
+        // tach rieng ra — do tren 50 feedback production: 1267/2488 dong ERROR (51%) la loai nay.
+        noiseLabel: telemetryNoiseLabel(entry.message),
         indices: [],
         firstTs: entry.ts,
         lastTs: entry.ts,

@@ -89,6 +89,10 @@ function eq(actual, expected, what) {
   }
 }
 
+function isMutedForTest() {
+  return false; // fixture khong tat tieng chu ky nao
+}
+
 function ok(condition, what) {
   if (!condition) throw new Error(what || 'dieu kien khong dung');
 }
@@ -113,6 +117,10 @@ const journey = data.journey;
 const stepsOf = (kind) => journey.steps.filter((step) => step.kind === kind);
 
 /* ----------------------------------------------------------------- phep thu */
+
+check('moc phien nhan ca dang co duoi "in <N>ms" lan dang khong', () => {
+  eq(data.sessionCount, 2, 'fixture co hai lan khoi dong');
+});
 
 check('doc duoc log fixture', () => {
   ok(data.entries.length >= 25, 'so dong doc duoc: ' + data.entries.length);
@@ -253,6 +261,44 @@ check('tab Van de co nhac toi loi Grafana', () => {
   const html = L.renderIssuesTab();
   ok(html.indexOf('Grafana trace') >= 0, 'phai co muc');
   ok(html.indexOf('khong tim thay ban nao') >= 0, 'phai hien noi dung loi');
+});
+
+/* --------------------------------------------- nhieu tu chinh lop do luong */
+
+check('nhom nhieu do luong bi danh dau, nhom that thi khong', () => {
+  const noise = data.groups.filter((g) => g.noiseLabel);
+  // Hai dong "no traceId" khac ten buoc nen khac chu ky -> hai nhom; cong handleError la ba.
+  eq(noise.length, 3, 'so nhom nhieu');
+  const nhan = Array.from(new Set(noise.map((g) => g.noiseLabel))).sort();
+  eq(nhan.length, 2, 'hai loai nhan');
+  eq(nhan[0], 'GrafanaTrace mất traceId', 'nhan 1');
+  eq(nhan[1], 'Hàng đợi gửi trace Grafana lỗi', 'nhan 2');
+  const that = data.groups.filter((g) => !g.noiseLabel && g.level === 'ERROR');
+  ok(that.length >= 1, 'nhom loi that phai con nguyen');
+  ok(that.every((g) => g.sample.indexOf('Grafana') < 0), 'nhom that khong duoc dinh Grafana');
+});
+
+check('nhieu bi tach khoi danh sach chinh nhung van xem duoc', () => {
+  L.tabUiState.showNoise = false;
+  const an = L.renderIssuesTab();
+  ok(an.indexOf('Nhiễu từ hệ thống đo lường') >= 0, 'phai co khoi rieng');
+  ok(an.indexOf('no traceId') < 0, 'khi dang an thi khong duoc hien noi dung nhieu');
+  L.tabUiState.showNoise = true;
+  const hien = L.renderIssuesTab();
+  ok(hien.indexOf('no traceId') >= 0, 'bam mo thi phai hien');
+  L.tabUiState.showNoise = false;
+});
+
+check('chip dem dau tab Van de khong tinh nhom nhieu', () => {
+  const html = L.renderIssuesTab();
+  const conLai = data.groups.filter((g) => !g.noiseLabel && !isMutedForTest(g)).length;
+  ok(html.indexOf('Tất cả <em>' + conLai + '</em>') >= 0,
+    'chip "Tat ca" phai la ' + conLai + ' (da tru nhom nhieu)');
+});
+
+check('phan biet co traceFail that hay chi co dong khong bi cat', () => {
+  ok(data.traceIssues.available, 'fixture co dong trace');
+  ok(data.traceIssues.hasGated, 'fixture co ca startTrace/traceFail');
 });
 
 /* ------------------------------------------------------- render moi tab, moi trang thai */
