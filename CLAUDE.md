@@ -55,6 +55,18 @@ giữa chừng. Tab có hay không là tính chất của cả log; nội dung b
 **Chữ hướng dẫn trên giao diện: một câu.** Giải thích dài để trong chú giải của chính phần tử nó nói
 về. Panel chỉ rộng 480px, mỗi câu thừa đẩy nội dung thật xuống dưới màn.
 
+**Khoảng lặng ≠ app treo.** Trạng thái app chỉ nằm ghép trong dòng MQTT (`... - appState: BACKGROUND -`)
+— không có dòng lifecycle riêng nào (`didEnterBackground`, `willEnterForeground`, `onPause` đều **0 lần**
+trên cả ba log). `markBackgroundGaps()` gắn nhãn khoảng lặng nào là do user rời app. Đo trên ba log
+thật: log `33112319` có 22 khoảng lặng, **hai cái dài nhất** (2m23s và 3m52s) đều là app ở nền — bỏ ra
+thì khoảng im lặng thật dài nhất chỉ còn **8.5s**. Trước đó tool báo cả hai loại như nhau, tức nói
+"app đứng im 4 phút" trong khi user chỉ bấm Home.
+
+Hai chỗ dễ sai khi sửa lại: (1) mốc đổi trạng thái nằm **sớm hơn** `gap.before.ts` vài chục ms, vì ba
+module MQTT cùng ghi một lúc và dòng cuối trước khoảng lặng là dòng thứ ba — chặn cứng
+`mốc >= gap.before.ts` thì trượt hết; (2) phải có **cả hai** đầu (xuống nền *và* trở lại), chỉ thấy một
+đầu thì không kết luận — có thể app xuống nền rồi bị giết hẳn.
+
 **Log có thể bị nối đôi — kiểm trước khi tin bất kỳ con số nào.** Một log feedback production thật
 (`autoId=45490371`) dài 4222 dòng hoá ra là 2111 dòng đầu **lặp lại nguyên xi**: `md5` hai nửa bằng
 nhau, chỗ nối ngay sau một dòng `LOGGER: END OF BATCH`. Đo bằng chính tool sau khi bỏ khối lặp: call

@@ -814,6 +814,33 @@ check('khoi lap: bo loc loai dong lap ra khoi thong ke', () => {
   L.lensState.filter.skipDuplicate = false;
 });
 
+// False positive lon nhat cua tinh nang khoang lang: "user bam Home" bi doc thanh "app dung im".
+// Do tren ba log that sau khi sua: log 33112319 co 22 khoang lang, hai cai dai nhat (2m23s va 3m52s)
+// deu la app o nen — bo chung ra thi khoang im lang that dai nhat chi con 8.5s.
+check('khoang lang: tach duoc "app xuong nen" khoi "app treo"', () => {
+  const nen = data.gaps.filter((gap) => gap.cause === 'background');
+  eq(nen.length, 1, 'fixture co dung mot khoang do app xuong nen');
+  ok(nen[0].downTs && nen[0].upTs && nen[0].upTs > nen[0].downTs, 'phai co ca moc xuong lan moc len');
+  const conLai = data.gaps.filter((gap) => gap.cause !== 'background');
+  ok(conLai.length >= 1, 'va con khoang lang khong co moc trang thai nao');
+  conLai.forEach((gap) => eq(gap.cause, '', 'khoang khong co moc thi khong duoc gan nguyen nhan'));
+});
+
+check('khoang lang: doc duoc appState tu dong MQTT', () => {
+  const co = data.entries.filter((entry) => entry.appState);
+  eq(co.length, 2, 'so dong mang trang thai app');
+  eq(co[0].appState, 'BACKGROUND', 'dong dau');
+  eq(co[1].appState, 'FOREGROUND', 'dong sau');
+});
+
+check('khoang lang: hai loai hien khac nhau tren dong thoi gian', () => {
+  L.tabUiState.tlKinds = new Set();
+  const html = L.renderTimelineTab();
+  ok(html.indexOf('App xuống nền') >= 0, 'phai goi dung ten, khong goi la "khoang lang"');
+  ok(html.indexOf('không phải app treo') >= 0, 'va noi ro khong phai app treo');
+  ok(html.indexOf('data-act="tlKind" data-value="gap-bg"') >= 0, 'co chip loc rieng cho loai nay');
+});
+
 renderAll('log day du');
 
 L.TIMELINE_KIND_ORDER.forEach((kind) => {

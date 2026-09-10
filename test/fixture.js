@@ -95,8 +95,13 @@ function build() {
   // ra "o tren man hon mot tieng" trong khi app da bi tat. Bug that da gap tren log production.
   tracker('auto_screen_navigated', 'app_id=vn.gia.lap, screen_name=ManHinhCuoiPhien, pre_screen_name=ManHinhMot');
 
-  // --- khoang lang 6s
+  // --- khoang lang 6s, nhung la do APP XUONG NEN chu khong phai app treo. Trang thai app chi nam ghep
+  // trong dong MQTT — do la cho duy nhat trong log that noi ra dieu nay.
+  line('INFO', '[Module: MQTT-GIA-LAP] MQTT Connection not satisfy gia.lap:8883 - keepAliveInSecond: 60 - ' +
+    'clientId: BIA-0001 - appState: BACKGROUND - isReady: false');
   line('INFO', '[Module: GiaLapIdle] khong co gi xay ra', 6000);
+  line('INFO', '[Module: MQTT-GIA-LAP] MQTT Connection satisfy gia.lap:8883 - keepAliveInSecond: 60 - ' +
+    'clientId: BIA-0001 - appState: FOREGROUND - isReady: true');
 
   // --- phien thu hai, ghi DU ca ba moc khoi dong cach nhau vai tram ms nhu log that.
   // Dem tung moc thi mot lan mo app thanh ba phien — day la bug that da gap.

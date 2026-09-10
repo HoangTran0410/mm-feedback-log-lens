@@ -43,10 +43,10 @@ bản build thì ngược lại: khối ngay dưới do `build.sh` ghi lại m�
 
 | | |
 |---|---|
-| `extension/lens.js` | **263 KB** (268,871 bytes) |
-| Nguồn | 5,849 dòng trong 22 file `src/` |
+| `extension/lens.js` | **266 KB** (272,620 bytes) |
+| Nguồn | 5,912 dòng trong 22 file `src/` |
 | Dependency lúc chạy | không có |
-| Test | 103 phép thử, `node test/run.js` |
+| Test | 107 phép thử, `node test/run.js` |
 
 <!-- /build-stats -->
 
@@ -96,6 +96,12 @@ dòng mà hàng đó đại diện (một nhóm lỗi 22 dòng thì hiện 22 v�
 chỗ), và dòng nhãn giữa minimap đổi thành giờ của hàng đang rê. Chạy ở mọi tab và cả trong tấm trượt
 payload, vì nó vẽ bằng một lớp SVG phủ lên panel chứ không phải chèn thẻ vào từng hàng — tab thêm sau
 này tự động có.
+
+**Khoảng lặng nào là "app treo", khoảng nào chỉ là user bấm Home.** Log không có dòng lifecycle riêng,
+nhưng trạng thái app nằm ghép trong dòng MQTT (`appState: BACKGROUND`). Tool đọc ra và tách hai loại:
+🌙 *App xuống nền* và 💤 *Khoảng lặng*. Trên một log thật, hai khoảng dài nhất (2m23s và 3m52s) đều là
+app ở nền — bỏ ra thì khoảng im lặng thật dài nhất chỉ còn **8.5s**. Thẻ "khoảng lặng" ở Tổng quan đã
+trừ sẵn phần xuống nền.
 
 **Cảnh báo log bị nối đôi.** Có log feedback mà nửa sau lặp lại nguyên xi nửa đầu — gặp thật trên một
 log production 4222 dòng. Tool đếm gấp đôi mọi thứ mà nhìn danh sách nhóm lỗi thì không thấy gì lạ (số

@@ -30,6 +30,10 @@ const RE_URL = /\[URL: (\S+?)\]/;
 const RE_STATUS = /--status: (\d+)/;
 const RE_ERRCODE = /"errorCode"\s*:\s*"?(-?\d+)|errorCode=(-?\d+)/;
 const RE_BATCH = /LOGGER: END OF BATCH/;
+// Trang thai app nam ghep trong dong MQTT: "... - appState: BACKGROUND - isReady: false".
+// Day la cho DUY NHAT trong log noi ra app dang o nen hay dang mo — khong co dong lifecycle rieng
+// (da tim: didEnterBackground / willEnterForeground / onPause deu 0 lan tren ca ba log).
+const RE_APP_STATE = /appState[:= ]+([A-Z]+)/;
 // Ba moc deu ghi dung mot lan moi lan process khoi dong, deu o muc INFO va deu khong bi bat ky co
 // debug nao chan (da doc source app). Do tren 50 feedback production that: "MomoDatabase init OK"
 // co mat o 44/50 log — 6 log con lai can moc du phong, vi file log bi xoay vong thi dong khoi dong
@@ -174,6 +178,8 @@ function parseEntry(rawText, domIndex, lineNo, el) {
     isSessionStart: false,
     // Nam trong khoi bi lap lai nguyen xi (xem src/02h-duplicate.js).
     isDuplicate: false,
+    // 'FOREGROUND' | 'BACKGROUND' | '' — doc tu dong MQTT, xem RE_APP_STATE.
+    appState: '',
   };
 
   const head = RE_HEAD.exec(rawText);
@@ -215,6 +221,9 @@ function parseEntry(rawText, domIndex, lineNo, el) {
       entry.traceParams = parseTraceParameter(entry.message);
     }
   }
+
+  const appState = entry.message.indexOf('appState') >= 0 ? RE_APP_STATE.exec(entry.message) : null;
+  if (appState) entry.appState = appState[1];
 
   entry.http = parseHttpFields(body);
   // Chi ERROR/WARNING moi vao buildIssueGroups. Tinh chu ky cho ca 4085 dong la lang phi nang nhat
@@ -321,13 +330,54 @@ function buildHttpCalls(entries) {
 }
 
 // Gap phai tinh tren truc thoi gian da sort: logger flush theo lo nen thu tu dong khong phai thu tu thoi gian.
+// Cua so xe dich cho phep giua moc doi trang thai va hai dau khoang lang.
+const GAP_STATE_TOLERANCE_MS = 2000;
+
+// Danh dau khoang lang nao la do APP XUONG NEN chu khong phai app treo. Truoc day tool bao hai truong
+// hop nhu nhau — do la false positive lon nhat cua tinh nang khoang lang: "user bam Home" bi doc thanh
+// "app dung im". Do tren log that (33112319): 22 khoang lang, dung 2 cai dai nhat (142.7s va 231.8s)
+// la app o nen, 20 cai con lai khong co moc doi trang thai nao.
+function markBackgroundGaps(gaps, timed) {
+  const marks = [];
+  let last = '';
+  timed.forEach((entry) => {
+    if (!entry.appState || entry.appState === last) return;
+    marks.push({ ts: entry.ts, state: entry.appState });
+    last = entry.appState;
+  });
+  if (!marks.length) return;
+  gaps.forEach((gap) => {
+    // Phai co CA HAI dau: xuong nen trong long khoang lang, va tro lai o cuoi khoang. Chi thay mot
+    // dau thi khong ket luan — co the la app xuong nen roi bi giet han.
+    // Noi long CA hai dau bang GAP_STATE_TOLERANCE_MS. Do that: moc xuong nen nam SOM HON gap.before
+    // vai chuc ms, vi ba module MQTT cung ghi mot luc va dong cuoi truoc khoang lang la dong thu ba,
+    // con moc doi trang thai la dong thu nhat. Chan cung "moc >= gap.before.ts" thi truot het.
+    const down = marks.find((mark) => mark.state === 'BACKGROUND' &&
+      mark.ts >= gap.before.ts - GAP_STATE_TOLERANCE_MS && mark.ts <= gap.after.ts);
+    if (!down) return;
+    const up = marks.find((mark) => mark.state === 'FOREGROUND' &&
+      mark.ts >= down.ts && mark.ts <= gap.after.ts + GAP_STATE_TOLERANCE_MS);
+    if (!up) return;
+    gap.cause = 'background';
+    gap.downTs = down.ts;
+    gap.upTs = up.ts;
+  });
+}
+
 function buildGaps(entries, gapThresholdMs) {
-  const timed = entries.filter((entry) => entry.ts).slice().sort((a, b) => a.ts - b.ts);
+  // Bo dong thuoc khoi lap: log bi noi doi thi moi moc thoi gian xuat hien hai lan, hai dong lien tiep
+  // sau khi sort cach nhau 0ms nen KHONG con khoang lang nao duoc nhan ra. Do that tren log
+  // production bi noi doi: 0 khoang lang truoc khi bo, dung so that sau khi bo. Khoi lap khong the
+  // tao ra hay xoa di mot khoang im lang co that — no chi che mat, nen bo la dung ca khi nguoi dung
+  // chua bat "bo khoi lap".
+  const timed = entries.filter((entry) => entry.ts && !entry.isDuplicate).slice()
+    .sort((a, b) => a.ts - b.ts);
   const gaps = [];
   for (let i = 1; i < timed.length; i += 1) {
     const delta = timed[i].ts - timed[i - 1].ts;
-    if (delta >= gapThresholdMs) gaps.push({ ms: delta, before: timed[i - 1], after: timed[i] });
+    if (delta >= gapThresholdMs) gaps.push({ ms: delta, before: timed[i - 1], after: timed[i], cause: '' });
   }
+  markBackgroundGaps(gaps, timed);
   return { timed, gaps };
 }
 

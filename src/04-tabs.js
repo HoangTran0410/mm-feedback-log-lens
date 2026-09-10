@@ -141,8 +141,14 @@ function renderSummaryTab() {
     // chon, de nut bam duoc chi lam nguoi dung bam hut.
     statCard(full.sessionCount, 'phiên app', '#3ddc97',
       full.sessionCount > 1 ? 'data-act="gotoSessions"' : 'data-act="noop"') +
-    statCard(data.gaps.length, 'khoảng lặng ≥ ' + full.gapThresholdLabel, LEVEL_COLOR.WARNING,
-      'data-act="gotoTimeline"', isScoped ? full.gaps.length : null) +
+    statCard(data.gaps.filter((gap) => gap.cause !== 'background').length,
+      'khoảng lặng ≥ ' + full.gapThresholdLabel, LEVEL_COLOR.WARNING,
+      'data-act="gotoTimeline" data-tip="' +
+      (data.gaps.some((gap) => gap.cause === 'background')
+        ? 'Đã trừ ' + data.gaps.filter((gap) => gap.cause === 'background').length +
+          ' khoảng do app xuống nền — những khoảng đó không phải app treo.'
+        : 'Không khoảng nào trùng với lúc app xuống nền.') + '"',
+      isScoped ? full.gaps.filter((gap) => gap.cause !== 'background').length : null) +
     statCard(data.badHttpCalls.length, 'HTTP bất thường', LEVEL_COLOR.ERROR, 'data-act="gotoHttp"',
       isScoped ? full.badHttpCalls.length : null) +
     '</div>';
@@ -701,6 +707,7 @@ function renderFilterTab() {
 const TIMELINE_KINDS = {
   boot: { icon: '\uD83D\uDE80', label: 'App khởi động', short: 'Khởi động' },
   gap: { icon: '\uD83D\uDCA4', label: 'Khoảng lặng, không có log', short: 'Lặng' },
+  'gap-bg': { icon: '\uD83C\uDF19', label: 'App xuống nền (không phải treo)', short: 'Xuống nền' },
   err: { icon: '\u274C', label: 'Nhóm lỗi', short: 'Lỗi' },
   'jr-screen': { icon: '\uD83D\uDCF1', label: 'Màn hình hiện ra', short: 'Màn hình' },
   'jr-move': { icon: '\uD83D\uDD00', label: 'Đổi luồng tính năng', short: 'Đổi luồng' },
@@ -713,7 +720,8 @@ const TIMELINE_KINDS = {
 // tam loai — "App" gom ca khoi dong, khoang lang va nhom loi vao mot cho. Nay chip chinh la tung loai
 // moc, mang dung bieu tuong cua no, va chon duoc nhieu loai cung luc. Hang chu giai rieng bo di:
 // chip da vua la chu giai vua la bo loc.
-const TIMELINE_KIND_ORDER = ['boot', 'gap', 'err', 'jr-screen', 'jr-move', 'jr-tap', 'jr-saw', 'jr-fail'];
+const TIMELINE_KIND_ORDER = ['boot', 'gap', 'gap-bg', 'err', 'jr-screen', 'jr-move', 'jr-tap',
+  'jr-saw', 'jr-fail'];
 
 function timelineIcon(kind) {
   const meta = TIMELINE_KINDS[kind];
@@ -735,9 +743,14 @@ function buildTimelineEvents(data) {
   // lang nhung bam (va mui ten) lai tro toi dong SAU no — hai dau cach nhau ca tieng dong ho, nen nhin
   // vao thay giao dien tu mau thuan. Nay hien ca hai moc, va mui ten danh dau ca hai dau tren minimap.
   data.gaps.forEach((gap) => {
-    events.push({ ts: gap.before.ts, tsEnd: gap.after.ts, kind: 'gap',
-      title: 'Khoảng lặng ' + formatDuration(gap.ms),
-      detail: 'dừng sau: ' + gap.before.message.slice(0, 90),
+    // Xuong nen va treo la HAI chuyen khac han nhau; goi chung mot ten thi doc log thanh doan mo.
+    const isBackground = gap.cause === 'background';
+    events.push({ ts: gap.before.ts, tsEnd: gap.after.ts, kind: isBackground ? 'gap-bg' : 'gap',
+      title: (isBackground ? 'App xuống nền ' : 'Khoảng lặng ') + formatDuration(gap.ms),
+      detail: isBackground
+        ? 'xuống nền ' + formatClock(gap.downTs) + ', trở lại ' + formatClock(gap.upTs) +
+          ' — im lặng vì user rời app, không phải app treo'
+        : 'dừng sau: ' + gap.before.message.slice(0, 90),
       index: gap.after.domIndex, aim: [gap.before.domIndex, gap.after.domIndex] });
   });
 
