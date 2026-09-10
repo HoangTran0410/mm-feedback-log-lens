@@ -72,10 +72,17 @@ function renderMinimap() {
     '<span>' + formatClock(bounds.from) + '</span>' +
     '<span class="fll-maptext"></span>' +
     (lensState.mapZoom
-      ? '<button class="fll-mapzoom on" data-act="mapZoomOut" data-tip="Lùi một nấc phóng to' +
+      ? '<span class="fll-maprow">' + formatClock(bounds.to) +
+        '<button class="fll-mapzoom on" data-act="mapZoomOut" data-tip="Lùi một nấc phóng to' +
         (lensState.mapZoomStack.length > 1
           ? ' — còn ' + (lensState.mapZoomStack.length - 1) + ' nấc nữa mới về cả log'
-          : ' — về lại cả log') + '">' + formatClock(bounds.to) + ' &#8617;</button>'
+          : ' — về lại cả log') + '">&#8617;</button>' +
+        // Chi hien khi con NHIEU HON mot nac: con dung mot nac thi no lam y het nut lui, de canh nhau
+        // hai nut giong nhau chi to nguoi dung phai doan xem chung khac gi.
+        (lensState.mapZoomStack.length > 1
+          ? '<button class="fll-mapzoom" data-act="mapZoomReset" data-tip="Xoá cả ' +
+            lensState.mapZoomStack.length + ' nấc phóng to, về thẳng toàn bộ log">&#10005;</button>'
+          : '') + '</span>'
       : '<span>' + formatClock(bounds.to) + '</span>');
   lensState.el.map.classList.toggle('fll-map-zoomed', !!lensState.mapZoom);
   lensState.el.mapText = lensState.el.mapLabel.querySelector('.fll-maptext');

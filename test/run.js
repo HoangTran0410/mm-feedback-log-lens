@@ -726,7 +726,14 @@ check('minimap: lui tung nac phong to', () => {
   eq(JSON.stringify(L.lensState.mapZoom), JSON.stringify(nac1), 'lui mot nac ve nac 1');
   L.lensState.mapZoom = L.lensState.mapZoomStack.pop();
   eq(L.lensState.mapZoom, null, 'lui tiep la ve ca log');
+
+  // Nut "xoa het" phai don CA hai: quen don ngan xep thi lan phong sau se lui ve nhung nac cu da chet.
+  L.lensState.mapZoomStack = [null, nac1];
+  L.lensState.mapZoom = nac2;
+  L.lensState.mapZoom = null;
   L.lensState.mapZoomStack = [];
+  eq(L.lensState.mapZoom, null, 'khung ve la ca log');
+  eq(L.lensState.mapZoomStack.length, 0, 'ngan xep phai rong theo');
 });
 
 renderAll('log day du');

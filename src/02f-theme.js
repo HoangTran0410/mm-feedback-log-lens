@@ -140,6 +140,7 @@ const PANEL_CSS = [
 
   /* Nut phong to nam ngay trong dong nhan duoi minimap — cho duy nhat vua lien quan vua khong an
      mat cho cua chinh minimap. */
+  '.fll-maprow{display:inline-flex;align-items:center;gap:5px;flex:0 0 auto}',
   '.fll-mapzoom{font-size:9px;font-weight:700;padding:1px 7px;border-radius:20px;cursor:pointer;',
   'background:var(--bg3);color:var(--txt);border:1px solid var(--line)!important;white-space:nowrap}',
   '.fll-mapzoom:hover{border-color:var(--acc)!important;color:var(--acc)}',

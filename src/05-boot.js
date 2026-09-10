@@ -516,6 +516,12 @@ function handleLensClick(event) {
     renderMinimap();
     return undefined;
   }
+  if (action === 'mapZoomReset') {
+    lensState.mapZoom = null;
+    lensState.mapZoomStack = [];
+    renderMinimap();
+    return undefined;
+  }
   if (action === 'tglSec') return toggleSection(hit);
   if (action === 'rescan') return rescan();
   if (action === 'minimize') return showPill();

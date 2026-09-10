@@ -1553,6 +1553,7 @@ const PANEL_CSS = [
 
   /* Nut phong to nam ngay trong dong nhan duoi minimap — cho duy nhat vua lien quan vua khong an
      mat cho cua chinh minimap. */
+  '.fll-maprow{display:inline-flex;align-items:center;gap:5px;flex:0 0 auto}',
   '.fll-mapzoom{font-size:9px;font-weight:700;padding:1px 7px;border-radius:20px;cursor:pointer;',
   'background:var(--bg3);color:var(--txt);border:1px solid var(--line)!important;white-space:nowrap}',
   '.fll-mapzoom:hover{border-color:var(--acc)!important;color:var(--acc)}',
@@ -2958,10 +2959,17 @@ function renderMinimap() {
     '<span>' + formatClock(bounds.from) + '</span>' +
     '<span class="fll-maptext"></span>' +
     (lensState.mapZoom
-      ? '<button class="fll-mapzoom on" data-act="mapZoomOut" data-tip="Lùi một nấc phóng to' +
+      ? '<span class="fll-maprow">' + formatClock(bounds.to) +
+        '<button class="fll-mapzoom on" data-act="mapZoomOut" data-tip="Lùi một nấc phóng to' +
         (lensState.mapZoomStack.length > 1
           ? ' — còn ' + (lensState.mapZoomStack.length - 1) + ' nấc nữa mới về cả log'
-          : ' — về lại cả log') + '">' + formatClock(bounds.to) + ' &#8617;</button>'
+          : ' — về lại cả log') + '">&#8617;</button>' +
+        // Chi hien khi con NHIEU HON mot nac: con dung mot nac thi no lam y het nut lui, de canh nhau
+        // hai nut giong nhau chi to nguoi dung phai doan xem chung khac gi.
+        (lensState.mapZoomStack.length > 1
+          ? '<button class="fll-mapzoom" data-act="mapZoomReset" data-tip="Xoá cả ' +
+            lensState.mapZoomStack.length + ' nấc phóng to, về thẳng toàn bộ log">&#10005;</button>'
+          : '') + '</span>'
       : '<span>' + formatClock(bounds.to) + '</span>');
   lensState.el.map.classList.toggle('fll-map-zoomed', !!lensState.mapZoom);
   lensState.el.mapText = lensState.el.mapLabel.querySelector('.fll-maptext');
@@ -5403,6 +5411,12 @@ function handleLensClick(event) {
   }
   if (action === 'mapZoomOut') {
     lensState.mapZoom = lensState.mapZoomStack.length ? lensState.mapZoomStack.pop() : null;
+    renderMinimap();
+    return undefined;
+  }
+  if (action === 'mapZoomReset') {
+    lensState.mapZoom = null;
+    lensState.mapZoomStack = [];
     renderMinimap();
     return undefined;
   }
