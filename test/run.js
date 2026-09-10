@@ -75,7 +75,7 @@ function loadLens() {
     'applyFilter,aimIndicesFor,sectionKey,isSectionOpen,setSectionOpen,loadOpenSections,' +
     'buildTimelineEvents,formatDuration,renderTimelineList,TIMELINE_KIND_ORDER,TIMELINE_KINDS,' +
     'canZoomFurther,minimapBounds,pickJourneyLabel,findDuplicateBlock,entryMatches,compileFilter,' +
-    'SECTION_SEARCH_MIN_ROWS,buildEnvironment};';
+    'SECTION_SEARCH_MIN_ROWS,buildEnvironment,buildTicketSummary};';
   const wired = src.replace(/\n\}\)\(\);\s*$/, '\n' + exportLine + '\n})();\n');
   if (wired === src) throw new Error('khong chen duoc dong export vao IIFE cua extension/lens.js');
   (0, eval)(wired);
@@ -886,6 +886,44 @@ check('moi truong: nhan ra ban khong-production ma host khong co dau hieu uat/de
   eq(L.buildEnvironment(entries, [{ host: 'm.dev.mservice.io' }]).mixedBuild, false, 'co host dev thi khong lech');
   const env = L.buildEnvironment(entries, [{ host: 'm.dev.mservice.io' }]);
   eq(env.nonProdHosts.length, 1, 'phai nhan ra host dev');
+});
+
+/* ------------------------------------------------------ tom tat de dan vao ticket */
+
+check('tom tat: co du phan de nguoi doc ticket hieu chuyen', () => {
+  const md = L.buildTicketSummary(L.lensState.data);
+  ok(md.indexOf('iPhone Bia Plus') >= 0, 'phai co thiet bi');
+  ok(md.indexOf('9.9.9.99900') >= 0, 'phai co ban app');
+  ok(md.indexOf('nhóm lỗi nổi bật') >= 0, 'phai co nhom loi');
+  ok(md.indexOf('bước cuối trước lúc gửi') >= 0, 'phai co cac buoc cuoi');
+  ok(md.indexOf('Log này không trả lời được') >= 0, 'phai co muc vung mu');
+  ok(md.split('\n').length < 70, 'phai gon de dan duoc, dang ' + md.split('\n').length + ' dong');
+});
+
+// Luat cua khoi nay: chi liet ke SU KIEN CO GIO. Xep hang nguyen nhan la suy doan, ma no se nam lai
+// trong ticket cho nguoi khac doc nhu su that.
+check('tom tat: khong ket luan nguyen nhan', () => {
+  const md = L.buildTicketSummary(L.lensState.data);
+  ok(md.indexOf('không phải kết luận nguyên nhân') >= 0, 'phai ghi ro day khong phai ket luan');
+  ok(!/nguyên nhân là|do lỗi|gây ra bởi/i.test(md), 'khong duoc co cau khang dinh nhan qua');
+});
+
+// Khong nhet payload tho vao: ticket di ra ngoai, ma payload chua so dien thoai va token.
+check('tom tat: khong keo payload tho vao', () => {
+  const md = L.buildTicketSummary(L.lensState.data);
+  ok(md.indexOf('RequestPayload') < 0 && md.indexOf('ResponsePayload') < 0, 'khong duoc co payload');
+  ok(md.indexOf('User-Agent') < 0, 'khong duoc dan ca header vao');
+  md.split('\n').forEach((line) => {
+    ok(line.length < 200, 'moi dong phai ngan, dong dai nhat: ' + line.slice(0, 80));
+  });
+});
+
+check('tom tat: bao ro khi log bi noi doi', () => {
+  const goc = L.lensState.data.duplicate;
+  L.lensState.data.duplicate = { length: 2110, from: 0, to: 2109 };
+  ok(L.buildTicketSummary(L.lensState.data).indexOf('2110 dòng lặp lại nguyên xi') >= 0,
+    'phai canh bao ngay trong ticket');
+  L.lensState.data.duplicate = goc;
 });
 
 renderAll('log day du');

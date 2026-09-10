@@ -43,10 +43,10 @@ bản build thì ngược lại: khối ngay dưới do `build.sh` ghi lại m�
 
 | | |
 |---|---|
-| `extension/lens.js` | **275 KB** (282,060 bytes) |
-| Nguồn | 6,108 dòng trong 23 file `src/` |
+| `extension/lens.js` | **282 KB** (288,467 bytes) |
+| Nguồn | 6,260 dòng trong 24 file `src/` |
 | Dependency lúc chạy | không có |
-| Test | 112 phép thử, `node test/run.js` |
+| Test | 116 phép thử, `node test/run.js` |
 
 <!-- /build-stats -->
 
@@ -96,6 +96,16 @@ dòng mà hàng đó đại diện (một nhóm lỗi 22 dòng thì hiện 22 v�
 chỗ), và dòng nhãn giữa minimap đổi thành giờ của hàng đang rê. Chạy ở mọi tab và cả trong tấm trượt
 payload, vì nó vẽ bằng một lớp SVG phủ lên panel chứ không phải chèn thẻ vào từng hàng — tab thêm sau
 này tự động có.
+
+**Copy tóm tắt cho ticket.** Một nút, ra khối markdown ~40 dòng dán thẳng vào Jira: máy + bản app,
+các nhóm lỗi nổi bật kèm giờ, call HTTP bất thường, 8 bước cuối trước lúc user bấm gửi, nhánh A/B đang
+bật, và một mục **"Log này không trả lời được"** (không có Grafana trace, log chỉ phủ 4m51s, 93 dòng
+timestamp lùi…). `Copy dòng đang hiện` vẫn còn nhưng nó cho ra vài nghìn dòng thô kèm nguyên payload —
+không dán vào ticket được.
+
+Khối này **chỉ liệt kê sự kiện có giờ**, không có câu "nguyên nhân là X": xếp hạng nguyên nhân là suy
+đoán, mà nó sẽ nằm lại trong ticket cho người khác đọc như sự thật. Có phép thử chặn cả hai chuyện —
+câu khẳng định nhân quả, và payload thô lọt vào.
 
 **Máy đó là máy gì.** Mục *Máy & môi trường* ở Tổng quan đọc thẳng từ header của request HTTP:
 `iPhone 16 · iOS 26.6.1 · high-end · 5.16.0.51600 build Staging · 3 host`. Lấy từ header chứ không

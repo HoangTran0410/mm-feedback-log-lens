@@ -153,6 +153,10 @@ function renderFeedbackBanner() {
       escapeHtml(bits.join(' · ')) + '</div>' : '') +
     '<div class="fll-focus-hint">Vấn đề thường nằm ở cuối log — thu hẹp lại:</div>' +
     renderWindowChips(false) +
+    '<div class="fll-row" style="margin-top:9px">' +
+    '<button class="fll-btn pri" data-act="copySummary" data-tip="Khối markdown gọn để dán thẳng vào ' +
+    'ticket — liệt kê sự kiện có giờ, không kết luận nguyên nhân.">Copy tóm tắt cho ticket</button>' +
+    '</div>' +
     (context.Feature ? '<button class="fll-btn" style="margin-top:9px" data-act="filterFeature" data-value="' +
       escapeHtml(context.Feature) + '">Chỉ dòng có "' + escapeHtml(context.Feature) + '"</button>' : '') +
     '</div>';
@@ -729,6 +733,9 @@ function renderFilterTab() {
     result.visible.length + '</b> / ' + data.entries.length + ' dòng.</div>' +
     '<div class="fll-row">' +
     '<button class="fll-btn pri" data-act="applyFilter">Duyệt kết quả</button>' +
+    '<button class="fll-btn" data-act="copySummary" data-tip="Khối markdown gọn để dán thẳng vào ' +
+    'ticket: máy, bản app, nhóm lỗi, call fail, các bước cuối, nhánh A/B, và cả những gì log KHÔNG ' +
+    'trả lời được.">Copy tóm tắt</button>' +
     '<button class="fll-btn" data-act="copyVisible">Copy dòng đang hiện</button>' +
     '<button class="fll-btn" data-act="copyLink">Copy link</button>' +
     '<button class="fll-btn" data-act="resetFilter">Xoá lọc</button></div>';

@@ -623,6 +623,11 @@ function handleLensClick(event) {
     resetFilter();
     return renderTab();
   }
+  if (action === 'copySummary') {
+    // Tom tat luon doc data DAY DU, khong doc view dang loc: ticket phai mo ta ca log chu khong phai
+    // mo ta cai lat cat nguoi doc dang mo.
+    return copyTextToClipboard(buildTicketSummary(lensState.data), hit, 'Đã copy tóm tắt');
+  }
   if (action === 'copyVisible') return copyVisibleLines(hit);
   return undefined;
 }

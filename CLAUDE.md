@@ -55,6 +55,13 @@ giữa chừng. Tab có hay không là tính chất của cả log; nội dung b
 **Chữ hướng dẫn trên giao diện: một câu.** Giải thích dài để trong chú giải của chính phần tử nó nói
 về. Panel chỉ rộng 480px, mỗi câu thừa đẩy nội dung thật xuống dưới màn.
 
+**Khối tóm tắt ticket chỉ chứa sự kiện có giờ.** `buildTicketSummary()` đi thẳng ra ngoài repo — vào
+Jira, vào chat — nên hai luật cứng, cả hai đều có phép thử: (1) **không xếp hạng nguyên nhân**, không
+câu "nguyên nhân là X"; suy đoán nằm lại trong ticket sẽ được người sau đọc như sự thật; (2) **không
+kéo payload thô vào**, chỉ lấy trường đã hiển thị trên panel — payload chứa số điện thoại và token.
+Nó cũng luôn đọc `lensState.data` (đầy đủ) chứ không đọc view đang lọc: ticket phải mô tả cả log, không
+phải mô tả lát cắt người đọc đang mở.
+
 **Khoảng lặng ≠ app treo.** Trạng thái app chỉ nằm ghép trong dòng MQTT (`... - appState: BACKGROUND -`)
 — không có dòng lifecycle riêng nào (`didEnterBackground`, `willEnterForeground`, `onPause` đều **0 lần**
 trên cả ba log). `markBackgroundGaps()` gắn nhãn khoảng lặng nào là do user rời app. Đo trên ba log
