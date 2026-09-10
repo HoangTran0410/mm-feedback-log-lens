@@ -330,7 +330,7 @@ function mountPanel() {
 function handleLensClick(event) {
   const hit = event.target.closest('[data-act],[data-tab],[data-jump],[data-group],[data-module],' +
     '[data-level],[data-call],[data-bucket],[data-event],[data-saw],[data-apifail],' +
-    '[data-jscreen],[data-jtap],[data-tracefail]');
+    '[data-jscreen],[data-jtap],[data-tracefail],[data-jload]');
   if (!hit) return;
   // groups/httpCalls doc theo view (dang loc thi la cua tap dang hien, dung nhu tab vua ve);
   // correlations van lay tu data vi chuoi mot request phai xem tron ven.
@@ -378,6 +378,10 @@ function handleLensClick(event) {
   if (hit.dataset.jtap) {
     const row = view.journey.taps.find((item) => item.key === hit.dataset.jtap);
     return row ? setMatches(row.indices, 'Chạm · ' + row.key) : undefined;
+  }
+  if (hit.dataset.jload) {
+    const row = view.journey.screenLoads.find((item) => item.key === hit.dataset.jload);
+    return row ? setMatches(row.indices, 'Tải màn · ' + row.key) : undefined;
   }
   if (hit.dataset.tracefail) {
     const row = view.traceIssues.fails[Number(hit.dataset.tracefail)];

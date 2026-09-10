@@ -916,6 +916,17 @@ function journeyMs(raw) {
 // trail_*, sync_* ... khong phai thao tac cua user). Co y KHONG lay roothome_component_impressed (76),
 // service_component_displayed (41), roothome_block_viewed (33): do la cai man hinh ve ra, khong phai
 // cai user lam, va so luong cua chung se nhan chim phan con lai.
+// Lay nguyen van tu AppEvent.FeatureMiniAppLoad.Stage (momo-app). Chi giu nhung stage bao hieu
+// user nhin thay mot man hinh/toast/popup — cac stage do luong khac khong vao hanh trinh.
+const MINIAPP_FAIL_STAGES = {
+  scr_fail_loading_miniapp: 'màn hình lỗi tải miniapp',
+  toast_fail_loading_miniapp: 'toast lỗi tải miniapp',
+  miniapp_web_js_crash: 'miniapp crash JS',
+  pu_waiting_load_bundle: 'popup chờ tải bundle',
+  pu_version_update: 'popup bắt cập nhật app',
+  pu_recording: 'popup đang ghi màn hình',
+};
+
 function pickJourneyStep(event, params) {
   const screen = journeyValue(params.screen_name);
   if (event === 'auto_screen_navigated') {
@@ -975,6 +986,18 @@ function pickJourneyStep(event, params) {
     return { kind: 'saw',
       label: 'sheet ' + (journeyValue(params.component_name) || journeyValue(params.title) || '?'),
       detail: journeyParts([params.screen_name, params.feature_code]) };
+  }
+  // Ten stage lay tu AppEvent.FeatureMiniAppLoad.Stage trong source app, khong phai doan tu log.
+  // Day la nhung stage ma user THAY: man loi, toast loi, popup. Chung ghi o muc INFO nhu moi event
+  // tracker khac nen phan gom nhom loi khong dem duoc.
+  // Do tren hai log thu: ca hai deu 0 lan — hai log do khong gap su co tai miniapp, khong phai sai ten.
+  if (event === 'feature_miniapp_load') {
+    const stage = journeyValue(params.stage);
+    const seen = MINIAPP_FAIL_STAGES[stage];
+    if (!seen) return null;
+    return { kind: 'saw', label: seen,
+      detail: journeyParts([params.app_id, params.feature_code]),
+      note: journeyValue(params.error_message) || journeyValue(params.error_code) };
   }
   if (event === 'service_screenshot') {
     return { kind: 'saw', label: 'user chụp màn hình',
@@ -1043,6 +1066,39 @@ function mergeAdjacentJourneySteps(steps) {
   return merged;
 }
 
+// Thoi gian TAI mot man, khac han "o lau tren man" (dwell): day la so co san trong log
+// (auto_screen_displayed.duration khi state=load, va auto_load_progress_tracked.duration),
+// khong phai so tinh ra. Tab Cham von gom moi "duration=" vao mot ro ma khong gan voi man nao.
+function buildScreenLoads(entries) {
+  const map = new Map();
+  entries.forEach((entry) => {
+    if (!entry.eventParams) return;
+    if (entry.event !== 'auto_screen_displayed' && entry.event !== 'auto_load_progress_tracked') return;
+    const params = entry.eventParams;
+    if (entry.event === 'auto_screen_displayed' && journeyValue(params.state) !== 'load') return;
+    const ms = journeyMs(params.duration);
+    if (!ms) return;
+    const key = journeyValue(params.screen_name) || journeyValue(params.end_point) ||
+      journeyValue(params.feature_code);
+    if (!key) return;
+    let row = map.get(key);
+    if (!row) {
+      row = { key, count: 0, worstMs: 0, totalMs: 0, indices: [], sources: new Set() };
+      map.set(key, row);
+    }
+    row.count += 1;
+    row.totalMs += ms;
+    if (ms > row.worstMs) row.worstMs = ms;
+    row.indices.push(entry.domIndex);
+    row.sources.add(entry.event);
+  });
+  return Array.from(map.values())
+    .map((row) => ({ key: row.key, count: row.count, worstMs: row.worstMs,
+      avgMs: Math.round(row.totalMs / row.count), indices: row.indices,
+      sources: Array.from(row.sources) }))
+    .sort((a, b) => b.worstMs - a.worstMs);
+}
+
 function buildJourney(entries) {
   const raw = [];
   const counts = { screen: 0, tap: 0, saw: 0, move: 0, fail: 0 };
@@ -1097,6 +1153,7 @@ function buildJourney(entries) {
     taps: groupJourneySteps(steps, 'tap').sort(byCount),
     saw: groupJourneySteps(steps, 'saw').sort(byCount),
     fails: groupJourneySteps(steps, 'fail').sort(byCount),
+    screenLoads: buildScreenLoads(entries),
   };
 }
 
@@ -3222,10 +3279,34 @@ function renderTrackerFailSection(data) {
 
 /* --------------------------------------------------------------------- Chậm */
 
+// Khac han muc "O lau nhat tren man": day la thoi gian TAI man, so co san trong log chu khong phai
+// so tinh ra. Dat truoc vi no tra loi thang cau "man nao tai lau", con bang duoi la moi con so tho.
+function renderScreenLoadSection(view) {
+  const rows = view.journey.screenLoads;
+  if (!rows.length) return '';
+  const peak = rows[0].worstMs;
+  return '<div class="fll-sec">Màn tải lâu nhất</div>' +
+    '<div class="fll-hint" style="margin-bottom:8px">Số <b>có sẵn trong log</b> — trường ' +
+    '<code>duration</code> của <code>auto_screen_displayed</code> (lúc <code>state=load</code>) và ' +
+    '<code>auto_load_progress_tracked</code>. Hiện lần chậm nhất; ngoặc là số lần đo và trung bình.</div>' +
+    '<div class="fll-rank">' + rows.slice(0, 8)
+      .map((row) => {
+        const color = row.worstMs >= 3000 ? LEVEL_COLOR.ERROR
+          : row.worstMs >= 1000 ? LEVEL_COLOR.WARNING : LEVEL_COLOR.INFO;
+        return '<div class="fll-rk" data-jload="' + escapeHtml(row.key) + '">' +
+          '<u style="width:' + ((row.worstMs / peak) * 100).toFixed(1) + '%;background:' + color + '22"></u>' +
+          '<span>' + escapeHtml(row.key) + '</span>' +
+          '<b style="color:' + color + '">' + formatDuration(row.worstMs) + '</b>' +
+          '<b>' + row.count + '× · tb ' + formatDuration(row.avgMs) + '</b></div>';
+      })
+      .join('') + '</div>';
+}
+
 function renderSlowTab() {
   const view = getView();
   const rows = view.durations;
-  const header = renderScreenDwellSection(view) + '<div class="fll-sec">Mọi con số thời lượng</div>' + '<div class="fll-hint" style="margin-bottom:10px">Mọi con số thời lượng rút được từ log ' +
+  const header = renderScreenLoadSection(view) + renderScreenDwellSection(view) +
+    '<div class="fll-sec">Mọi con số thời lượng</div>' + '<div class="fll-hint" style="margin-bottom:10px">Mọi con số thời lượng rút được từ log ' +
     '(<code>duration=</code>, <code>in Nms</code>, <code>duration KMM</code>, <code>totalWaited</code>), ' +
     'xếp giảm dần. Giá trị trên ' + MAX_PLAUSIBLE_DURATION_MS / 1000 + 's bị bỏ vì log có chỗ ghi nhầm ' +
     'epoch vào <code>duration=</code>.</div>';
@@ -3849,7 +3930,7 @@ function mountPanel() {
 function handleLensClick(event) {
   const hit = event.target.closest('[data-act],[data-tab],[data-jump],[data-group],[data-module],' +
     '[data-level],[data-call],[data-bucket],[data-event],[data-saw],[data-apifail],' +
-    '[data-jscreen],[data-jtap],[data-tracefail]');
+    '[data-jscreen],[data-jtap],[data-tracefail],[data-jload]');
   if (!hit) return;
   // groups/httpCalls doc theo view (dang loc thi la cua tap dang hien, dung nhu tab vua ve);
   // correlations van lay tu data vi chuoi mot request phai xem tron ven.
@@ -3897,6 +3978,10 @@ function handleLensClick(event) {
   if (hit.dataset.jtap) {
     const row = view.journey.taps.find((item) => item.key === hit.dataset.jtap);
     return row ? setMatches(row.indices, 'Chạm · ' + row.key) : undefined;
+  }
+  if (hit.dataset.jload) {
+    const row = view.journey.screenLoads.find((item) => item.key === hit.dataset.jload);
+    return row ? setMatches(row.indices, 'Tải màn · ' + row.key) : undefined;
   }
   if (hit.dataset.tracefail) {
     const row = view.traceIssues.fails[Number(hit.dataset.tracefail)];

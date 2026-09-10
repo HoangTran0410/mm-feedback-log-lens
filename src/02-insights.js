@@ -561,6 +561,17 @@ function journeyMs(raw) {
 // trail_*, sync_* ... khong phai thao tac cua user). Co y KHONG lay roothome_component_impressed (76),
 // service_component_displayed (41), roothome_block_viewed (33): do la cai man hinh ve ra, khong phai
 // cai user lam, va so luong cua chung se nhan chim phan con lai.
+// Lay nguyen van tu AppEvent.FeatureMiniAppLoad.Stage (momo-app). Chi giu nhung stage bao hieu
+// user nhin thay mot man hinh/toast/popup — cac stage do luong khac khong vao hanh trinh.
+const MINIAPP_FAIL_STAGES = {
+  scr_fail_loading_miniapp: 'màn hình lỗi tải miniapp',
+  toast_fail_loading_miniapp: 'toast lỗi tải miniapp',
+  miniapp_web_js_crash: 'miniapp crash JS',
+  pu_waiting_load_bundle: 'popup chờ tải bundle',
+  pu_version_update: 'popup bắt cập nhật app',
+  pu_recording: 'popup đang ghi màn hình',
+};
+
 function pickJourneyStep(event, params) {
   const screen = journeyValue(params.screen_name);
   if (event === 'auto_screen_navigated') {
@@ -620,6 +631,18 @@ function pickJourneyStep(event, params) {
     return { kind: 'saw',
       label: 'sheet ' + (journeyValue(params.component_name) || journeyValue(params.title) || '?'),
       detail: journeyParts([params.screen_name, params.feature_code]) };
+  }
+  // Ten stage lay tu AppEvent.FeatureMiniAppLoad.Stage trong source app, khong phai doan tu log.
+  // Day la nhung stage ma user THAY: man loi, toast loi, popup. Chung ghi o muc INFO nhu moi event
+  // tracker khac nen phan gom nhom loi khong dem duoc.
+  // Do tren hai log thu: ca hai deu 0 lan — hai log do khong gap su co tai miniapp, khong phai sai ten.
+  if (event === 'feature_miniapp_load') {
+    const stage = journeyValue(params.stage);
+    const seen = MINIAPP_FAIL_STAGES[stage];
+    if (!seen) return null;
+    return { kind: 'saw', label: seen,
+      detail: journeyParts([params.app_id, params.feature_code]),
+      note: journeyValue(params.error_message) || journeyValue(params.error_code) };
   }
   if (event === 'service_screenshot') {
     return { kind: 'saw', label: 'user chụp màn hình',
@@ -688,6 +711,39 @@ function mergeAdjacentJourneySteps(steps) {
   return merged;
 }
 
+// Thoi gian TAI mot man, khac han "o lau tren man" (dwell): day la so co san trong log
+// (auto_screen_displayed.duration khi state=load, va auto_load_progress_tracked.duration),
+// khong phai so tinh ra. Tab Cham von gom moi "duration=" vao mot ro ma khong gan voi man nao.
+function buildScreenLoads(entries) {
+  const map = new Map();
+  entries.forEach((entry) => {
+    if (!entry.eventParams) return;
+    if (entry.event !== 'auto_screen_displayed' && entry.event !== 'auto_load_progress_tracked') return;
+    const params = entry.eventParams;
+    if (entry.event === 'auto_screen_displayed' && journeyValue(params.state) !== 'load') return;
+    const ms = journeyMs(params.duration);
+    if (!ms) return;
+    const key = journeyValue(params.screen_name) || journeyValue(params.end_point) ||
+      journeyValue(params.feature_code);
+    if (!key) return;
+    let row = map.get(key);
+    if (!row) {
+      row = { key, count: 0, worstMs: 0, totalMs: 0, indices: [], sources: new Set() };
+      map.set(key, row);
+    }
+    row.count += 1;
+    row.totalMs += ms;
+    if (ms > row.worstMs) row.worstMs = ms;
+    row.indices.push(entry.domIndex);
+    row.sources.add(entry.event);
+  });
+  return Array.from(map.values())
+    .map((row) => ({ key: row.key, count: row.count, worstMs: row.worstMs,
+      avgMs: Math.round(row.totalMs / row.count), indices: row.indices,
+      sources: Array.from(row.sources) }))
+    .sort((a, b) => b.worstMs - a.worstMs);
+}
+
 function buildJourney(entries) {
   const raw = [];
   const counts = { screen: 0, tap: 0, saw: 0, move: 0, fail: 0 };
@@ -742,6 +798,7 @@ function buildJourney(entries) {
     taps: groupJourneySteps(steps, 'tap').sort(byCount),
     saw: groupJourneySteps(steps, 'saw').sort(byCount),
     fails: groupJourneySteps(steps, 'fail').sort(byCount),
+    screenLoads: buildScreenLoads(entries),
   };
 }
 

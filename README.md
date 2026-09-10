@@ -29,10 +29,10 @@ bản build thì ngược lại: khối ngay dưới do `build.sh` ghi lại m�
 
 | | |
 |---|---|
-| `dist/lens.js` | **182 KB** (186,626 bytes) |
-| Nguồn | 4,159 dòng trong 7 file `src/` |
+| `dist/lens.js` | **187 KB** (191,047 bytes) |
+| Nguồn | 4,244 dòng trong 7 file `src/` |
 | Dependency lúc chạy | không có |
-| Test | 60 phép thử, `node test/run.js` |
+| Test | 63 phép thử, `node test/run.js` |
 
 <!-- /build-stats -->
 
@@ -91,6 +91,23 @@ Ba thứ **cố ý không** scope:
 - **Chuỗi theo ID** cũng không scope: xem một request thì phải xem trọn vẹn.
 
 ### Năm thứ tiết kiệm nhiều thời gian nhất
+
+**Miniapp tải lỗi.** `feature_miniapp_load` có một nhóm `stage` báo hiệu user vừa nhìn thấy màn lỗi
+chứ không phải chỉ số đo: `scr_fail_loading_miniapp`, `toast_fail_loading_miniapp`,
+`miniapp_web_js_crash`, `pu_waiting_load_bundle`, `pu_version_update`, `pu_recording`. Tên lấy nguyên
+văn từ `AppEvent.FeatureMiniAppLoad.Stage` trong source app, không đoán từ log. Chúng vào thẳng mục
+*User đã nhìn thấy gì*. Hai log dùng để thử đều **0 lần** — hai log đó không gặp sự cố tải miniapp,
+không phải sai tên.
+
+**Màn tải lâu nhất.** Khác hẳn *Ở lâu nhất trên màn*: đây là **số có sẵn trong log** (`duration` của
+`auto_screen_displayed` lúc `state=load`, và của `auto_load_progress_tracked`), không phải số tính ra.
+Tab Chậm vốn gom mọi `duration=` vào một rổ mà không gắn với màn nào; mục này gắn được, và trên log
+production dùng để thử nó lôi ra ngay màn `Feedback` mất **30 268ms**.
+
+**Cố ý không ghép cặp `stage`.** Nhìn qua thì `<stage>_start` / `<stage>_status` trông như ghép được
+thành cặp để tính "bước nào chưa xong". Nhưng trên log thật, UAT có `miniapp_load_start` ×14 mà không
+có `_status` nào cùng tên, còn production thì `miniapp_load_start` ×10 đi cùng `miniapp_render_status`
+×10 — tên kết thúc không khớp tên bắt đầu. Ghép theo gốc tên là suy đoán, nên không làm.
 
 **Nhiễu từ chính hệ thống đo lường.** Đo trên **50 feedback production thật** (25 iOS, 25 Android,
 lấy qua API danh sách của trang admin): **1267 / 2488 dòng ERROR — 51% — không phải lỗi user gặp**,

@@ -96,6 +96,19 @@ function build() {
   // --- event co ten nhung KHONG co params (log that co dang "... does not exist in Whitelist")
   line('INFO', '[Module: MoMoTracker] event: su_kien_bia does not exist in Whitelist');
 
+  // --- Miniapp tai loi: stage lay tu AppEvent.FeatureMiniAppLoad.Stage trong source app.
+  // Ghi o muc INFO nen phan gom nhom loi khong dem duoc, nhung day la thu user NHIN THAY.
+  tracker('feature_miniapp_load', 'app_id=vn.gia.lap, feature_code=tinh_nang_bia, stage=miniapp_load_start');
+  tracker('feature_miniapp_load', 'app_id=vn.gia.lap, feature_code=tinh_nang_bia, stage=scr_fail_loading_miniapp');
+  tracker('feature_miniapp_load', 'app_id=vn.gia.lap, feature_code=tinh_nang_bia, stage=miniapp_web_js_crash');
+
+  // --- Thoi gian TAI man: so co san trong log, khac han "o lau tren man"
+  tracker('auto_screen_displayed', 'screen_name=ManHinhCham, state=load, duration=4200, component_name=Screen');
+  tracker('auto_screen_displayed', 'screen_name=ManHinhCham, state=load, duration=2100, component_name=Screen');
+  tracker('auto_load_progress_tracked', 'screen_name=ManHinhNhanh, end_point=ManHinhNhanh, indicator_type=screen, duration=300');
+  // state=interaction thi KHONG phai thoi gian tai -> khong duoc tinh
+  tracker('auto_screen_displayed', 'screen_name=ManHinhKhac, state=interaction, duration=9999');
+
   // --- Nhieu tu chinh lop do luong: ghi o muc ERROR nen ĐANG lot vao nhom chu ky va lam nhieu.
   // Ba dong, hai chu ky khac nhau. Tren log production that day chiem 51% so dong ERROR.
   line('ERROR', '[Module: Grafana] @@ grafana >> DefaultRequestQueue >> handleError >> error: kotlin.Exception');

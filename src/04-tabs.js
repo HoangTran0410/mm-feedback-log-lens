@@ -400,10 +400,34 @@ function renderTrackerFailSection(data) {
 
 /* --------------------------------------------------------------------- Chậm */
 
+// Khac han muc "O lau nhat tren man": day la thoi gian TAI man, so co san trong log chu khong phai
+// so tinh ra. Dat truoc vi no tra loi thang cau "man nao tai lau", con bang duoi la moi con so tho.
+function renderScreenLoadSection(view) {
+  const rows = view.journey.screenLoads;
+  if (!rows.length) return '';
+  const peak = rows[0].worstMs;
+  return '<div class="fll-sec">Màn tải lâu nhất</div>' +
+    '<div class="fll-hint" style="margin-bottom:8px">Số <b>có sẵn trong log</b> — trường ' +
+    '<code>duration</code> của <code>auto_screen_displayed</code> (lúc <code>state=load</code>) và ' +
+    '<code>auto_load_progress_tracked</code>. Hiện lần chậm nhất; ngoặc là số lần đo và trung bình.</div>' +
+    '<div class="fll-rank">' + rows.slice(0, 8)
+      .map((row) => {
+        const color = row.worstMs >= 3000 ? LEVEL_COLOR.ERROR
+          : row.worstMs >= 1000 ? LEVEL_COLOR.WARNING : LEVEL_COLOR.INFO;
+        return '<div class="fll-rk" data-jload="' + escapeHtml(row.key) + '">' +
+          '<u style="width:' + ((row.worstMs / peak) * 100).toFixed(1) + '%;background:' + color + '22"></u>' +
+          '<span>' + escapeHtml(row.key) + '</span>' +
+          '<b style="color:' + color + '">' + formatDuration(row.worstMs) + '</b>' +
+          '<b>' + row.count + '× · tb ' + formatDuration(row.avgMs) + '</b></div>';
+      })
+      .join('') + '</div>';
+}
+
 function renderSlowTab() {
   const view = getView();
   const rows = view.durations;
-  const header = renderScreenDwellSection(view) + '<div class="fll-sec">Mọi con số thời lượng</div>' + '<div class="fll-hint" style="margin-bottom:10px">Mọi con số thời lượng rút được từ log ' +
+  const header = renderScreenLoadSection(view) + renderScreenDwellSection(view) +
+    '<div class="fll-sec">Mọi con số thời lượng</div>' + '<div class="fll-hint" style="margin-bottom:10px">Mọi con số thời lượng rút được từ log ' +
     '(<code>duration=</code>, <code>in Nms</code>, <code>duration KMM</code>, <code>totalWaited</code>), ' +
     'xếp giảm dần. Giá trị trên ' + MAX_PLAUSIBLE_DURATION_MS / 1000 + 's bị bỏ vì log có chỗ ghi nhầm ' +
     'epoch vào <code>duration=</code>.</div>';

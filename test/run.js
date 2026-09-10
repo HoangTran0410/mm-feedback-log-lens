@@ -263,6 +263,34 @@ check('tab Van de co nhac toi loi Grafana', () => {
   ok(html.indexOf('khong tim thay ban nao') >= 0, 'phai hien noi dung loi');
 });
 
+/* ------------------------------------------ miniapp tai loi + thoi gian tai */
+
+check('stage loi tai miniapp vao muc "user da thay"', () => {
+  const nhan = journey.saw.map((r) => r.key);
+  ok(nhan.indexOf('màn hình lỗi tải miniapp') >= 0, 'phai co man loi; hien co: ' + nhan.join(', '));
+  ok(nhan.indexOf('miniapp crash JS') >= 0, 'phai co crash JS');
+  // stage do luong thuan tuy thi KHONG duoc vao
+  ok(nhan.indexOf('miniapp_load_start') < 0, 'stage do luong khong duoc coi la thu user thay');
+});
+
+check('thoi gian tai man: lay so co san, khong lay state=interaction', () => {
+  const loads = journey.screenLoads;
+  const cham = loads.find((r) => r.key === 'ManHinhCham');
+  ok(cham, 'phai co ManHinhCham; hien co: ' + loads.map((r) => r.key).join(', '));
+  eq(cham.count, 2, 'so lan do');
+  eq(cham.worstMs, 4200, 'lan cham nhat');
+  eq(cham.avgMs, 3150, 'trung binh');
+  ok(loads.some((r) => r.key === 'ManHinhNhanh'), 'auto_load_progress_tracked cung phai duoc tinh');
+  ok(!loads.some((r) => r.key === 'ManHinhKhac'), 'state=interaction khong phai thoi gian tai');
+  eq(loads[0].key, 'ManHinhCham', 'sap theo lan cham nhat');
+});
+
+check('tab Cham hien muc man tai lau', () => {
+  const html = L.renderSlowTab();
+  ok(html.indexOf('Màn tải lâu nhất') >= 0, 'phai co muc');
+  ok(html.indexOf('ManHinhCham') >= 0, 'phai hien ten man');
+});
+
 /* --------------------------------------------- nhieu tu chinh lop do luong */
 
 check('nhom nhieu do luong bi danh dau, nhom that thi khong', () => {
