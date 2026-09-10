@@ -125,6 +125,16 @@ function build() {
   tracker('feature_miniapp_load', 'app_id=vn.gia.lap, feature_code=tinh_nang_bia, stage=scr_fail_loading_miniapp');
   tracker('feature_miniapp_load', 'app_id=vn.gia.lap, feature_code=tinh_nang_bia, stage=miniapp_web_js_crash');
 
+  // --- HAI man deu ghi screen_name=result nhung la HAI lop khac nhau. Chi nhin screen_name thi chung
+  // bi gom lam mot hang, mat sach cai de phan biet. Duoi cua momoClassDiscriminator moi la ten that.
+  tracker('service_screen_displayed', 'screen_name=result, service_name=ket_qua, ' +
+    'momoClassDiscriminator=vn.gia.lap.journey.KetQuaRevampScreenDisplayed, status=PROCESSING');
+  tracker('service_screen_displayed', 'screen_name=result, service_name=ket_qua, ' +
+    'momoClassDiscriminator=vn.gia.lap.journey.KetQuaWidgetDisplayed, status=PROCESSING', 900);
+  // Lop chua THAM SO chu khong phai ten man — khong duoc lay lam ten.
+  tracker('service_screen_displayed', 'screen_name=ManHinhThuong, service_name=thuong, ' +
+    'momoClassDiscriminator=vn.gia.lap.model.KhuyenMaiEventParams', 900);
+
   // --- Thoi gian TAI man: so co san trong log, khac han "o lau tren man"
   tracker('auto_screen_displayed', 'screen_name=ManHinhCham, state=load, duration=4200, component_name=Screen');
   tracker('auto_screen_displayed', 'screen_name=ManHinhCham, state=load, duration=2100, component_name=Screen');

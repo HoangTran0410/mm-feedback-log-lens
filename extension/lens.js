@@ -1076,6 +1076,39 @@ function pickJourneyLabel(candidates, fallback) {
   return fallback;
 }
 
+// momoClassDiscriminator la ten LOP day du cua event, duoi cua no la ten be mat that su hien ra.
+// Vi sao can: tren log that co hai man deu ghi screen_name=result nhung la hai lop khac han —
+// TransactionResultRevampScreenDisplayed va TransactionResultWidgetDisplayed — nen chung bi gom lam
+// mot hang, mat sach cai de phan biet.
+//
+// NHUNG khong duoc dung bua: cung tren log that, mot log co 64 dong mang discriminator ma TAT CA deu
+// la "PromotionEventParams" — do la lop chua THAM SO, khong phai ten man. Lay bua thi moi man deu bi
+// dat ten "PromotionEventParams".
+// Vi vay chi nhan lop nao ket thuc bang Displayed / Interacted / Viewed: do la lop mo ta mot be mat
+// vua hien ra. Do tren 10 duoi lop khac nhau quan sat duoc o hai log: 7 cai khop deu la ten be mat
+// that, 3 cai khong khop (PromotionEventParams, CheckoutRequested, CheckoutResponse) deu khong phai.
+// CHUA XAC MINH tren dai lop rong hon — moi co hai log mang truong nay.
+const RE_JOURNEY_SURFACE = /(Displayed|Interacted|Viewed)$/;
+
+function journeySurfaceName(params) {
+  const full = journeyValue(params.momoClassDiscriminator);
+  if (!full) return '';
+  const tail = full.slice(full.lastIndexOf('.') + 1);
+  if (!RE_JOURNEY_SURFACE.test(tail)) return '';
+  // Bo duoi mo ta hanh dong roi bo not chu "Screen" con thua: TransactionResultRevampScreenDisplayed
+  // -> TransactionResultRevamp, con TransactionResultWidgetDisplayed -> TransactionResultWidget.
+  return tail.replace(RE_JOURNEY_SURFACE, '').replace(/Screen$/, '');
+}
+
+// Ten man = ten man hinh + ten be mat (neu doc duoc). Hai thu nay khac cap do chi tiet nen noi bang
+// dau cham giua, khong tron lam mot.
+function journeyScreenLabel(params, fallback) {
+  const base = journeyValue(params.screen_name) || fallback || '';
+  const surface = journeySurfaceName(params);
+  if (!surface) return base;
+  return base ? base + ' · ' + surface : surface;
+}
+
 function pickJourneyStep(event, params) {
   const screen = journeyValue(params.screen_name);
   if (event === 'auto_screen_navigated') {
@@ -1086,7 +1119,7 @@ function pickJourneyStep(event, params) {
   if (event === 'auto_screen_displayed' || event === 'service_screen_displayed' ||
     event === 'service_screen_viewed' || event === 'roothome_screen_displayed') {
     const load = journeyMs(params.duration);
-    return { kind: 'screen', label: screen || journeyValue(params.service_name),
+    return { kind: 'screen', label: journeyScreenLabel(params, journeyValue(params.service_name)),
       detail: journeyParts([params.service_name, params.status]),
       note: load ? 'load ' + formatDuration(load) : '' };
   }

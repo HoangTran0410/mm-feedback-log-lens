@@ -106,6 +106,15 @@ của thân mục — nhiều danh sách bọc trong đúng một thẻ (`.fll-r
 1 nên ô tìm không bao giờ được chèn; (2) mục nào **đã có ô tìm riêng** (tìm trên toàn bộ dữ liệu, không
 chỉ trang đang hiện) thì phải bỏ qua, đừng chèn chồng.
 
+**`momoClassDiscriminator` là tên màn chính xác — nhưng KHÔNG phải lúc nào cũng là tên màn.** Trên log
+thật, hai màn cùng ghi `screen_name=result` mà là hai lớp khác hẳn
+(`TransactionResultRevampScreenDisplayed` vs `TransactionResultWidgetDisplayed`) nên bị gom làm một
+hàng. Nhưng ở một log khác, **64/64** dòng mang trường này đều là `PromotionEventParams` — lớp chứa
+*tham số*, không phải tên màn; lấy bừa thì mọi màn đều bị đặt tên đó. `journeySurfaceName()` vì vậy chỉ
+nhận lớp kết thúc bằng `Displayed` / `Interacted` / `Viewed`. Đo trên 10 đuôi lớp quan sát được ở hai
+log: 7 cái khớp đều là tên bề mặt thật, 3 cái không khớp đều không phải. **CHƯA XÁC MINH** trên dải lớp
+rộng hơn — mới có hai log mang trường này.
+
 **Chú giải dùng `data-tip`, KHÔNG dùng `title`.** Độ trễ trước khi hiện `title=""` do hệ điều hành
 quyết định — không CSS hay JS nào đổi được. Panel này có tới 120 chỗ mang chú giải, nên lướt chuột qua
 là tooltip của trình duyệt nhảy liên tục và che mất giao diện phía sau. `src/03j-tooltip.js` tự vẽ:

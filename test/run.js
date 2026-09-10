@@ -75,7 +75,7 @@ function loadLens() {
     'applyFilter,aimIndicesFor,sectionKey,isSectionOpen,setSectionOpen,loadOpenSections,' +
     'buildTimelineEvents,formatDuration,renderTimelineList,TIMELINE_KIND_ORDER,TIMELINE_KINDS,' +
     'canZoomFurther,minimapBounds,pickJourneyLabel,findDuplicateBlock,entryMatches,compileFilter,' +
-    'SECTION_SEARCH_MIN_ROWS,buildEnvironment,buildTicketSummary};';
+    'SECTION_SEARCH_MIN_ROWS,buildEnvironment,buildTicketSummary,journeySurfaceName};';
   const wired = src.replace(/\n\}\)\(\);\s*$/, '\n' + exportLine + '\n})();\n');
   if (wired === src) throw new Error('khong chen duoc dong export vao IIFE cua extension/lens.js');
   (0, eval)(wired);
@@ -946,6 +946,36 @@ check('phu de header va the thong ke phai dem khoang lang giong nhau', () => {
   const the = /<b[^>]*>(\d+)<\/b><span>khoảng lặng/.exec(html);
   ok(the, 'phai tim duoc the thong ke khoang lang');
   eq(Number(the[1]), gapsThat, 'the thong ke phai la so da tru phan xuong nen');
+});
+
+/* ------------------------------------------- ten be mat tu momoClassDiscriminator */
+
+// Bug that: hai man deu ghi screen_name=result nhung la hai lop khac han nhau, nen bi gom lam mot hang.
+check('ten man: tach duoc hai be mat cung screen_name', () => {
+  const keys = journey.screens.map((row) => row.key);
+  ok(keys.indexOf('result · KetQuaRevamp') >= 0, 'phai co be mat thu nhat; hien co: ' + keys.join(', '));
+  ok(keys.indexOf('result · KetQuaWidget') >= 0, 'phai co be mat thu hai');
+  eq(keys.filter((key) => key === 'result').length, 0, 'khong duoc con hang "result" tron gom ca hai');
+});
+
+// Cai bay: mot log that co 64 dong mang discriminator ma TAT CA deu la "PromotionEventParams" — lop
+// chua tham so, khong phai ten man. Lay bua thi moi man deu bi dat ten do.
+check('ten man: bo qua lop chua tham so', () => {
+  const keys = journey.screens.map((row) => row.key);
+  ok(keys.indexOf('ManHinhThuong') >= 0, 'man do phai giu nguyen ten');
+  ok(!keys.some((key) => key.indexOf('EventParams') >= 0), 'khong duoc lay ten lop tham so lam ten man');
+});
+
+check('ten man: chi nhan lop mo ta mot be mat vua hien ra', () => {
+  const goi = (tail) => L.journeySurfaceName({ momoClassDiscriminator: 'a.b.' + tail });
+  eq(goi('TransactionResultRevampScreenDisplayed'), 'TransactionResultRevamp', 'bo ca ScreenDisplayed');
+  eq(goi('TransactionResultWidgetDisplayed'), 'TransactionResultWidget', 'bo Displayed');
+  eq(goi('PaymentScreenInteracted'), 'Payment', 'bo ScreenInteracted');
+  eq(goi('SofCarouselViewed'), 'SofCarousel', 'bo Viewed');
+  eq(goi('PromotionEventParams'), '', 'lop tham so thi bo');
+  eq(goi('CheckoutRequested'), '', 'lop request/response cung khong phai be mat');
+  eq(L.journeySurfaceName({}), '', 'khong co truong thi tra ve rong');
+  eq(L.journeySurfaceName({ momoClassDiscriminator: 'null' }), '', 'gia tri null thi cung rong');
 });
 
 renderAll('log day du');
