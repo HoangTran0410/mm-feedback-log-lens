@@ -44,8 +44,17 @@ function installFakeDom() {
     createElement: () => ({ style: {}, appendChild: noop, setAttribute: noop, classList: { add: noop } }),
     addEventListener: noop, contains: () => false, activeElement: null,
   };
+  // localStorage that (trong bo nho): cac phep thu ve nho trang thai muc dong/mo can doc lai duoc
+  // dung thu vua ghi, stub tra ve null thi khong kiem duoc gi.
+  const store = new Map();
   global.window = { addEventListener: noop, removeEventListener: noop, innerHeight: 800, innerWidth: 1200,
-    location: { hash: '' }, localStorage: { getItem: () => null, setItem: noop, removeItem: noop } };
+    location: { hash: '' },
+    localStorage: {
+      getItem: (key) => (store.has(key) ? store.get(key) : null),
+      setItem: (key, value) => store.set(key, String(value)),
+      removeItem: (key) => store.delete(key),
+      clear: () => store.clear(),
+    } };
   global.localStorage = global.window.localStorage;
   global.alert = noop;
   global.setInterval = () => 0;
@@ -62,7 +71,7 @@ function loadLens() {
   const exportLine = 'globalThis.__LENS={analyzeLog,attachInsights,deriveStats,buildJourney,' +
     'parseKeyValueMap,renderSummaryTab,renderIssuesTab,renderHttpTab,renderSlowTab,renderFilterTab,' +
     'renderTimelineTab,renderConfigTab,buildConfigs,tabUiState,lensState,TAB_DEFS,TIMELINE_GROUPS,' +
-    'applyFilter};';
+    'applyFilter,aimIndicesFor,sectionKey,isSectionOpen,setSectionOpen,loadOpenSections};';
   const wired = src.replace(/\n\}\)\(\);\s*$/, '\n' + exportLine + '\n})();\n');
   if (wired === src) throw new Error('khong chen duoc dong export vao IIFE cua extension/lens.js');
   (0, eval)(wired);
@@ -452,6 +461,49 @@ check('cau hinh: tab tu an khi log khong co cau hinh nao', () => {
   ok(tab && typeof tab.hide === 'function', 'tab Cau hinh phai co ham hide');
   eq(tab.hide(data), false, 'log fixture co cau hinh nen KHONG duoc an');
   eq(tab.hide({ configs: L.buildConfigs([], []) }), true, 'log rong thi phai an');
+});
+
+/* --------------------------------------------- mui ten tro len minimap + muc dong/mo */
+
+// Mui ten phai chi toi DUNG nhung dong ma hang do dai dien — cung cach doc nhu luc bam.
+// Lam sai cho nay thi mui ten van hien, chi la tro nham cho, nen phep thu nay giu cho no dung.
+check('mui ten: hang nao tro toi dong nao', () => {
+  eq(L.aimIndicesFor({ dataset: { jump: '7' } })[0], 7, 'data-jump');
+  eq(L.aimIndicesFor({ dataset: { bucket: '-1' } }).length, 0, 'o minimap rong thi khong tro dau ca');
+  const group = data.groups[0];
+  const fromGroup = L.aimIndicesFor({ dataset: { group: '0' } });
+  eq(fromGroup.length, group.indices.length, 'so dong cua mot nhom loi');
+  const call = data.httpCalls[0];
+  const fromCall = L.aimIndicesFor({ dataset: { call: '0' } });
+  eq(fromCall.length, [call.reqIndex, call.resIndex].filter((i) => i != null).length,
+    'mot call tro toi ca dong request lan response');
+  eq(L.aimIndicesFor({ dataset: {} }).length, 0, 'khong co gi de tro thi tra ve rong');
+});
+
+check('mui ten: hang tro toi hang tram dong van tra du, viec cat bot la o luc ve', () => {
+  const big = data.groups.reduce((a, b) => (a.indices.length > b.indices.length ? a : b));
+  const index = data.groups.indexOf(big);
+  eq(L.aimIndicesFor({ dataset: { group: String(index) } }).length, big.indices.length, 'so dong');
+});
+
+check('muc dong/mo: mac dinh dong, mo roi thi nho', () => {
+  const key = L.sectionKey('sum', 'Lỗi nổi bật');
+  eq(key, 'sum::Lỗi nổi bật', 'khoa gom ca ten tab');
+  eq(L.isSectionOpen('sum', 'Lỗi nổi bật'), false, 'mac dinh phai la dong');
+  L.setSectionOpen(key, true);
+  eq(L.isSectionOpen('sum', 'Lỗi nổi bật'), true, 'mo roi');
+  eq(localStorage.getItem('fll.openSections'), JSON.stringify([key]), 'da ghi vao localStorage');
+  L.setSectionOpen(key, false);
+  eq(L.isSectionOpen('sum', 'Lỗi nổi bật'), false, 'thu lai');
+  eq(localStorage.getItem('fll.openSections'), '[]', 'xoa khoi localStorage');
+});
+
+// Cung ten muc o hai tab khac nhau la HAI muc: mo o tab nay khong duoc keo tab kia mo theo.
+check('muc dong/mo: trung ten o hai tab van la hai muc rieng', () => {
+  L.setSectionOpen(L.sectionKey('flt', 'Phiên app'), true);
+  eq(L.isSectionOpen('flt', 'Phiên app'), true, 'tab Loc');
+  eq(L.isSectionOpen('sum', 'Phiên app'), false, 'tab Tong quan phai van dong');
+  L.setSectionOpen(L.sectionKey('flt', 'Phiên app'), false);
 });
 
 renderAll('log day du');

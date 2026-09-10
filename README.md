@@ -29,10 +29,10 @@ bản build thì ngược lại: khối ngay dưới do `build.sh` ghi lại m�
 
 | | |
 |---|---|
-| `extension/lens.js` | **217 KB** (221,729 bytes) |
-| Nguồn | 4,877 dòng trong 18 file `src/` |
+| `extension/lens.js` | **231 KB** (236,954 bytes) |
+| Nguồn | 5,223 dòng trong 20 file `src/` |
 | Dependency lúc chạy | không có |
-| Test | 78 phép thử, `node test/run.js` |
+| Test | 82 phép thử, `node test/run.js` |
 
 <!-- /build-stats -->
 
@@ -60,6 +60,20 @@ bản build thì ngược lại: khối ngay dưới do `build.sh` ghi lại m�
 | **Cấu hình** | Lúc đó máy này chạy với cấu hình gì — nhánh A/B nào, cờ nào bật, BE và webadmin đẩy xuống cái gì. Tab tự ẩn khi log không có dòng cấu hình nào. |
 | **Lọc** | Chỉ hiện dòng của module X / mức ERROR / phiên 2 / khớp regex. |
 | **Diễn biến** | Một dòng thời gian: user bấm gì, thấy popup gì, app đứng im lúc nào, lỗi nổ ở đâu. |
+
+**Mọi mục đều thu lại sẵn.** Bảy tab, mỗi tab vài mục — mở tab ra là một bức tường. Nay mỗi tiêu đề
+mục là một nút: bấm để mở, bấm lại để thu, và trạng thái nhớ qua `localStorage` (`fll.openSections`)
+theo từng tab riêng — hai tab có mục trùng tên vẫn là hai mục khác nhau. Mặc định là **thu hết**, trừ
+khi đi vào bằng một lối tắt: bấm thẻ "phiên app" ở Tổng quan hay nút "Xem tất cả N nhóm lỗi" thì mục
+đích đến tự mở ra, vì cuộn tới một mục đang đóng thì chẳng thấy gì.
+
+**Rê chuột lên một hàng bất kỳ → mũi tên chỉ thẳng lên vị trí của nó trên minimap.** Hàng nào cũng có
+giờ và số dòng, nhưng đó là *con số*: phải tự dịch "10:02:50" ra "khoảng giữa log" mới biết nó nằm đâu
+trong cả phiên. Nay một đường đứt nét nối từ hàng lên đúng cột thời gian đó, kèm vạch đánh dấu **mọi**
+dòng mà hàng đó đại diện (một nhóm lỗi 22 dòng thì hiện 22 vạch — thấy ngay nó rải đều hay dồn một
+chỗ), và dòng nhãn giữa minimap đổi thành giờ của hàng đang rê. Chạy ở mọi tab và cả trong tấm trượt
+payload, vì nó vẽ bằng một lớp SVG phủ lên panel chứ không phải chèn thẻ vào từng hàng — tab thêm sau
+này tự động có.
 
 **Minimap** dưới thanh tab là mật độ log theo thời gian, đỏ = có ERROR.
 
@@ -488,6 +502,24 @@ Panel từng bị rối vì mấy thói quen dưới đây, sửa rồi thì gi�
   (`#fll-httpq` quét cả payload của mọi request, vẫn chỉ thay `#fll-http-list`).
   Dùng chung một biến timer là sai: gõ ô này sẽ huỷ mất cập nhật đang chờ của ô kia.
   Timer phải được dọn trong `disposeSelf` và `detachLens`, không thì nó bắn lên panel đã bị gỡ.
+- **Tấm trượt payload bắt đầu ngay dưới minimap, không phủ lên nó.** `.fll-sheet` từng đặt cứng
+  `top:52px` (dưới header) nên nó che luôn minimap — mà lúc đọc payload lại chính là lúc cần biết
+  "dòng này nằm chỗ nào trong log" nhất. Nay `openSheet()` đo `lensState.el.body.offsetTop` rồi gán,
+  vì phần trên panel không cố định chiều cao: thanh bộ lọc lúc hiện lúc ẩn. `refreshFilterBar()` gọi
+  lại phép đo đó **sau khi** đã đổ nội dung vào thanh — đo lúc thanh còn rỗng thì ra chiều cao sai.
+- **Lớp mũi tên (`.fll-aim`) phải nằm TRÊN tấm trượt.** Đường kẻ đi *từ trong* tấm trượt (`z-index:8`)
+  *ra tới* minimap nằm ngoài nó, nên lớp SVG để `z-index:9` và `pointer-events:none`. SVG không đặt
+  `viewBox`: không có viewBox thì một đơn vị SVG = một px CSS, nên toạ độ lấy từ
+  `getBoundingClientRect()` dùng thẳng được, khỏi quy đổi.
+  Mũi tên vẽ **bên trong** mép dưới minimap chứ không thò xuống dưới: bản đầu để nó chạm mép dưới rồi
+  thò xuống 8px, đúng chỗ dòng nhãn giờ cao ~14px — thấy khi chụp màn hình.
+- **Bảy tab phải vừa bề ngang mặc định.** Đo trên panel 480px: với `gap:3px` + padding ngang 7px, bảy
+  tab cần **507px** trong khi chỗ chỉ có **478px** — tab cuối bị cắt mất chữ mà không có dấu hiệu gì
+  là còn cuộn được. `gap:2px` + padding 5px lại còn **473px**. Vẫn giữ `overflow-x:auto` cho trường
+  hợp người dùng kéo panel hẹp hơn.
+- **Lề trên của mục chuyển từ `.fll-sec` sang khối bao ngoài.** `collapsifySections()` bọc mỗi mục vào
+  một `.fll-secw` sau khi vẽ, nên `.fll-sec` luôn là con đầu tiên của khối — rule
+  `.fll-sec:first-child{margin-top:0}` sẽ ăn mất lề của **mọi** mục. Lề 22px nay nằm ở `.fll-secw`.
 - **Tô màu JSON: quét token trước, escape từng mảnh sau.** Escape cả chuỗi rồi mới tô sẽ ăn luôn thẻ
   `<i>`; tô trước escape sau thì thẻ biến thành chữ hiển thị. Xem `highlightJson()` trong `src/04-sheet.js`.
 - **Đổi bộ lọc thì vẽ lại cả tab, đừng vá từng phần tử.** Ô "Tìm trong nội dung" từng chỉ cập nhật

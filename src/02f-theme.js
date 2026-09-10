@@ -69,9 +69,12 @@ const PANEL_CSS = [
   '.fll-ico:hover{background:var(--bg3);color:var(--txt);border-color:var(--line)}',
 
   /* ---------- tabs ---------- */
-  '.fll-tabs{display:flex;gap:3px;padding:10px 12px 0;flex:0 0 auto;overflow-x:auto;scrollbar-width:none}',
+  /* Do dem tren panel 480px: voi gap 3px + padding ngang 7px, bay tab can 507px trong khi cho chi co
+     478px — tab cuoi ("Diễn biến") bi cat mat chu ma khong co dau hieu gi la con cuon duoc.
+     Gap 2px + padding 5px lai con 473px. overflow-x van giu cho truong hop keo panel hep hon. */
+  '.fll-tabs{display:flex;gap:2px;padding:10px 12px 0;flex:0 0 auto;overflow-x:auto;scrollbar-width:none}',
   '.fll-tabs::-webkit-scrollbar{display:none}',
-  '.fll-tab{flex:1 0 auto;padding:8px 7px 10px;border-bottom:2px solid transparent;color:var(--mut);font-size:11px;',
+  '.fll-tab{flex:1 0 auto;padding:8px 5px 10px;border-bottom:2px solid transparent;color:var(--mut);font-size:11px;',
   'font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;',
   'transition:.14s;white-space:nowrap}',
   '.fll-tab:hover{color:var(--txt)}',
@@ -125,6 +128,7 @@ const PANEL_CSS = [
   '.fll-map-ranged .fll-shade-r{border-left:2px solid var(--acc);box-shadow:-2px 0 8px rgba(255,46,136,.4)}',
   '.fll-maptext{font-variant-numeric:tabular-nums;opacity:.75}',
   '.fll-map-ranged + .fll-maplbl .fll-maptext{opacity:1;color:var(--acc);font-weight:650}',
+  '.fll-maptext.aiming{opacity:1;color:var(--acc);font-weight:700;font-variant-numeric:tabular-nums}',
   '.fll-cursor{position:absolute;top:0;bottom:0;width:2px;background:var(--acc);pointer-events:none;',
   'box-shadow:0 0 10px var(--acc);opacity:0;transition:.12s}',
   '.fll-maplbl{display:flex;justify-content:space-between;gap:8px;margin:5px 17px 0;font-size:9.5px;',
@@ -191,6 +195,18 @@ const PANEL_CSS = [
   '.fll-cfg-v{margin-top:3px;font-family:var(--mono);font-size:10.5px;line-height:1.5;color:#cfc8dd;',
   'word-break:break-all;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}',
   '.fll-cfg-js{margin-top:6px;padding:4px 10px;font-size:10px}',
+
+  /* ---------- mui ten tu muc dang di chuot len minimap ---------- */
+  /* Mot lop SVG phu len ca panel. pointer-events:none de khong chan chuot; z-index cao hon .fll-sheet
+     (8) vi duong ke phai di TU trong tam truot RA den minimap nam ngoai no. */
+  '.fll-aim{position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;z-index:9;',
+  'opacity:0;transition:opacity .12s}',
+  '.fll-aim.on{opacity:1}',
+  '.fll-aim-line{fill:none;stroke:var(--acc);stroke-width:1.5;stroke-dasharray:4 3;opacity:.85}',
+  '.fll-aim-head{fill:var(--acc)}',
+  '.fll-aim-ticks rect{fill:var(--acc);opacity:.5}',
+  '.fll-aim-ticks rect.fll-aim-first{opacity:1}',
+  '.fll-aimed{outline:1px solid var(--acc);outline-offset:1px;border-radius:8px}',
 
   /* ---------- nut nho trong hang, va nut tat tieng ---------- */
   '.fll-ico.fll-mini{width:24px;height:24px;font-size:10px;border-radius:6px;background:var(--bg3);flex:0 0 auto}',
@@ -269,6 +285,23 @@ const PANEL_CSS = [
   'color:#d5cfe2;display:flex;align-items:center;gap:8px}',
   '.fll-sec:before{content:"";width:3px;height:13px;border-radius:2px;background:var(--acc);flex:0 0 auto}',
   '.fll-sec:first-child{margin-top:0}',
+
+  /* ---------- muc dong/mo duoc ---------- */
+  /* Khoi .fll-secw do collapsifySections() dung sau khi ve, khong renderer nao sinh ra no.
+     Le tren 22px chuyen tu .fll-sec sang khoi bao ngoai: sau khi boc, .fll-sec luon la con dau tien
+     cua khoi nen ".fll-sec:first-child{margin-top:0}" se an het le cua MOI muc. Hai rule duoi day
+     cung do dac hieu (0,2,0) voi rule do nhung viet sau nen thang. */
+  '.fll-secw{margin-top:22px}',
+  '.fll-secw:first-child{margin-top:0}',
+  '.fll-secw > .fll-sec{margin-top:0;cursor:pointer;user-select:none;transition:.14s}',
+  '.fll-secw > .fll-sec:hover{color:#fff;background:linear-gradient(180deg,#2d2740,#211c2e)}',
+  '.fll-secb{display:none}',
+  '.fll-secw.open > .fll-secb{display:block}',
+  /* Muc dang dong thi thanh tieu de khong can dinh lai: khong co gi troi qua duoi no ca. */
+  '.fll-secw:not(.open) > .fll-sec{position:relative;top:0}',
+  '.fll-caret{flex:0 0 auto;font-size:9px;color:var(--mut);transition:transform .15s,color .15s;',
+  'display:inline-block;width:9px;text-align:center}',
+  '.fll-secw.open > .fll-sec .fll-caret{transform:rotate(90deg);color:var(--acc)}',
   '.fll-note{display:flex;gap:10px;padding:12px 13px;border-radius:11px;font-size:11.5px;line-height:1.55;',
   'background:rgba(255,182,72,.09);border:1px solid rgba(255,182,72,.28);color:#ffd79a;margin-bottom:6px}',
   '.fll-note b{color:#fff;font-weight:650}',

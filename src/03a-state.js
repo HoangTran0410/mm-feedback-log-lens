@@ -63,6 +63,8 @@ const lensState = {
     timeTo: null,
     session: null,
   },
+  // Muc dang di chuot qua, de biet luc nao phai ve lai mui ten len minimap (va luc nao thi thoi).
+  aimEl: null,
   el: {},
 };
 

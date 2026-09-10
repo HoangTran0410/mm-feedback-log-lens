@@ -90,6 +90,7 @@ function refreshFilterBar() {
   if (!facets.length) {
     bar.hidden = true;
     bar.innerHTML = '';
+    positionSheetBelowTimeline();
     return;
   }
   const forced = lensState.forcedVisibleIndices.size;
@@ -104,6 +105,8 @@ function refreshFilterBar() {
         '</span>')
       .join('') +
     '<button class="fll-fclear" data-act="clearFilters">Xoá tất cả</button></div>';
+  // Do SAU khi da co noi dung: thanh bo loc chua co chu thi chieu cao chua dung.
+  positionSheetBelowTimeline();
 }
 
 function resetFilter() {

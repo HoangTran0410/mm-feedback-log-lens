@@ -128,6 +128,9 @@ function renderTab() {
   else if (lensState.tab === 'cfg') body.innerHTML = renderConfigTab();
   else if (lensState.tab === 'flt') body.innerHTML = renderFilterTab();
   else body.innerHTML = renderTimelineTab();
+  // Muc dang tro toi vua bi thay the -> mui ten tro vao hu khong, don truoc khi gom muc.
+  hideAim();
+  collapsifySections(body, lensState.tab);
   body.scrollTop = 0;
   renderTabBar();
   refreshFilterBar();
@@ -327,6 +330,11 @@ function mountPanel() {
   lensState.el.map.addEventListener('mousedown', handleMinimapMouseDown);
   lensState.el.map.addEventListener('mousemove', handleMinimapHover);
   lensState.el.map.addEventListener('dblclick', handleMinimapDoubleClick);
+  // Gan o PANEL chu khong o than: nhu vay cac hang trong tam truot (.fll-sheet) cung duoc ve mui ten.
+  panel.addEventListener('mouseover', handleLensHover);
+  panel.addEventListener('mouseleave', hideAim);
+  // 'scroll' khong noi bot len, phai bat o pha capture moi thay duoc cuon cua than va cua tam truot.
+  panel.addEventListener('scroll', handleAimScroll, true);
 
   applyPanelGeometry(panel);
   enableDragAndResize(panel, root.querySelector('.fll-hd'), root.querySelector('.fll-grip'),
@@ -484,19 +492,31 @@ function handleLensClick(event) {
     if (list) list.innerHTML = renderIssueList();
     return undefined;
   }
+  if (action === 'tglSec') return toggleSection(hit);
   if (action === 'rescan') return rescan();
   if (action === 'minimize') return showPill();
   if (action === 'open') return mountPanel();
   if (action === 'prev') return moveMatch(-1);
   if (action === 'next') return moveMatch(1);
-  if (action === 'gotoIssues') return switchTab('iss');
+  if (action === 'gotoIssues') {
+    switchTab('iss');
+    // Muc mac dinh dang thu lai. Bam "47 ERROR" ma sang tab chi thay may dong tieu de thi coi nhu
+    // khong di den dau — mo san dung muc chua danh sach loi.
+    const first = lensState.el.body && lensState.el.body.querySelector('[data-group]');
+    if (first) revealElement(first);
+    return undefined;
+  }
   if (action === 'gotoHttp') return switchTab('http');
   if (action === 'gotoTimeline') return switchTab('tl');
   if (action === 'gotoSessions') {
     switchTab('flt');
     // Tab Loc co 9 muc; nhay thang toi muc Phien app thay vi de nguoi dung tu do tim.
     const chip = lensState.el.body && lensState.el.body.querySelector('[data-act="setSession"]');
-    if (chip) chip.scrollIntoView({ block: 'center' });
+    if (chip) {
+      // Muc mac dinh dang thu lai: khong mo ra thi cuon toi cung khong thay gi.
+      revealElement(chip);
+      chip.scrollIntoView({ block: 'center' });
+    }
     return undefined;
   }
   if (action === 'issueLevel') {

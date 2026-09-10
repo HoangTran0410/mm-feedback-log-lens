@@ -10,6 +10,16 @@ Model: claude-opus-5
 
 const SHEET_MAX_RAW_LENGTH = 20000;
 
+// Tam truot tung phu tu duoi header xuong (top:52px co dinh trong CSS) nen no che luon minimap —
+// dung luc doc payload lai la luc can nhin "dong nay nam cho nao trong log" nhat. Do bang JS thay vi
+// dat so co dinh vi chieu cao phan tren khong co dinh: thanh bo loc co luc hien co luc an.
+function positionSheetBelowTimeline() {
+  const sheet = lensState.el.sheet;
+  const body = lensState.el.body;
+  if (!sheet || !body) return;
+  sheet.style.top = body.offsetTop + 'px';
+}
+
 function openSheet(title, subtitle, bodyHtml) {
   const panel = lensState.el.panel;
   if (!panel) return;
@@ -24,6 +34,7 @@ function openSheet(title, subtitle, bodyHtml) {
     '<div class="fll-sheet-body">' + bodyHtml + '</div>';
   panel.appendChild(sheet);
   lensState.el.sheet = sheet;
+  positionSheetBelowTimeline();
 }
 
 function closeSheet() {
