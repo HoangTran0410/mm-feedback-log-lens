@@ -444,6 +444,6 @@ function analyzeLog(gapThresholdMs) {
     gaps: timeline.gaps,
     firstTs: timeline.timed.length ? timeline.timed[0].ts : 0,
     lastTs: timeline.timed.length ? timeline.timed[timeline.timed.length - 1].ts : 0,
-  }, deriveStats(entries));
+  }, deriveStats(entries, timeline.gaps));
 }
 // AI-GENERATED END

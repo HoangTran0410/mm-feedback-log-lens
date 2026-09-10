@@ -26,6 +26,9 @@ function serializeFilter() {
     re: filter.useRegex ? 1 : 0,
     s: filter.session || 0,
   };
+  // Thieu cho nay thi: mau bo loc luu xong mo ta la "khong co dieu kien nao" va bam vao khong lam gi,
+  // con permalink gui cho dong nghiep se hien so gap doi ma khong co dau hieu gi.
+  if (filter.skipDuplicate) payload.d = 1;
   if (filter.timeFrom !== null || filter.timeTo !== null) {
     const from = filter.timeFrom !== null ? filter.timeFrom : data.firstTs;
     const to = filter.timeTo !== null ? filter.timeTo : data.lastTs;
@@ -46,6 +49,9 @@ function applyFilterPayload(payload) {
   filter.text = payload.q || '';
   filter.useRegex = payload.re !== 0;
   filter.session = payload.s || null;
+  // Phai dat lai CA khi payload khong co: ap mot mau khong co dieu kien nay ma van giu co dang bat thi
+  // ket qua khac han mo ta cua mau.
+  filter.skipDuplicate = payload.d === 1;
   filter.timeFrom = null;
   filter.timeTo = null;
   filter.hideOthers = true;
@@ -140,6 +146,7 @@ function describeTemplatePayload(payload) {
   const parts = [];
   if (payload.wLast) parts.push(formatWindowPresetLabel(payload.wLast));
   else if (payload.f >= 0 || payload.tt >= 0) parts.push('khoảng thời gian cố định');
+  if (payload.d) parts.push('bỏ khối lặp');
   if (payload.s) parts.push('phiên ' + payload.s);
   if (payload.lv && payload.lv.length) parts.push(payload.lv.join(' + '));
   if (payload.md && payload.md.length) {

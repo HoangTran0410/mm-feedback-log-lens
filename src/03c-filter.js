@@ -164,7 +164,7 @@ function buildView() {
     return;
   }
   const subset = lensState.lastFilterResult.visible.map((index) => data.entries[index]);
-  const stats = deriveStats(subset);
+  const stats = deriveStats(subset, data.gaps);
   const range = getVisibleTimeRange();
   // Khoang lang la thuoc tinh cua duong thoi gian, khong phai cua tap dong: chi cat theo cua so thoi gian.
   stats.gaps = data.gaps.filter((gap) => gap.before.ts >= range.from && gap.before.ts <= range.to);

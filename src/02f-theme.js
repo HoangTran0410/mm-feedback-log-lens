@@ -21,6 +21,11 @@ const PANEL_CSS = [
   'background:none;color:inherit;font:inherit;line-height:1.45;letter-spacing:normal;text-transform:none;',
   'text-align:left;vertical-align:baseline;box-shadow:none;text-shadow:none;min-width:0;height:auto}',
   '#fll-root button,#fll-root input{outline:0;-webkit-appearance:none;appearance:none}',
+  /* Thuoc tinh hidden mac dinh la display:none cua trinh duyet, nhung MOI rule .fll-* co display deu
+     de len no (class thang selector thuoc tinh cua UA). Truoc day chi khai rieng cho .fll-bar va
+     .fll-ft nen o tim trong tung muc dat node.hidden=true ma hang van hien nguyen — .fll-rk,
+     .fll-call, .fll-slow, .fll-chip deu la display:flex/inline-flex. Khai mot lan o day cho ca panel. */
+  '#fll-root [hidden]{display:none!important}',
 
   '#fll-root{position:fixed;z-index:2147483000;top:0;left:0;width:0;height:0;',
   'font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;font-size:13px;font-weight:400;',

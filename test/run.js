@@ -75,7 +75,9 @@ function loadLens() {
     'applyFilter,aimIndicesFor,sectionKey,isSectionOpen,setSectionOpen,loadOpenSections,' +
     'buildTimelineEvents,formatDuration,renderTimelineList,TIMELINE_KIND_ORDER,TIMELINE_KINDS,' +
     'canZoomFurther,minimapBounds,pickJourneyLabel,findDuplicateBlock,entryMatches,compileFilter,' +
-    'SECTION_SEARCH_MIN_ROWS,buildEnvironment,buildTicketSummary,journeySurfaceName};';
+    'SECTION_SEARCH_MIN_ROWS,buildEnvironment,buildTicketSummary,journeySurfaceName,' +
+    'PANEL_CSS,detachLens,serializeFilter,applyFilterPayload,describeTemplatePayload,' +
+    'renderTraceFailSection};';
   const wired = src.replace(/\n\}\)\(\);\s*$/, '\n' + exportLine + '\n})();\n');
   if (wired === src) throw new Error('khong chen duoc dong export vao IIFE cua extension/lens.js');
   (0, eval)(wired);
@@ -976,6 +978,67 @@ check('ten man: chi nhan lop mo ta mot be mat vua hien ra', () => {
   eq(goi('CheckoutRequested'), '', 'lop request/response cung khong phai be mat');
   eq(L.journeySurfaceName({}), '', 'khong co truong thi tra ve rong');
   eq(L.journeySurfaceName({ momoClassDiscriminator: 'null' }), '', 'gia tri null thi cung rong');
+});
+
+/* ------------------------------- nhung cho agent review tim ra, da sua */
+
+// Thuoc tinh hidden mac dinh la display:none cua trinh duyet, nhung MOI rule .fll-* co display deu de
+// len no. Truoc day chi khai rieng cho .fll-bar va .fll-ft, nen o tim trong tung muc dat hidden=true
+// ma hang van hien nguyen (.fll-rk, .fll-call, .fll-slow, .fll-chip deu display:flex).
+check('CSS: co rule [hidden] chung cho ca panel', () => {
+  ok(L.PANEL_CSS.indexOf('#fll-root [hidden]{display:none!important}') >= 0,
+    'thieu rule nay thi o tim tung muc khong an duoc hang nao');
+});
+
+// Mang bo loc cua feedback truoc sang feedback sau la mot loai loi da co luat trong CLAUDE.md.
+check('doi feedback: don sach ca skipDuplicate lan tabUiState', () => {
+  L.lensState.filter.skipDuplicate = true;
+  L.tabUiState.issueQuery = 'timeout';
+  L.tabUiState.httpOnlyBad = true;
+  L.tabUiState.tlKinds = new Set(['jr-tap']);
+  L.lensState.isShowingMuted = true;
+  L.detachLens();
+  eq(L.lensState.filter.skipDuplicate, false, 'bo loc bo-khoi-lap phai duoc don');
+  eq(L.tabUiState.issueQuery, '', 'o tim nhom loi phai duoc don');
+  eq(L.tabUiState.httpOnlyBad, false, 'chip HTTP phai ve mac dinh');
+  eq(L.tabUiState.tlKinds.size, 0, 'chip loai moc phai duoc don');
+  eq(L.lensState.isShowingMuted, false, 'che do xem nhom da tat tieng phai ve mac dinh');
+  scan();
+});
+
+// Thieu cho nay thi mau bo loc luu xong mo ta la "khong co dieu kien nao" va bam vao khong lam gi.
+check('mau bo loc va permalink mang duoc "bo khoi lap"', () => {
+  L.lensState.filter.skipDuplicate = true;
+  const payload = L.serializeFilter();
+  eq(payload.d, 1, 'phai co trong payload');
+  ok(L.describeTemplatePayload(payload).indexOf('bỏ khối lặp') >= 0, 'mo ta mau phai nhac toi');
+  L.lensState.filter.skipDuplicate = false;
+  L.applyFilterPayload(payload);
+  eq(L.lensState.filter.skipDuplicate, true, 'ap lai payload phai bat lai');
+  // Ap mot mau KHONG co dieu kien nay thi phai TAT no, khong duoc giu.
+  L.applyFilterPayload({ lv: ['ERROR'] });
+  eq(L.lensState.filter.skipDuplicate, false, 'ap mau khac phai tat, khong duoc giu lai');
+  L.lensState.filter.levels = new Set();
+});
+
+// available = co dong Grafana nao khong. hasGated = co dong nao di qua co debug khong. Truoc day
+// hasGated tinh ra roi khong renderer nao doc, nen tool tran an "khong luong nao bao loi" ngay tren
+// log ma duong ghi trace chua bao gio chay.
+check('Grafana: co dong nhung khong co startTrace thi phai noi "khong ket luan duoc"', () => {
+  const gia = { traceIssues: { available: true, hasGated: false, lineCount: 22, fails: [] } };
+  const html = L.renderTraceFailSection(gia);
+  ok(html.indexOf('Không kết luận được') >= 0, 'phai noi ro la khong ket luan duoc');
+  ok(html.indexOf('không luồng nào báo lỗi') < 0, 'khong duoc tran an');
+  const coGate = { traceIssues: { available: true, hasGated: true, lineCount: 3207, fails: [] } };
+  ok(L.renderTraceFailSection(coGate).indexOf('không luồng nào báo lỗi') >= 0,
+    'co gate that su ma khong fail thi moi duoc noi cau do');
+});
+
+// Buoc gop bi danh roi truong session, nen guard "khong do vat qua hai phien app" luon so
+// undefined === undefined, tuc luon dung, tuc chua bao gio chay.
+check('hanh trinh: buoc gop van mang session', () => {
+  const thieu = journey.steps.filter((step) => step.session === undefined);
+  eq(thieu.length, 0, thieu.length + ' buoc mat session sau khi gop');
 });
 
 renderAll('log day du');

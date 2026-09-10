@@ -445,7 +445,7 @@ function analyzeLog(gapThresholdMs) {
     gaps: timeline.gaps,
     firstTs: timeline.timed.length ? timeline.timed[0].ts : 0,
     lastTs: timeline.timed.length ? timeline.timed[timeline.timed.length - 1].ts : 0,
-  }, deriveStats(entries));
+  }, deriveStats(entries, timeline.gaps));
 }
 // AI-GENERATED END
 /*
@@ -1249,8 +1249,10 @@ function mergeAdjacentJourneySteps(steps) {
       last.indices.push(step.domIndex);
       return;
     }
+    // PHAI mang theo session: thieu no thi guard "khong do vat qua hai phien app" o duoi so
+    // undefined === undefined, tuc luon dung, tuc guard do chua bao gio chay.
     merged.push({ kind: step.kind, label: step.label, detail: step.detail, note: step.note,
-      event: step.event, ts: step.ts, lastTs: step.ts, domIndex: step.domIndex,
+      event: step.event, ts: step.ts, lastTs: step.ts, domIndex: step.domIndex, session: step.session,
       indices: [step.domIndex], count: 1, ms: 0 });
   });
   return merged;
@@ -1289,7 +1291,20 @@ function buildScreenLoads(entries) {
     .sort((a, b) => b.worstMs - a.worstMs);
 }
 
-function buildJourney(entries) {
+// Thoi gian "o tren man" khong duoc tinh ca luc app nam duoi nen. Do that: mot man bao 7m08s trong khi
+// 3m52s trong so do la luc user roi han app — 88% con so la thu khong ai nhin. Tool da tinh san cac
+// khoang do cho the thong ke o Tong quan, chi la chua tru o day.
+function subtractBackground(fromTs, toTs, backgrounds) {
+  let overlap = 0;
+  backgrounds.forEach((gap) => {
+    const start = Math.max(fromTs, gap.downTs || gap.before.ts);
+    const end = Math.min(toTs, gap.upTs || gap.after.ts);
+    if (end > start) overlap += end - start;
+  });
+  return Math.max(0, toTs - fromTs - overlap);
+}
+
+function buildJourney(entries, gaps) {
   const raw = [];
   const counts = { screen: 0, tap: 0, saw: 0, move: 0, fail: 0 };
   const seenTraceIds = new Set();
@@ -1332,12 +1347,13 @@ function buildJourney(entries) {
   //     da bi tat, khong ai "o tren man" ca.
   //   - khoang cach qua MAX_PLAUSIBLE_DURATION_MS thi gan nhu chac chan la app bi day xuong nen chu
   //     khong phai nguoi dung ngoi nhin. Bo han (0 = khong biet) chu khong bao mot con so sai.
+  const backgrounds = (gaps || []).filter((gap) => gap.cause === 'background');
   let boundaryTs = steps.length ? steps[steps.length - 1].ts : null;
   let boundarySession = steps.length ? steps[steps.length - 1].session : null;
   for (let i = steps.length - 1; i >= 0; i -= 1) {
     const step = steps[i];
     if (step.kind === 'screen' && step.ts && boundaryTs && step.session === boundarySession) {
-      const span = Math.max(0, boundaryTs - step.ts);
+      const span = subtractBackground(step.ts, boundaryTs, backgrounds);
       step.ms = span <= MAX_PLAUSIBLE_DURATION_MS ? span : 0;
     }
     if (step.kind === 'screen' || step.kind === 'move') {
@@ -1492,7 +1508,7 @@ Model: claude-opus-5
 // Tach ra tu src/02-insights.js (946 dong). Cac file src/*.js duoc build.sh noi lai theo thu tu
 // ten file va boc trong MOT IIFE nen van dung chung scope — tach chi de doc.
 
-function deriveStats(entries) {
+function deriveStats(entries, gaps) {
   const levels = {};
   LEVEL_ORDER.forEach((level) => {
     levels[level] = 0;
@@ -1512,7 +1528,7 @@ function deriveStats(entries) {
     tags: countBy(entries, (entry) => entry.tag),
     flows: countBy(entries, (entry) => entry.flow),
     events: countBy(entries, (entry) => entry.event),
-    journey: buildJourney(entries),
+    journey: buildJourney(entries, gaps),
     traceIssues: buildTraceIssues(entries),
     configs: buildConfigs(entries, httpCalls),
     environment: buildEnvironment(entries, httpCalls),
@@ -1552,6 +1568,11 @@ const PANEL_CSS = [
   'background:none;color:inherit;font:inherit;line-height:1.45;letter-spacing:normal;text-transform:none;',
   'text-align:left;vertical-align:baseline;box-shadow:none;text-shadow:none;min-width:0;height:auto}',
   '#fll-root button,#fll-root input{outline:0;-webkit-appearance:none;appearance:none}',
+  /* Thuoc tinh hidden mac dinh la display:none cua trinh duyet, nhung MOI rule .fll-* co display deu
+     de len no (class thang selector thuoc tinh cua UA). Truoc day chi khai rieng cho .fll-bar va
+     .fll-ft nen o tim trong tung muc dat node.hidden=true ma hang van hien nguyen — .fll-rk,
+     .fll-call, .fll-slow, .fll-chip deu la display:flex/inline-flex. Khai mot lan o day cho ca panel. */
+  '#fll-root [hidden]{display:none!important}',
 
   '#fll-root{position:fixed;z-index:2147483000;top:0;left:0;width:0;height:0;',
   'font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;font-size:13px;font-weight:400;',
@@ -2503,9 +2524,12 @@ function summaryEnvironment(data) {
 // phan do, thay vi tuong la "da kiem, khong co van de".
 function summaryBlindSpots(data) {
   const notes = [];
-  if (data.duplicate && !lensState.filter.skipDuplicate) {
-    notes.push('log có ' + data.duplicate.length + ' dòng lặp lại nguyên xi — các con số dưới đây ' +
-      'đang tính cả hai lần');
+  // LUON nhac, chi doi cau chu. Truoc day cho bat "bo khoi lap" thi cau nay bien mat — nguoi doc ticket
+  // khong con mot dau hieu nao rang file goc bi noi doi.
+  if (data.duplicate) {
+    notes.push(lensState.filter.skipDuplicate
+      ? 'file gốc có ' + data.duplicate.length + ' dòng lặp lại nguyên xi; các con số trên đã trừ chúng ra'
+      : 'log có ' + data.duplicate.length + ' dòng lặp lại nguyên xi — các con số trên đang tính cả hai lần');
   }
   if (!data.traceIssues.available) {
     notes.push('không có dòng Grafana trace (máy gửi không bật Debug Tool) nên không có nguồn lỗi này');
@@ -2524,7 +2548,16 @@ function summaryBlindSpots(data) {
   return notes;
 }
 
-function buildTicketSummary(data) {
+// Ticket mo ta CA LOG chu khong mo ta lat cat nguoi doc dang mo — nhung "bo khoi lap" khong phai mot
+// lat cat, no la sua du lieu ve dung. Nen day la ngoai le duy nhat duoc loc.
+function summaryData(data) {
+  if (!data.duplicate || !lensState.filter.skipDuplicate) return data;
+  const entries = data.entries.filter((entry) => !entry.isDuplicate);
+  return Object.assign({}, data, deriveStats(entries, data.gaps), { entries });
+}
+
+function buildTicketSummary(fullData) {
+  const data = summaryData(fullData);
   const context = data.feedback || {};
   const groups = data.groups
     .filter((group) => group.level === 'ERROR' && !isGroupMuted(group) && !group.noiseLabel)
@@ -2582,7 +2615,7 @@ function buildTicketSummary(data) {
     out += '\n';
   }
 
-  const blind = summaryBlindSpots(data);
+  const blind = summaryBlindSpots(fullData);
   if (blind.length) {
     out += '### Log này không trả lời được\n';
     blind.forEach((note) => {
@@ -3008,7 +3041,7 @@ function buildView() {
     return;
   }
   const subset = lensState.lastFilterResult.visible.map((index) => data.entries[index]);
-  const stats = deriveStats(subset);
+  const stats = deriveStats(subset, data.gaps);
   const range = getVisibleTimeRange();
   // Khoang lang la thuoc tinh cua duong thoi gian, khong phai cua tap dong: chi cat theo cua so thoi gian.
   stats.gaps = data.gaps.filter((gap) => gap.before.ts >= range.from && gap.before.ts <= range.to);
@@ -3077,6 +3110,9 @@ function serializeFilter() {
     re: filter.useRegex ? 1 : 0,
     s: filter.session || 0,
   };
+  // Thieu cho nay thi: mau bo loc luu xong mo ta la "khong co dieu kien nao" va bam vao khong lam gi,
+  // con permalink gui cho dong nghiep se hien so gap doi ma khong co dau hieu gi.
+  if (filter.skipDuplicate) payload.d = 1;
   if (filter.timeFrom !== null || filter.timeTo !== null) {
     const from = filter.timeFrom !== null ? filter.timeFrom : data.firstTs;
     const to = filter.timeTo !== null ? filter.timeTo : data.lastTs;
@@ -3097,6 +3133,9 @@ function applyFilterPayload(payload) {
   filter.text = payload.q || '';
   filter.useRegex = payload.re !== 0;
   filter.session = payload.s || null;
+  // Phai dat lai CA khi payload khong co: ap mot mau khong co dieu kien nay ma van giu co dang bat thi
+  // ket qua khac han mo ta cua mau.
+  filter.skipDuplicate = payload.d === 1;
   filter.timeFrom = null;
   filter.timeTo = null;
   filter.hideOthers = true;
@@ -3191,6 +3230,7 @@ function describeTemplatePayload(payload) {
   const parts = [];
   if (payload.wLast) parts.push(formatWindowPresetLabel(payload.wLast));
   else if (payload.f >= 0 || payload.tt >= 0) parts.push('khoảng thời gian cố định');
+  if (payload.d) parts.push('bỏ khối lặp');
   if (payload.s) parts.push('phiên ' + payload.s);
   if (payload.lv && payload.lv.length) parts.push(payload.lv.join(' + '));
   if (payload.md && payload.md.length) {
@@ -4553,6 +4593,22 @@ const tabUiState = { issueLevel: 'all', issueQuery: '', httpOnlyBad: false, http
   issueLimit: ISSUE_PAGE_SIZE, templateName: '', tlKinds: new Set(), tlQuery: '',
   tlLimit: TIMELINE_PAGE_SIZE, showNoise: false };
 
+// Moi thu trong tabUiState deu la trang thai cua MOT feedback dang mo. Sang feedback khac ma con sot
+// thi danh sach da bi loc san bang cau tim cua log truoc, ma thanh bo loc khong he bao gi.
+function resetTabUiState() {
+  tabUiState.issueLevel = 'all';
+  tabUiState.issueQuery = '';
+  tabUiState.httpOnlyBad = false;
+  tabUiState.httpQuery = '';
+  tabUiState.moduleQuery = '';
+  tabUiState.issueLimit = ISSUE_PAGE_SIZE;
+  tabUiState.templateName = '';
+  tabUiState.tlKinds = new Set();
+  tabUiState.tlQuery = '';
+  tabUiState.tlLimit = TIMELINE_PAGE_SIZE;
+  tabUiState.showNoise = false;
+}
+
 function renderSparkline(indices, color) {
   const data = lensState.data;
   const span = Math.max(1, data.lastTs - data.firstTs);
@@ -4900,6 +4956,17 @@ function renderTraceFailSection(data) {
       '<div class="fll-hint" style="margin-bottom:4px">Log này <b>không có dòng Grafana trace nào</b>. ' +
       'Những dòng đó chỉ được ghi khi máy gửi feedback bật Debug Tool, nên vắng mặt là bình thường — ' +
       'chỉ là ở log này không có thêm nguồn lỗi nào ngoài các nhóm chữ ký bên dưới.</div>';
+  }
+  // Co dong Grafana nhung KHONG co dong nao di qua co debug (startTrace/traceFail) thi khong duoc noi
+  // "khong luong nao bao loi": nhung dong dang co chi la log thuong cua lop Grafana, con duong ghi
+  // traceFail chua bao gio duoc mo. README da canh bao dung nham available voi hasGated — va truoc day
+  // hasGated tinh ra roi khong renderer nao doc.
+  if (!trace.hasGated) {
+    return secTitle('Lỗi từ Grafana trace', 'không kết luận được', 'warn') +
+      '<div class="fll-hint" style="margin-bottom:4px">Log có <b>' + trace.lineCount + '</b> dòng của lớp ' +
+      'Grafana nhưng <b>không có <code>startTrace</code> hay <code>traceFail</code></b> nào — máy gửi ' +
+      'feedback không bật Debug Tool nên đường ghi trace chưa từng chạy. <b>Không kết luận được</b> là ' +
+      'không có lỗi; chỉ là log này không có nguồn đó.</div>';
   }
   if (!trace.fails.length) {
     return secTitle('Lỗi từ Grafana trace', 'không lỗi', 'ok') +
@@ -5786,6 +5853,14 @@ function detachLens() {
   lensState.filter.timeFrom = null;
   lensState.filter.timeTo = null;
   lensState.filter.session = null;
+  lensState.filter.skipDuplicate = false;
+  lensState.mapZoom = null;
+  lensState.mapZoomStack = [];
+  // tabUiState cung la trang thai cua MOT feedback: o tim nhom loi, o tim HTTP, chip loai moc, che do
+  // xem nhom da tat tieng. De sot thi sang feedback sau nguoi dung thay danh sach da bi loc san bang
+  // mot cau tim cua log truoc — cung mot loai loi voi viec de sot bo loc.
+  resetTabUiState();
+  lensState.isShowingMuted = false;
   lensState.isDismissed = false;
   lastRowCount = 0;
 }
@@ -5827,7 +5902,8 @@ function showPill() {
   lensState.wasPanelOpen = false;
   root.innerHTML = '<style>' + PANEL_CSS + '</style>' +
     '<div class="fll-pill" data-act="open"><span style="color:var(--acc)">◆</span> Log Lens · <b>' +
-    countUnmutedErrorGroups(getView()) + '</b> nhóm lỗi · ' + getView().gaps.length + ' khoảng lặng' +
+    countUnmutedErrorGroups(getView()) + '</b> nhóm lỗi · ' +
+    getView().gaps.filter((gap) => gap.cause !== 'background').length + ' khoảng lặng' +
     (facetCount ? ' · <b style="color:var(--acc)">' + facetCount + ' bộ lọc</b>' : '') + '</div>';
 }
 

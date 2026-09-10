@@ -255,8 +255,10 @@ function mergeAdjacentJourneySteps(steps) {
       last.indices.push(step.domIndex);
       return;
     }
+    // PHAI mang theo session: thieu no thi guard "khong do vat qua hai phien app" o duoi so
+    // undefined === undefined, tuc luon dung, tuc guard do chua bao gio chay.
     merged.push({ kind: step.kind, label: step.label, detail: step.detail, note: step.note,
-      event: step.event, ts: step.ts, lastTs: step.ts, domIndex: step.domIndex,
+      event: step.event, ts: step.ts, lastTs: step.ts, domIndex: step.domIndex, session: step.session,
       indices: [step.domIndex], count: 1, ms: 0 });
   });
   return merged;
@@ -295,7 +297,20 @@ function buildScreenLoads(entries) {
     .sort((a, b) => b.worstMs - a.worstMs);
 }
 
-function buildJourney(entries) {
+// Thoi gian "o tren man" khong duoc tinh ca luc app nam duoi nen. Do that: mot man bao 7m08s trong khi
+// 3m52s trong so do la luc user roi han app — 88% con so la thu khong ai nhin. Tool da tinh san cac
+// khoang do cho the thong ke o Tong quan, chi la chua tru o day.
+function subtractBackground(fromTs, toTs, backgrounds) {
+  let overlap = 0;
+  backgrounds.forEach((gap) => {
+    const start = Math.max(fromTs, gap.downTs || gap.before.ts);
+    const end = Math.min(toTs, gap.upTs || gap.after.ts);
+    if (end > start) overlap += end - start;
+  });
+  return Math.max(0, toTs - fromTs - overlap);
+}
+
+function buildJourney(entries, gaps) {
   const raw = [];
   const counts = { screen: 0, tap: 0, saw: 0, move: 0, fail: 0 };
   const seenTraceIds = new Set();
@@ -338,12 +353,13 @@ function buildJourney(entries) {
   //     da bi tat, khong ai "o tren man" ca.
   //   - khoang cach qua MAX_PLAUSIBLE_DURATION_MS thi gan nhu chac chan la app bi day xuong nen chu
   //     khong phai nguoi dung ngoi nhin. Bo han (0 = khong biet) chu khong bao mot con so sai.
+  const backgrounds = (gaps || []).filter((gap) => gap.cause === 'background');
   let boundaryTs = steps.length ? steps[steps.length - 1].ts : null;
   let boundarySession = steps.length ? steps[steps.length - 1].session : null;
   for (let i = steps.length - 1; i >= 0; i -= 1) {
     const step = steps[i];
     if (step.kind === 'screen' && step.ts && boundaryTs && step.session === boundarySession) {
-      const span = Math.max(0, boundaryTs - step.ts);
+      const span = subtractBackground(step.ts, boundaryTs, backgrounds);
       step.ms = span <= MAX_PLAUSIBLE_DURATION_MS ? span : 0;
     }
     if (step.kind === 'screen' || step.kind === 'move') {

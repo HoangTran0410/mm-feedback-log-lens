@@ -18,6 +18,22 @@ const tabUiState = { issueLevel: 'all', issueQuery: '', httpOnlyBad: false, http
   issueLimit: ISSUE_PAGE_SIZE, templateName: '', tlKinds: new Set(), tlQuery: '',
   tlLimit: TIMELINE_PAGE_SIZE, showNoise: false };
 
+// Moi thu trong tabUiState deu la trang thai cua MOT feedback dang mo. Sang feedback khac ma con sot
+// thi danh sach da bi loc san bang cau tim cua log truoc, ma thanh bo loc khong he bao gi.
+function resetTabUiState() {
+  tabUiState.issueLevel = 'all';
+  tabUiState.issueQuery = '';
+  tabUiState.httpOnlyBad = false;
+  tabUiState.httpQuery = '';
+  tabUiState.moduleQuery = '';
+  tabUiState.issueLimit = ISSUE_PAGE_SIZE;
+  tabUiState.templateName = '';
+  tabUiState.tlKinds = new Set();
+  tabUiState.tlQuery = '';
+  tabUiState.tlLimit = TIMELINE_PAGE_SIZE;
+  tabUiState.showNoise = false;
+}
+
 function renderSparkline(indices, color) {
   const data = lensState.data;
   const span = Math.max(1, data.lastTs - data.firstTs);
@@ -365,6 +381,17 @@ function renderTraceFailSection(data) {
       '<div class="fll-hint" style="margin-bottom:4px">Log này <b>không có dòng Grafana trace nào</b>. ' +
       'Những dòng đó chỉ được ghi khi máy gửi feedback bật Debug Tool, nên vắng mặt là bình thường — ' +
       'chỉ là ở log này không có thêm nguồn lỗi nào ngoài các nhóm chữ ký bên dưới.</div>';
+  }
+  // Co dong Grafana nhung KHONG co dong nao di qua co debug (startTrace/traceFail) thi khong duoc noi
+  // "khong luong nao bao loi": nhung dong dang co chi la log thuong cua lop Grafana, con duong ghi
+  // traceFail chua bao gio duoc mo. README da canh bao dung nham available voi hasGated — va truoc day
+  // hasGated tinh ra roi khong renderer nao doc.
+  if (!trace.hasGated) {
+    return secTitle('Lỗi từ Grafana trace', 'không kết luận được', 'warn') +
+      '<div class="fll-hint" style="margin-bottom:4px">Log có <b>' + trace.lineCount + '</b> dòng của lớp ' +
+      'Grafana nhưng <b>không có <code>startTrace</code> hay <code>traceFail</code></b> nào — máy gửi ' +
+      'feedback không bật Debug Tool nên đường ghi trace chưa từng chạy. <b>Không kết luận được</b> là ' +
+      'không có lỗi; chỉ là log này không có nguồn đó.</div>';
   }
   if (!trace.fails.length) {
     return secTitle('Lỗi từ Grafana trace', 'không lỗi', 'ok') +

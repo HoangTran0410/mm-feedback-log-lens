@@ -258,6 +258,14 @@ function detachLens() {
   lensState.filter.timeFrom = null;
   lensState.filter.timeTo = null;
   lensState.filter.session = null;
+  lensState.filter.skipDuplicate = false;
+  lensState.mapZoom = null;
+  lensState.mapZoomStack = [];
+  // tabUiState cung la trang thai cua MOT feedback: o tim nhom loi, o tim HTTP, chip loai moc, che do
+  // xem nhom da tat tieng. De sot thi sang feedback sau nguoi dung thay danh sach da bi loc san bang
+  // mot cau tim cua log truoc — cung mot loai loi voi viec de sot bo loc.
+  resetTabUiState();
+  lensState.isShowingMuted = false;
   lensState.isDismissed = false;
   lastRowCount = 0;
 }
@@ -299,7 +307,8 @@ function showPill() {
   lensState.wasPanelOpen = false;
   root.innerHTML = '<style>' + PANEL_CSS + '</style>' +
     '<div class="fll-pill" data-act="open"><span style="color:var(--acc)">◆</span> Log Lens · <b>' +
-    countUnmutedErrorGroups(getView()) + '</b> nhóm lỗi · ' + getView().gaps.length + ' khoảng lặng' +
+    countUnmutedErrorGroups(getView()) + '</b> nhóm lỗi · ' +
+    getView().gaps.filter((gap) => gap.cause !== 'background').length + ' khoảng lặng' +
     (facetCount ? ' · <b style="color:var(--acc)">' + facetCount + ' bộ lọc</b>' : '') + '</div>';
 }
 

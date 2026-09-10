@@ -10,7 +10,7 @@ Model: claude-opus-5
 // Tach ra tu src/02-insights.js (946 dong). Cac file src/*.js duoc build.sh noi lai theo thu tu
 // ten file va boc trong MOT IIFE nen van dung chung scope — tach chi de doc.
 
-function deriveStats(entries) {
+function deriveStats(entries, gaps) {
   const levels = {};
   LEVEL_ORDER.forEach((level) => {
     levels[level] = 0;
@@ -30,7 +30,7 @@ function deriveStats(entries) {
     tags: countBy(entries, (entry) => entry.tag),
     flows: countBy(entries, (entry) => entry.flow),
     events: countBy(entries, (entry) => entry.event),
-    journey: buildJourney(entries),
+    journey: buildJourney(entries, gaps),
     traceIssues: buildTraceIssues(entries),
     configs: buildConfigs(entries, httpCalls),
     environment: buildEnvironment(entries, httpCalls),

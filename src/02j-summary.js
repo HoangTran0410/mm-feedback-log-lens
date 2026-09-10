@@ -44,9 +44,12 @@ function summaryEnvironment(data) {
 // phan do, thay vi tuong la "da kiem, khong co van de".
 function summaryBlindSpots(data) {
   const notes = [];
-  if (data.duplicate && !lensState.filter.skipDuplicate) {
-    notes.push('log có ' + data.duplicate.length + ' dòng lặp lại nguyên xi — các con số dưới đây ' +
-      'đang tính cả hai lần');
+  // LUON nhac, chi doi cau chu. Truoc day cho bat "bo khoi lap" thi cau nay bien mat — nguoi doc ticket
+  // khong con mot dau hieu nao rang file goc bi noi doi.
+  if (data.duplicate) {
+    notes.push(lensState.filter.skipDuplicate
+      ? 'file gốc có ' + data.duplicate.length + ' dòng lặp lại nguyên xi; các con số trên đã trừ chúng ra'
+      : 'log có ' + data.duplicate.length + ' dòng lặp lại nguyên xi — các con số trên đang tính cả hai lần');
   }
   if (!data.traceIssues.available) {
     notes.push('không có dòng Grafana trace (máy gửi không bật Debug Tool) nên không có nguồn lỗi này');
@@ -65,7 +68,16 @@ function summaryBlindSpots(data) {
   return notes;
 }
 
-function buildTicketSummary(data) {
+// Ticket mo ta CA LOG chu khong mo ta lat cat nguoi doc dang mo — nhung "bo khoi lap" khong phai mot
+// lat cat, no la sua du lieu ve dung. Nen day la ngoai le duy nhat duoc loc.
+function summaryData(data) {
+  if (!data.duplicate || !lensState.filter.skipDuplicate) return data;
+  const entries = data.entries.filter((entry) => !entry.isDuplicate);
+  return Object.assign({}, data, deriveStats(entries, data.gaps), { entries });
+}
+
+function buildTicketSummary(fullData) {
+  const data = summaryData(fullData);
   const context = data.feedback || {};
   const groups = data.groups
     .filter((group) => group.level === 'ERROR' && !isGroupMuted(group) && !group.noiseLabel)
@@ -123,7 +135,7 @@ function buildTicketSummary(data) {
     out += '\n';
   }
 
-  const blind = summaryBlindSpots(data);
+  const blind = summaryBlindSpots(fullData);
   if (blind.length) {
     out += '### Log này không trả lời được\n';
     blind.forEach((note) => {
