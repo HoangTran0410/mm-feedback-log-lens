@@ -69,7 +69,8 @@ function installFakeDom() {
 function loadLens() {
   const src = fs.readFileSync(path.join(REPO, 'extension/lens.js'), 'utf8');
   const exportLine = 'globalThis.__LENS={analyzeLog,attachInsights,deriveStats,buildJourney,' +
-    'parseKeyValueMap,renderSummaryTab,renderIssuesTab,renderHttpTab,renderSlowTab,renderFilterTab,' +
+    'parseKeyValueMap,renderSummaryTab,renderIssuesTab,renderHttpSection,renderSlowSections,' +
+    'renderFilterTab,' +
     'renderTimelineTab,renderConfigTab,buildConfigs,tabUiState,lensState,TAB_DEFS,TIMELINE_GROUPS,' +
     'applyFilter,aimIndicesFor,sectionKey,isSectionOpen,setSectionOpen,loadOpenSections};';
   const wired = src.replace(/\n\}\)\(\);\s*$/, '\n' + exportLine + '\n})();\n');
@@ -336,7 +337,7 @@ check('thoi gian tai man: lay so co san, khong lay state=interaction', () => {
 });
 
 check('tab Cham hien muc man tai lau', () => {
-  const html = L.renderSlowTab();
+  const html = L.renderSlowSections();
   ok(html.indexOf('Màn tải lâu nhất') >= 0, 'phai co muc');
   ok(html.indexOf('ManHinhCham') >= 0, 'phai hien ten man');
 });
@@ -383,9 +384,8 @@ check('phan biet co traceFail that hay chi co dong khong bi cat', () => {
 
 function renderAll(label) {
   L.TAB_DEFS.forEach((tab) => {
-    const render = { sum: L.renderSummaryTab, iss: L.renderIssuesTab, http: L.renderHttpTab,
-      slow: L.renderSlowTab, cfg: L.renderConfigTab, flt: L.renderFilterTab,
-      tl: L.renderTimelineTab }[tab.id];
+    const render = { sum: L.renderSummaryTab, iss: L.renderIssuesTab, cfg: L.renderConfigTab,
+      flt: L.renderFilterTab, tl: L.renderTimelineTab }[tab.id];
     check('render tab ' + tab.label + ' — ' + label, () => {
       const html = render();
       const opens = (html.match(/<div/g) || []).length;
@@ -461,6 +461,9 @@ check('cau hinh: tab tu an khi log khong co cau hinh nao', () => {
   ok(tab && typeof tab.hide === 'function', 'tab Cau hinh phai co ham hide');
   eq(tab.hide(data), false, 'log fixture co cau hinh nen KHONG duoc an');
   eq(tab.hide({ configs: L.buildConfigs([], []) }), true, 'log rong thi phai an');
+  // Ham nay phai duoc goi voi data DAY DU. Goi voi view dang loc thi loc hep lai la tab bien mat
+  // giua chung, keo nguoi dung ve tab khac ma khong hieu tai sao.
+  ok(!tab.hide(L.lensState.data), 'data day du van con cau hinh');
 });
 
 /* --------------------------------------------- mui ten tro len minimap + muc dong/mo */
@@ -504,6 +507,44 @@ check('muc dong/mo: trung ten o hai tab van la hai muc rieng', () => {
   eq(L.isSectionOpen('flt', 'Phiên app'), true, 'tab Loc');
   eq(L.isSectionOpen('sum', 'Phiên app'), false, 'tab Tong quan phai van dong');
   L.setSectionOpen(L.sectionKey('flt', 'Phiên app'), false);
+});
+
+/* ------------------------------------------- tab da gop + badge tren tieu de muc */
+
+check('gop tab: chi con nam tab, khong con http/slow', () => {
+  const ids = L.TAB_DEFS.map((tab) => tab.id).join(',');
+  eq(ids, 'sum,iss,cfg,flt,tl', 'danh sach tab');
+});
+
+check('gop tab: muc cua Cham nam trong Tong quan, muc HTTP nam trong Van de', () => {
+  const sum = L.renderSummaryTab();
+  ok(sum.indexOf('data-sec="Mọi con số thời lượng"') >= 0, 'Tong quan phai co muc thoi luong');
+  const iss = L.renderIssuesTab();
+  ok(iss.indexOf('data-sec="Call HTTP"') >= 0, 'Van de phai co muc Call HTTP');
+  ok(iss.indexOf('id="fll-httpq"') >= 0, 'o tim HTTP phai di theo');
+});
+
+// data-sec la khoa nho trang thai dong/mo. Badge doi theo tung log, lot vao khoa thi mo mot muc o log
+// nay sang log khac lai thay dong — nen badge phai nam NGOAI gia tri data-sec.
+check('badge: khong duoc lot vao khoa nho trang thai', () => {
+  const cfg = L.renderConfigTab();
+  ok(cfg.indexOf('data-sec="A/B testing"') >= 0, 'ten muc phai sach, khong kem so');
+  ok(cfg.indexOf('data-sec="A/B testing — ') < 0, 'so khong duoc nam trong data-sec');
+});
+
+check('badge: to accent khi muc do dang co bo loc bat', () => {
+  const before = L.lensState.filter.text;
+  L.lensState.filter.text = 'bia';
+  const html = L.renderFilterTab();
+  ok(html.indexOf('fll-secbdg act') >= 0, 'phai co it nhat mot badge accent');
+  ok(html.indexOf('/bia/') >= 0, 'badge phai hien chuoi dang tim');
+  L.lensState.filter.text = before;
+  ok(L.renderFilterTab().indexOf('chưa đặt') >= 0, 'bo loc rong thi badge bao chua dat');
+});
+
+check('tab Dien bien: co chip loc theo phien app', () => {
+  ok(L.renderTimelineTab().indexOf('data-act="setSession"') >= 0,
+    'log fixture co 2 phien nen phai co chip chon phien');
 });
 
 renderAll('log day du');

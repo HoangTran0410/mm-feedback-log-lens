@@ -78,7 +78,9 @@ function applyPermalinkFromHash() {
     return false;
   }
   applyFilterPayload(payload);
-  lensState.tab = payload.t || 'sum';
+  // Link cu co the ghi t='http' hoac t='slow' — hai tab da gop di. Khong chan thi renderTab roi vao
+  // nhanh else va ve tab Dien bien trong khi thanh tab khong co nut nao sang.
+  lensState.tab = TAB_DEFS.some((tab) => tab.id === payload.t) ? payload.t : 'sum';
   applyFilter(false);
   if (payload.ln) {
     const target = lensState.data.entries.find((entry) => entry.lineNo === payload.ln);

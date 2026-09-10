@@ -29,10 +29,10 @@ bản build thì ngược lại: khối ngay dưới do `build.sh` ghi lại m�
 
 | | |
 |---|---|
-| `extension/lens.js` | **231 KB** (236,346 bytes) |
-| Nguồn | 5,220 dòng trong 20 file `src/` |
+| `extension/lens.js` | **235 KB** (241,020 bytes) |
+| Nguồn | 5,291 dòng trong 20 file `src/` |
 | Dependency lúc chạy | không có |
-| Test | 82 phép thử, `node test/run.js` |
+| Test | 79 phép thử, `node test/run.js` |
 
 <!-- /build-stats -->
 
@@ -53,19 +53,27 @@ bản build thì ngược lại: khối ngay dưới do `build.sh` ghi lại m�
 
 | Tab | Trả lời câu hỏi |
 |---|---|
-| **Tổng quan** | User gặp chuyện gì, lúc nào, ở màn nào? Log có gì bất thường? |
-| **Vấn đề** | Thật sự có mấy loại lỗi khác nhau? Mỗi loại bao nhiêu lần, lúc nào? Có sự cố hạ tầng nào đứng sau không? |
-| **HTTP** | Call nào fail, `errorCode` bao nhiêu, call nào không có response? |
-| **Chậm** | Thao tác nào tốn thời gian nhất? |
+| **Tổng quan** | User gặp chuyện gì, lúc nào, ở màn nào? Cái gì tốn thời gian nhất? Log có gì bất thường? |
+| **Vấn đề** | Thật sự có mấy loại lỗi khác nhau? Call nào fail, `errorCode` bao nhiêu, call nào không có response? Có sự cố hạ tầng nào đứng sau không? |
 | **Cấu hình** | Lúc đó máy này chạy với cấu hình gì — nhánh A/B nào, cờ nào bật, BE và webadmin đẩy xuống cái gì. Tab tự ẩn khi log không có dòng cấu hình nào. |
 | **Lọc** | Chỉ hiện dòng của module X / mức ERROR / phiên 2 / khớp regex. |
-| **Diễn biến** | Một dòng thời gian: user bấm gì, thấy popup gì, app đứng im lúc nào, lỗi nổ ở đâu. |
+| **Diễn biến** | Một dòng thời gian: user bấm gì, thấy popup gì, app đứng im lúc nào, lỗi nổ ở đâu. Lọc theo phiên app ngay tại đây. |
 
-**Mọi mục đều thu lại sẵn.** Bảy tab, mỗi tab vài mục — mở tab ra là một bức tường. Nay mỗi tiêu đề
-mục là một nút: bấm để mở, bấm lại để thu, và trạng thái nhớ qua `localStorage` (`fll.openSections`)
-theo từng tab riêng — hai tab có mục trùng tên vẫn là hai mục khác nhau. Mặc định là **thu hết**, trừ
-khi đi vào bằng một lối tắt: bấm thẻ "phiên app" ở Tổng quan hay nút "Xem tất cả N nhóm lỗi" thì mục
-đích đến tự mở ra, vì cuộn tới một mục đang đóng thì chẳng thấy gì.
+Từng có bảy tab. **HTTP** gộp vào **Vấn đề** ("call nào hỏng" và "lỗi gì đã nổ" là cùng một câu hỏi,
+trước phải mở hai tab mới ghép lại được), **Chậm** gộp vào **Tổng quan** (ba mục của nó cũng là "số
+rút từ log" y như mọi mục khác ở đó). Từ khi mỗi mục tự thu lại được thì một tab nhiều mục không còn
+đắt chỗ nữa — mà hai tab cùng trả lời một câu hỏi thì luôn đắt.
+
+**Mọi mục đều thu lại sẵn, và mỗi mục có một badge.** Mở tab ra từng là một bức tường. Nay mỗi tiêu đề
+mục là một nút: bấm để mở, bấm lại để thu, trạng thái nhớ qua `localStorage` (`fll.openSections`) theo
+từng tab riêng — hai tab có mục trùng tên vẫn là hai mục khác nhau. Mặc định là **thu hết**, trừ khi đi
+vào bằng một lối tắt: bấm thẻ "phiên app", nút "Xem tất cả N nhóm lỗi" hay thẻ "HTTP bất thường" thì
+mục đích đến tự mở ra, vì cuộn tới một mục đang đóng thì chẳng thấy gì.
+
+Badge là **thứ duy nhất nhìn thấy khi mục đang thu**, nên nó phải tự trả lời "trong này có gì":
+`Lỗi nổi bật · 10`, `Call HTTP · 8/58 bất thường`, `Phiên app · 9 phiên`. Ở tab Lọc badge còn là **trạng
+thái bộ lọc**, tô accent khi đang bật: `Mức độ · ERROR`, `Tìm trong nội dung · /timeout|retry/`,
+`Kết quả · 3/4085`. Nhờ vậy thu hết mục lại mà vẫn biết mình đang lọc những gì, không phải mở từng cái ra dò.
 
 **Rê chuột lên một hàng bất kỳ → mũi tên chỉ thẳng lên vị trí của nó trên minimap.** Hàng nào cũng có
 giờ và số dòng, nhưng đó là *con số*: phải tự dịch "10:02:50" ra "khoảng giữa log" mới biết nó nằm đâu
@@ -517,6 +525,13 @@ Panel từng bị rối vì mấy thói quen dưới đây, sửa rồi thì gi�
   tab cần **507px** trong khi chỗ chỉ có **478px** — tab cuối bị cắt mất chữ mà không có dấu hiệu gì
   là còn cuộn được. `gap:2px` + padding 5px lại còn **473px**. Vẫn giữ `overflow-x:auto` cho trường
   hợp người dùng kéo panel hẹp hơn.
+- **Badge phải nằm NGOÀI khoá nhớ trạng thái.** `collapsifySections()` lấy `data-sec` làm khoá, không
+  lấy `textContent` — trong `textContent` có cả badge (`"Phiên app9 phiên"`), mà badge đổi theo từng
+  log, lấy nó vào khoá thì mở một mục ở log này, sang log khác lại thấy đóng. Mọi tiêu đề mục đi qua
+  `secTitle(title, badge, tone)`, không viết tay `<div class="fll-sec">` nữa.
+- **`hide()` của tab phải đọc data ĐẦY ĐỦ, không phải view đang lọc.** Lọc xuống còn 3 dòng thì trong
+  tập đó không còn dòng cấu hình nào, và tab Cấu hình **biến mất giữa chừng** — thấy khi chụp màn hình.
+  Tab có hay không là tính chất của cả log; nội dung bên trong mới chạy theo bộ lọc.
 - **Lề trên của mục chuyển từ `.fll-sec` sang khối bao ngoài.** `collapsifySections()` bọc mỗi mục vào
   một `.fll-secw` sau khi vẽ, nên `.fll-sec` luôn là con đầu tiên của khối — rule
   `.fll-sec:first-child{margin-top:0}` sẽ ăn mất lề của **mọi** mục. Lề 22px nay nằm ở `.fll-secw`.

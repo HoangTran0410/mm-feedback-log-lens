@@ -52,6 +52,17 @@ function statCard(value, label, color, attrs, total) {
     value + suffix + '</b><span>' + escapeHtml(label) + '</span></button>';
 }
 
+// Tieu de mot muc. data-sec giu ten GOC: collapsifySections() lay thuoc tinh nay lam khoa nho trang
+// thai dong/mo, khong duoc lay textContent vi trong do co ca badge — badge doi theo tung log, lay no
+// vao khoa thi mo mot muc o log nay, sang log khac lai thay muc do dang dong.
+// Badge la thu duy nhat nhin thay khi muc dang thu lai, nen no phai tra loi duoc "trong nay co gi".
+// tone 'act' = dang co bo loc bat, dung mau accent giong chip bo loc.
+function secTitle(title, badge, tone) {
+  const chip = badge == null || badge === '' ? ''
+    : '<i class="fll-secbdg' + (tone ? ' ' + tone : '') + '">' + escapeHtml(String(badge)) + '</i>';
+  return '<div class="fll-sec" data-sec="' + escapeHtml(title) + '">' + escapeHtml(title) + chip + '</div>';
+}
+
 function renderWindowChips(includeAllChip) {
   const choices = includeAllChip ? TIME_WINDOW_CHOICES.concat([0]) : TIME_WINDOW_CHOICES;
   return '<div class="fll-row">' +
@@ -121,7 +132,7 @@ function renderSummaryTab() {
       'thứ tự dòng không phải thứ tự thời gian.</div></div>';
   }
 
-  html += '<div class="fll-sec">Tỷ lệ mức độ</div>';
+  html += secTitle('Tỷ lệ mức độ', data.levels.ERROR + ' lỗi', data.levels.ERROR ? 'err' : '');
   const levelTotal = Math.max(1, LEVEL_ORDER.reduce((sum, level) => sum + data.levels[level], 0));
   html += '<div class="fll-lvbar">' + LEVEL_ORDER
     .map((level) => '<i style="width:' + ((data.levels[level] / levelTotal) * 100).toFixed(2) + '%;background:' +
@@ -134,7 +145,7 @@ function renderSummaryTab() {
     .join('') + '</div>';
 
   if (errorGroups.length) {
-    html += '<div class="fll-sec">Lỗi nổi bật</div>' +
+    html += secTitle('Lỗi nổi bật', errorGroups.length, 'err') +
       errorGroups.slice(0, 3).map((group) => renderGroupCard(group, data.groups.indexOf(group))).join('') +
       '<button class="fll-btn" data-act="gotoIssues" style="width:100%">Xem tất cả ' + data.groups.length +
       ' nhóm vấn đề</button>';
@@ -143,18 +154,21 @@ function renderSummaryTab() {
   // Popup/bottom sheet dat gia nhat nen nam ngay tab dau, khong phai giau sau vai lan bam:
   // chung deu ghi o muc INFO nen phan "Loi noi bat" ngay tren khong bao gio nhac toi.
   if (data.journey.saw.length) {
-    html += '<div class="fll-sec">User đã nhìn thấy gì</div>' +
+    html += secTitle('User đã nhìn thấy gì', data.journey.saw.length, 'warn') +
       '<div class="fll-hint" style="margin-bottom:8px">Popup và bottom sheet thật sự hiện lên màn hình. ' +
       'Tất cả đều ghi ở mức <b>INFO</b> nên tab Vấn đề không đếm chúng.</div>' +
       data.journey.saw.map(renderSawCard).join('');
   }
   if (data.journey.taps.length) {
-    html += '<div class="fll-sec">Chạm nhiều nhất</div>' + renderRankList(data.journey.taps, 'data-jtap', 6);
+    html += secTitle('Chạm nhiều nhất', data.journey.taps.length) +
+      renderRankList(data.journey.taps, 'data-jtap', 6);
   }
 
-  html += '<div class="fll-sec">Module nói nhiều nhất</div>' + renderRankList(data.modules, 'data-module', 8);
+  html += renderSlowSections();
+  html += secTitle('Module nói nhiều nhất', data.modules.length) +
+    renderRankList(data.modules, 'data-module', 8);
   if (data.events.length) {
-    html += '<div class="fll-sec">Tracker event</div>' + renderRankList(data.events, 'data-event', 6) +
+    html += secTitle('Tracker event', data.events.length) + renderRankList(data.events, 'data-event', 6) +
       '<div class="fll-hint" style="margin-top:6px">Tên event thô, kể cả loại chưa dựng thành thao tác ' +
       'được — bấm để lọc thẳng ra những dòng đó.</div>';
   }
@@ -215,7 +229,9 @@ function renderIssuesTab() {
     counts[group.level] += 1;
   });
 
-  return '<div class="fll-row" style="margin-bottom:8px">' +
+  return renderTraceFailSection(data) +
+    secTitle('Nhóm theo chữ ký dòng log', counts.all, counts.ERROR ? 'err' : '') +
+    '<div class="fll-row" style="margin-bottom:8px">' +
     ['all', 'ERROR', 'WARNING']
       .map((key) => '<button class="fll-chip' + (tabUiState.issueLevel === key ? ' on' : '') +
         '" data-act="issueLevel" data-value="' + key + '">' + (key === 'all' ? 'Tất cả' : key) +
@@ -228,10 +244,9 @@ function renderIssuesTab() {
     escapeHtml(tabUiState.issueQuery) + '">' +
     '<div class="fll-hint" style="margin:6px 0 10px">Bấm một nhóm để nhảy đến, rồi <b>n</b> / <b>p</b> đi tiếp. ' +
     'Bấm &#128263; để tắt tiếng chữ ký nhiễu — nhớ luôn cho các feedback mở sau này.</div>' +
-    renderTraceFailSection(data) +
-    '<div class="fll-sec">Nhóm theo chữ ký dòng log</div>' +
     '<div id="fll-issue-list">' + renderIssueList() + '</div>' +
-    renderTelemetryNoiseSection(data);
+    renderTelemetryNoiseSection(data) +
+    renderHttpSection();
 }
 
 // Do tren 50 feedback PRODUCTION that: 1267/2488 dong ERROR (51%) khong phai loi user gap ma la loi
@@ -252,7 +267,7 @@ function renderTelemetryNoiseSection(data) {
     .sort()
     .join(' · ');
 
-  return '<div class="fll-sec">Nhiễu từ hệ thống đo lường</div>' +
+  return secTitle('Nhiễu từ hệ thống đo lường', noise.length) +
     '<div class="fll-note" style="background:rgba(88,196,255,.08);border-color:rgba(88,196,255,.28);' +
     'color:#bfe4ff"><span>&#9432;</span><div>' +
     '<b>' + lineCount + ' dòng</b> trong ' + noise.length + ' nhóm là lỗi của <b>chính lớp đo lường</b>, ' +
@@ -272,18 +287,18 @@ function renderTelemetryNoiseSection(data) {
 function renderTraceFailSection(data) {
   const trace = data.traceIssues;
   if (!trace.available) {
-    return '<div class="fll-sec">Lỗi từ Grafana trace</div>' +
+    return secTitle('Lỗi từ Grafana trace', 'không có dòng nào') +
       '<div class="fll-hint" style="margin-bottom:4px">Log này <b>không có dòng Grafana trace nào</b>. ' +
       'Những dòng đó chỉ được ghi khi máy gửi feedback bật Debug Tool, nên vắng mặt là bình thường — ' +
       'chỉ là ở log này không có thêm nguồn lỗi nào ngoài các nhóm chữ ký bên dưới.</div>';
   }
   if (!trace.fails.length) {
-    return '<div class="fll-sec">Lỗi từ Grafana trace</div>' +
+    return secTitle('Lỗi từ Grafana trace', 'không lỗi', 'ok') +
       '<div class="fll-hint" style="margin-bottom:4px">Có <b>' + trace.lineCount + '</b> dòng Grafana trace ' +
       'nhưng <b>không có <code>traceFail</code></b> nào — theo Grafana thì không luồng nào báo lỗi.</div>';
   }
 
-  return '<div class="fll-sec">Lỗi từ Grafana trace</div>' +
+  return secTitle('Lỗi từ Grafana trace', trace.fails.length, 'err') +
     '<div class="fll-hint" style="margin-bottom:8px">Đọc từ <code>traceFail</code> — mang sẵn ' +
     '<code>errorCode</code> và <code>errorMessage</code>, mô tả lỗi rõ hơn hầu hết dòng ERROR trong log, ' +
     'nhưng ghi ở mức <b>INFO</b> nên các nhóm chữ ký bên dưới không đếm chúng. Gom theo ' +
@@ -373,9 +388,14 @@ function renderHttpList() {
   return count + calls.map((call) => renderHttpCall(call, data)).join('');
 }
 
-function renderHttpTab() {
+// Khong con la mot tab: "call nao hong" va "loi gi da no" la cung mot cau hoi, truoc phai mo hai tab
+// moi ghep lai duoc. Nay la hai muc canh nhau trong tab Van de.
+function renderHttpSection() {
   const data = getView();
-  return '<div class="fll-row" style="margin-bottom:9px">' +
+  return secTitle('Call HTTP', data.badHttpCalls.length
+    ? data.badHttpCalls.length + '/' + data.httpCalls.length + ' bất thường'
+    : data.httpCalls.length, data.badHttpCalls.length ? 'err' : '') +
+    '<div class="fll-row" style="margin-bottom:9px">' +
     '<button class="fll-chip' + (tabUiState.httpOnlyBad ? '' : ' on') + '" data-act="httpAll">Tất cả <em>' +
     data.httpCalls.length + '</em></button>' +
     '<button class="fll-chip' + (tabUiState.httpOnlyBad ? ' on' : '') + '" data-act="httpBad">Bất thường <em>' +
@@ -395,7 +415,7 @@ function renderHttpTab() {
 function renderTrackerFailSection(data) {
   const journey = data.journey;
   if (!journey.fails.length) return '';
-  return '<div class="fll-sec">Call BE fail — theo tracker</div>' +
+  return secTitle('Call BE fail — theo tracker', journey.fails.length, 'err') +
     '<div class="fll-hint" style="margin-bottom:8px">Lấy từ <code>ops_receive_be</code> có ' +
     '<code>status=fail</code>. Đây là nguồn khác với bảng trên (bảng đó đọc dòng <code>[Method:]</code>) ' +
     'nên hai bên lệch nhau là bình thường: log này có <b>' + journey.apiTotal + '</b> call theo tracker ' +
@@ -411,7 +431,7 @@ function renderScreenLoadSection(view) {
   const rows = view.journey.screenLoads;
   if (!rows.length) return '';
   const peak = rows[0].worstMs;
-  return '<div class="fll-sec">Màn tải lâu nhất</div>' +
+  return secTitle('Màn tải lâu nhất', rows.length) +
     '<div class="fll-hint" style="margin-bottom:8px">Số <b>có sẵn trong log</b> — trường ' +
     '<code>duration</code> của <code>auto_screen_displayed</code> (lúc <code>state=load</code>) và ' +
     '<code>auto_load_progress_tracked</code>. Hiện lần chậm nhất; ngoặc là số lần đo và trung bình.</div>' +
@@ -428,11 +448,15 @@ function renderScreenLoadSection(view) {
       .join('') + '</div>';
 }
 
-function renderSlowTab() {
+// Khong con la mot tab: ba muc nay deu la "so rut tu log" y het cac muc khac cua Tong quan, tach ra
+// mot tab rieng chi bat nguoi doc nhay qua lai. Tu khi moi muc tu thu lai duoc thi mot tab nhieu muc
+// khong con dat cho nua.
+function renderSlowSections() {
   const view = getView();
   const rows = view.durations;
   const header = renderScreenLoadSection(view) + renderScreenDwellSection(view) +
-    '<div class="fll-sec">Mọi con số thời lượng</div>' + '<div class="fll-hint" style="margin-bottom:10px">Mọi con số thời lượng rút được từ log ' +
+    secTitle('Mọi con số thời lượng', rows.length) +
+    '<div class="fll-hint" style="margin-bottom:10px">Mọi con số thời lượng rút được từ log ' +
     '(<code>duration=</code>, <code>in Nms</code>, <code>duration KMM</code>, <code>totalWaited</code>), ' +
     'xếp giảm dần. Giá trị trên ' + MAX_PLAUSIBLE_DURATION_MS / 1000 + 's bị bỏ vì log có chỗ ghi nhầm ' +
     'epoch vào <code>duration=</code>.</div>';
@@ -478,7 +502,7 @@ function renderScreenDwellSection(view) {
   const screens = view.journey.screens.filter((row) => row.ms > 0);
   if (!screens.length) return '';
   const peak = Math.max(1, screens[0].ms);
-  return '<div class="fll-sec">Ở lâu nhất trên màn</div>' +
+  return secTitle('Ở lâu nhất trên màn', screens.length) +
     '<div class="fll-hint" style="margin-bottom:8px">Con số này <b>tính ra</b> từ khoảng cách tới bước ' +
     'màn hình kế tiếp, không phải trường có sẵn trong log. Các event nổ liên tiếp trong cùng một lần ' +
     'chuyển màn sẽ ra ~0ms nên không có mặt ở đây.</div>' +
@@ -513,8 +537,18 @@ function renderModuleChips() {
 function renderSessionChips() {
   const sessions = lensState.data.sessions;
   if (sessions.length < 2) return '';
+  const picked = lensState.filter.session;
+  return secTitle('Phiên app', picked ? 'Phiên ' + picked : sessions.length + ' phiên', picked ? 'act' : '') +
+    renderSessionChipRow();
+}
+
+// Chi rieng day chip, khong kem tieu de muc: tab Dien bien khong chia muc nen phai dat thang chip vao
+// hang cong cu, con tab Loc thi boc them tieu de o tren.
+function renderSessionChipRow() {
+  const sessions = lensState.data.sessions;
+  if (sessions.length < 2) return '';
   const tally = tallyFacetCandidates('session', (entry) => entry.session);
-  return '<div class="fll-sec">Phiên app</div><div class="fll-lvkey">' +
+  return '<div class="fll-lvkey">' +
     sessions
       .map((session) => {
         const count = tally.get(session.index) || 0;
@@ -531,7 +565,7 @@ function renderSessionChips() {
 function renderCorrelationList() {
   const buckets = lensState.data.correlations;
   if (!buckets.length) return '';
-  return '<div class="fll-sec">Gom theo ID</div>' +
+  return secTitle('Gom theo ID', buckets.length) +
     '<div class="fll-hint" style="margin-bottom:8px">Một ID xuất hiện ở nhiều dòng là một request đi qua ' +
     'nhiều lớp. Bấm để xem trọn chuỗi.</div><div class="fll-rank">' +
     buckets.slice(0, 12)
@@ -561,7 +595,7 @@ function renderTemplateSection() {
     : '<div class="fll-hint" style="margin-bottom:8px">Chưa có mẫu nào. Đặt điều kiện rồi lưu lại ' +
       'để lần sau áp một phát.</div>';
 
-  return '<div class="fll-sec">Mẫu bộ lọc</div>' + chips +
+  return secTitle('Mẫu bộ lọc', lensState.filterTemplates.length) + chips +
     '<div class="fll-row">' +
     '<input class="fll-in" id="fll-tplname" style="flex:1;min-width:140px" value="' +
     escapeHtml(tabUiState.templateName) + '" placeholder="' +
@@ -580,11 +614,14 @@ function renderFilterTab() {
   // chip WARNING ve 0 va khong con duong noi rong lai.
   const levelTally = tallyFacetCandidates('levels', (entry) => entry.level);
 
+  const hasWindow = filter.timeFrom !== null || filter.timeTo !== null;
   return renderTemplateSection() +
-    '<div class="fll-sec">Cửa sổ thời gian</div>' + renderWindowChips(true) +
+    secTitle('Cửa sổ thời gian', hasWindow ? formatWindowLabel() : 'toàn bộ', hasWindow ? 'act' : '') +
+    renderWindowChips(true) +
     renderSessionChips() +
 
-    '<div class="fll-sec">Mức độ</div>' +
+    secTitle('Mức độ', filter.levels.size ? Array.from(filter.levels).join(' + ') : 'tất cả',
+      filter.levels.size ? 'act' : '') +
     '<div class="fll-lvkey">' + LEVEL_ORDER
       .map((level) => '<button class="fll-chip' + (filter.levels.has(level) ? ' on' : '') +
         '" data-act="tglLevel" data-value="' + level + '">' +
@@ -592,13 +629,16 @@ function renderFilterTab() {
         ' <em>' + (levelTally.get(level) || 0) + '</em></button>')
       .join('') + '</div>' +
 
-    '<div class="fll-sec">Module' + (filter.modules.size ? ' · đã chọn ' + filter.modules.size : '') + '</div>' +
+    secTitle('Module', filter.modules.size ? 'đã chọn ' + filter.modules.size : data.modules.length,
+      filter.modules.size ? 'act' : '') +
     '<input class="fll-in" id="fll-modq" placeholder="Tìm module..." value="' +
     escapeHtml(tabUiState.moduleQuery) + '" style="margin-bottom:7px">' +
     '<div class="fll-lvkey" id="fll-mod-list" style="max-height:150px;overflow-y:auto">' +
     renderModuleChips() + '</div>' +
 
-    '<div class="fll-sec">Tìm trong nội dung</div>' +
+    secTitle('Tìm trong nội dung',
+      filter.text ? (filter.useRegex ? '/' + filter.text + '/' : '"' + filter.text + '"') : 'chưa đặt',
+      filter.text ? 'act' : '') +
     '<input class="fll-in' + (result.isBadPattern ? ' bad' : '') + '" id="fll-re" placeholder="' +
     (filter.useRegex ? 'Regex, ví dụ: timeout|retry|88\\d{7}' : 'Chuỗi con...') + '" value="' +
     escapeHtml(filter.text) + '">' +
@@ -610,7 +650,8 @@ function renderFilterTab() {
 
     renderCorrelationList() +
 
-    '<div class="fll-sec">Kết quả</div>' +
+    secTitle('Kết quả', result.visible.length + '/' + data.entries.length,
+      result.visible.length === data.entries.length ? '' : 'act') +
     '<div class="fll-hint" style="margin-bottom:10px">Đang hiện <b id="fll-count" style="color:var(--txt)">' +
     result.visible.length + '</b> / ' + data.entries.length + ' dòng.</div>' +
     '<div class="fll-row">' +
@@ -685,6 +726,11 @@ function renderTimelineTab() {
       '" data-act="tlGroup" data-value="' + choice.id + '">' + choice.label +
       ' <em>' + counts[choice.id] + '</em></button>')
     .join('') + '</div>';
+
+  // Loc theo phien ngay tai day. Truoc do muon xem rieng mot phien phai sang tab Loc roi quay lai —
+  // ma dong thoi gian chinh la cho de y "phien nay khac phien kia cho nao" nhat.
+  const sessionRow = renderSessionChipRow();
+  if (sessionRow) header += '<div style="margin-bottom:9px">' + sessionRow + '</div>';
 
   // Chip nguong khoang lang chi co nghia khi moc App dang hien.
   if (tabUiState.tlGroup === 'all' || tabUiState.tlGroup === 'app') {
@@ -766,7 +812,7 @@ function renderConfigRow(item) {
 function renderConfigSection(source, rows) {
   if (!rows.length) return '';
   const meta = CONFIG_SOURCE_META[source];
-  return '<div class="fll-sec">' + meta.label + ' — ' + rows.length + '</div>' +
+  return secTitle(meta.label, rows.length) +
     '<div class="fll-hint" style="margin-bottom:8px">' + meta.hint + '</div>' +
     rows.map(renderConfigRow).join('');
 }
@@ -775,7 +821,7 @@ function renderConfigSection(source, rows) {
 // (co san nut xem payload) thay vi ve kieu rieng — cung mot thu thi phai nhin giong nhau.
 function renderConfigCallSection(cfg, view) {
   if (!cfg.calls.length) return '';
-  return '<div class="fll-sec">Call BE xin cấu hình — ' + cfg.calls.length + '</div>' +
+  return secTitle('Call BE xin cấu hình', cfg.calls.length) +
     '<div class="fll-hint" style="margin-bottom:8px">Call có chữ <code>config</code> trên đường dẫn. ' +
     'Bấm <code>{ }</code> để xem BE trả về.</div>' +
     cfg.calls.map((call) => renderHttpCall(call, view)).join('');

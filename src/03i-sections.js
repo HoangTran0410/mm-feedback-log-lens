@@ -66,7 +66,9 @@ function collapsifySections(container, tabId) {
       if (bodyOfCurrentSection) bodyOfCurrentSection.appendChild(node);
       return;
     }
-    const title = (node.textContent || '').trim();
+    // Lay data-sec chu khong lay textContent: textContent con dinh ca badge ("Phiên app3 phiên"),
+    // ma badge doi theo tung log — dung no lam khoa thi mo o log nay, sang log khac lai thay dong.
+    const title = node.getAttribute('data-sec') || (node.textContent || '').trim();
     const key = sectionKey(tabId, title);
     const wrap = document.createElement('div');
     wrap.className = 'fll-secw' + (loadOpenSections().has(key) ? ' open' : '');

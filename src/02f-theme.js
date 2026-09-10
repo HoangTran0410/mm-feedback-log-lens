@@ -293,12 +293,24 @@ const PANEL_CSS = [
      cung do dac hieu (0,2,0) voi rule do nhung viet sau nen thang. */
   '.fll-secw{margin-top:22px}',
   '.fll-secw:first-child{margin-top:0}',
+  /* Muc dang thu lai thi khong con noi dung de tach khoi muc truoc, 22px chi lam danh sach tieu de
+     dai ra vo ich — tab Tong quan co chin muc. */
+  '.fll-secw:not(.open) + .fll-secw:not(.open){margin-top:8px}',
   '.fll-secw > .fll-sec{margin-top:0;cursor:pointer;user-select:none;transition:.14s}',
   '.fll-secw > .fll-sec:hover{color:#fff;background:linear-gradient(180deg,#2d2740,#211c2e)}',
   '.fll-secb{display:none}',
   '.fll-secw.open > .fll-secb{display:block}',
   /* Muc dang dong thi thanh tieu de khong can dinh lai: khong co gi troi qua duoi no ca. */
   '.fll-secw:not(.open) > .fll-sec{position:relative;top:0}',
+  /* Badge la thu DUY NHAT nhin thay khi muc dang thu lai, nen no phai doc duoc ngay: day sang phai
+     bang margin-left:auto, va cat bot neu qua dai (chuoi dang tim co the dai bao nhieu cung duoc). */
+  '.fll-secbdg{margin-left:auto;flex:0 1 auto;max-width:52%;overflow:hidden;text-overflow:ellipsis;',
+  'white-space:nowrap;font-style:normal;font-size:9.5px;font-weight:700;letter-spacing:.2px;',
+  'text-transform:none;padding:2px 7px;border-radius:20px;background:var(--bg3);color:var(--mut)}',
+  '.fll-secbdg.err{background:rgba(255,95,109,.18);color:var(--err)}',
+  '.fll-secbdg.warn{background:rgba(255,182,72,.18);color:var(--warn)}',
+  '.fll-secbdg.ok{background:rgba(61,220,151,.16);color:var(--ok)}',
+  '.fll-secbdg.act{background:var(--acc);color:#fff}',
   '.fll-caret{flex:0 0 auto;font-size:9px;color:var(--mut);transition:transform .15s,color .15s;',
   'display:inline-block;width:9px;text-align:center}',
   '.fll-secw.open > .fll-sec .fll-caret{transform:rotate(90deg);color:var(--acc)}',

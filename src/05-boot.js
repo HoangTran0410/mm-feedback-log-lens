@@ -10,10 +10,10 @@ Model: claude-opus-5
 
 const ROOT_ID = 'fll-root';
 const TAB_DEFS = [
+  // Tab Cham cu nam trong day: ba muc cua no cung la "so rut tu log" nhu moi muc khac o Tong quan.
   { id: 'sum', label: 'Tổng quan' },
+  // Tab HTTP cu nam trong day: "call nao hong" va "loi gi da no" la cung mot cau hoi.
   { id: 'iss', label: 'Vấn đề', badge: countUnmutedErrorGroups, danger: true },
-  { id: 'http', label: 'HTTP', badge: (data) => data.httpCalls.length },
-  { id: 'slow', label: 'Chậm' },
   // Tab duy nhat co the tu an: log nao khong co dong cau hinh nao thi tab bien mat thay vi hien
   // mot tab rong. Panel chi rong 480px, moi tab thua deu an vao cho cua tab con lai.
   { id: 'cfg', label: 'Cấu hình', badge: (data) => data.configs.total || null,
@@ -123,8 +123,6 @@ function renderTab() {
   if (!body) return;
   if (lensState.tab === 'sum') body.innerHTML = renderSummaryTab();
   else if (lensState.tab === 'iss') body.innerHTML = renderIssuesTab();
-  else if (lensState.tab === 'http') body.innerHTML = renderHttpTab();
-  else if (lensState.tab === 'slow') body.innerHTML = renderSlowTab();
   else if (lensState.tab === 'cfg') body.innerHTML = renderConfigTab();
   else if (lensState.tab === 'flt') body.innerHTML = renderFilterTab();
   else body.innerHTML = renderTimelineTab();
@@ -165,7 +163,10 @@ function renderTabPreservingFocus() {
 
 function renderTabBar() {
   lensState.el.tabs.innerHTML = TAB_DEFS
-    .filter((tab) => !(tab.hide && tab.hide(getView())))
+    // Truyen data DAY DU chu khong phai view dang loc: loc xuong con 3 dong thi trong tap do khong con
+    // dong cau hinh nao, va tab Cau hinh se BIEN MAT giua chung — thay khi chup man hinh. Tab co hay
+    // khong la tinh chat cua ca log, con noi dung ben trong moi chay theo bo loc.
+    .filter((tab) => !(tab.hide && tab.hide(lensState.data)))
     .map((tab) => {
       const count = tab.badge ? tab.badge(getView()) : null;
       const tone = tab.danger ? ' err' : tab.tone ? ' ' + tab.tone : '';
@@ -506,7 +507,15 @@ function handleLensClick(event) {
     if (first) revealElement(first);
     return undefined;
   }
-  if (action === 'gotoHttp') return switchTab('http');
+  if (action === 'gotoHttp') {
+    switchTab('iss');
+    const httpSection = lensState.el.body && lensState.el.body.querySelector('[data-sec="Call HTTP"]');
+    if (httpSection) {
+      revealElement(httpSection);
+      httpSection.scrollIntoView({ block: 'start' });
+    }
+    return undefined;
+  }
   if (action === 'gotoTimeline') return switchTab('tl');
   if (action === 'gotoSessions') {
     switchTab('flt');
