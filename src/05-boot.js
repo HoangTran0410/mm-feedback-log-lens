@@ -111,6 +111,8 @@ function scanLog() {
   lensState.el.lastHit = null;
   lensState.isFiltering = false;
   lensState.visibleCount = data.entries.length;
+  // Sang log khac thi khoang dang phong to khong con nghia gi.
+  lensState.mapZoom = null;
   // Doi sang log khac (trang admin thay noi dung ma khong tai lai) co the lam tab dang mo bien mat.
   // Khong bat lai thi than panel ve tab do trong khi tren thanh tab khong con nut nao sang.
   const current = TAB_DEFS.find((tab) => tab.id === lensState.tab);
@@ -497,6 +499,17 @@ function handleLensClick(event) {
     tabUiState.issueLimit += ISSUE_PAGE_SIZE;
     const list = document.getElementById('fll-issue-list');
     if (list) list.innerHTML = renderIssueList();
+    return undefined;
+  }
+  if (action === 'mapZoomIn') {
+    const range = getVisibleTimeRange();
+    lensState.mapZoom = { from: range.from, to: range.to };
+    renderMinimap();
+    return undefined;
+  }
+  if (action === 'mapZoomOut') {
+    lensState.mapZoom = null;
+    renderMinimap();
     return undefined;
   }
   if (action === 'tglSec') return toggleSection(hit);

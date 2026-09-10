@@ -1094,14 +1094,17 @@ function groupJourneySteps(steps, kind) {
     if (step.kind !== kind) return;
     let row = map.get(step.label);
     if (!row) {
-      row = { key: step.label, count: 0, ms: 0, indices: [], detail: step.detail,
+      row = { key: step.label, count: 0, ms: 0, maxMs: 0, indices: [], detail: step.detail,
         firstTs: step.ts, lastTs: step.ts };
       map.set(step.label, row);
     }
     // Dem SO THAO TAC (so buoc da gop), khong phai so dong log — de con so o day khop voi the thong ke
     // dau tab. So dong tho van con nguyen trong row.indices de duyet tung dong.
     row.count += 1;
+    // ms la TONG cua moi lan vao man do; maxMs la lan lau nhat. Chi hien tong ma de canh "2x" thi
+    // nguoi doc de tuong 2 lan moi lan bang tung do.
     row.ms += step.ms;
+    if (step.ms > row.maxMs) row.maxMs = step.ms;
     step.indices.forEach((domIndex) => row.indices.push(domIndex));
     // Nhieu buoc cung nhan nhung khac boi canh (nut "transfer" o bill_detail va o detail_input):
     // giu detail cua buoc dau cho ca nhom la noi sai. Chi giu khi moi buoc deu giong nhau.
@@ -1192,7 +1195,7 @@ function buildJourney(entries) {
     const step = pickJourneyStep(entry.event, entry.eventParams);
     if (!step || !step.label) return;
     raw.push({ kind: step.kind, label: step.label, detail: step.detail || '', note: step.note || '',
-      event: entry.event, ts: entry.ts, domIndex: entry.domIndex });
+      event: entry.event, ts: entry.ts, domIndex: entry.domIndex, session: entry.session });
   });
 
   // Cung ly do nhu tab Timeline: log co dong timestamp lui ve truoc, thu tu dong khong phai thu tu thoi gian.
@@ -1205,12 +1208,25 @@ function buildJourney(entries) {
   // ms cua mot buoc "screen" = khoang cach toi buoc screen/move ke tiep. Day la SO TINH RA, khong phai
   // truong nao trong log — cac event no lien tuc trong cung mot lan chuyen man se ra ~0ms, chi buoc cuoi
   // cua chum moi mang con so that. Truong dwell_time co san cua roothome nam rieng trong detail.
+  //
+  // Hai cho phai chan, neu khong con so ra vo nghia (da gap that: mot man bao "11h24m" trong khi hai
+  // dong log cua no cach nhau 2 giay):
+  //   - buoc man hinh cuoi cua MOT PHIEN khong duoc do sang buoc dau cua phien sau: giua hai phien app
+  //     da bi tat, khong ai "o tren man" ca.
+  //   - khoang cach qua MAX_PLAUSIBLE_DURATION_MS thi gan nhu chac chan la app bi day xuong nen chu
+  //     khong phai nguoi dung ngoi nhin. Bo han (0 = khong biet) chu khong bao mot con so sai.
   let boundaryTs = steps.length ? steps[steps.length - 1].ts : null;
+  let boundarySession = steps.length ? steps[steps.length - 1].session : null;
   for (let i = steps.length - 1; i >= 0; i -= 1) {
-    if (steps[i].kind === 'screen' && steps[i].ts && boundaryTs) {
-      steps[i].ms = Math.max(0, boundaryTs - steps[i].ts);
+    const step = steps[i];
+    if (step.kind === 'screen' && step.ts && boundaryTs && step.session === boundarySession) {
+      const span = Math.max(0, boundaryTs - step.ts);
+      step.ms = span <= MAX_PLAUSIBLE_DURATION_MS ? span : 0;
     }
-    if (steps[i].kind === 'screen' || steps[i].kind === 'move') boundaryTs = steps[i].ts || boundaryTs;
+    if (step.kind === 'screen' || step.kind === 'move') {
+      boundaryTs = step.ts || boundaryTs;
+      boundarySession = step.session;
+    }
   }
 
   const byCount = (a, b) => b.count - a.count;
@@ -1525,9 +1541,16 @@ const PANEL_CSS = [
   '.fll-map-ranged .fll-shade-r{border-left:2px solid var(--acc);box-shadow:-2px 0 8px rgba(255,46,136,.4)}',
   '.fll-maptext{font-variant-numeric:tabular-nums;opacity:.75}',
   '.fll-map-ranged + .fll-maplbl .fll-maptext{opacity:1;color:var(--acc);font-weight:650}',
-  '.fll-maptext.aiming{opacity:1;color:var(--acc);font-weight:700;font-variant-numeric:tabular-nums}',
+  '.fll-maptext.aiming{opacity:1;color:#fff;font-weight:700;font-variant-numeric:tabular-nums}',
   '.fll-cursor{position:absolute;top:0;bottom:0;width:2px;background:var(--acc);pointer-events:none;',
   'box-shadow:0 0 10px var(--acc);opacity:0;transition:.12s}',
+  /* Nut phong to nam ngay trong dong nhan duoi minimap — cho duy nhat vua lien quan vua khong an
+     mat cho cua chinh minimap. */
+  '.fll-mapzoom{font-size:9px;font-weight:700;padding:1px 7px;border-radius:20px;cursor:pointer;',
+  'background:var(--bg3);color:var(--txt);border:1px solid var(--line)!important;white-space:nowrap}',
+  '.fll-mapzoom:hover{border-color:var(--acc)!important;color:var(--acc)}',
+  '.fll-mapzoom.on{background:var(--acc);color:#fff;border-color:var(--acc)!important}',
+  '.fll-map-zoomed{border-color:var(--acc)}',
   '.fll-maplbl{display:flex;justify-content:space-between;gap:8px;margin:5px 17px 0;font-size:9.5px;',
   'color:var(--mut);font-variant-numeric:tabular-nums;flex:0 0 auto}',
 
@@ -1596,12 +1619,17 @@ const PANEL_CSS = [
   /* ---------- mui ten tu muc dang di chuot len minimap ---------- */
   /* Mot lop SVG phu len ca panel. pointer-events:none de khong chan chuot; z-index cao hon .fll-sheet
      (8) vi duong ke phai di TU trong tam truot RA den minimap nam ngoai no. */
+  /* Mui ten tung to accent — cung ho hong voi cot ERROR cua minimap (#ff5f6d) va voi chinh
+     .fll-cursor (vach vi tri cuon, cung accent), nen dat len minimap la chim nghim. Nay to TRANG kem
+     vien mau nen panel: tren cot hong, cot vang hay cho trong deu noi, va khong lan voi vach cuon. */
   '.fll-aim{position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;z-index:9;',
   'opacity:0;transition:opacity .12s}',
   '.fll-aim.on{opacity:1}',
-  '.fll-aim-line{fill:none;stroke:var(--acc);stroke-width:1.5;stroke-dasharray:4 3;opacity:.85}',
-  '.fll-aim-head{fill:var(--acc)}',
-  '.fll-aim-ticks rect{fill:var(--acc);opacity:.5}',
+  /* Duong ke van de accent: no chay tren cac the toi trong than panel, o do accent doc tot ma khong
+     de len chu nhieu nhu net trang. Chi cai DAU MUI TEN va vach tren minimap moi doi sang trang. */
+  '.fll-aim-line{fill:none;stroke:var(--acc);stroke-width:1.6;stroke-dasharray:4 3;opacity:.9}',
+  '.fll-aim-head{fill:#fff;stroke:var(--bg);stroke-width:1;paint-order:stroke}',
+  '.fll-aim-ticks rect{fill:#fff;stroke:var(--bg);stroke-width:1;paint-order:stroke;opacity:.75}',
   '.fll-aim-ticks rect.fll-aim-first{opacity:1}',
   '.fll-aimed{outline:1px solid var(--acc);outline-offset:1px;border-radius:8px}',
 
@@ -2168,6 +2196,9 @@ const lensState = {
   },
   // Muc dang di chuot qua, de biet luc nao phai ve lai mui ten len minimap (va luc nao thi thoi).
   aimEl: null,
+  // Khoang thoi gian minimap dang VE (null = ve nguyen ca log). Doc lap voi bo loc: phong to chi doi
+  // cai nhin, khong doi tap dong dang hien.
+  mapZoom: null,
   el: {},
 };
 
@@ -2857,14 +2888,24 @@ Model: claude-opus-5
 
 /* ----------------------------------------------------------------- minimap */
 
+// Minimap ve trong khoang nao: ca log, hay chi khoang dang phong to. Moi cho quy doi thoi gian <-> toa
+// do deu phai di qua day, neu khong thi phong to xong vach danh dau va vi tri cuon se lech het.
+function minimapBounds() {
+  const zoom = lensState.mapZoom;
+  if (zoom) return { from: zoom.from, to: zoom.to };
+  return { from: lensState.data.firstTs, to: lensState.data.lastTs };
+}
+
 function buildBuckets(count) {
   const data = lensState.data;
-  const span = Math.max(1, data.lastTs - data.firstTs);
+  const bounds = minimapBounds();
+  const span = Math.max(1, bounds.to - bounds.from);
   const buckets = [];
   for (let i = 0; i < count; i += 1) buckets.push({ ERROR: 0, WARNING: 0, INFO: 0, DEBUG: 0, total: 0, firstIndex: -1 });
   data.entries.forEach((entry) => {
     if (!entry.ts || !entry.level) return;
-    const slot = Math.min(count - 1, Math.floor(((entry.ts - data.firstTs) / span) * count));
+    if (entry.ts < bounds.from || entry.ts > bounds.to) return;
+    const slot = Math.min(count - 1, Math.floor(((entry.ts - bounds.from) / span) * count));
     const bucket = buckets[slot];
     bucket[entry.level] = (bucket[entry.level] || 0) + 1;
     bucket.total += 1;
@@ -2884,8 +2925,9 @@ function renderMinimap() {
       else if (bucket.INFO) color = 'rgba(88,196,255,.55)';
       else if (bucket.DEBUG) color = 'rgba(125,133,144,.5)';
       const height = bucket.total ? 12 + (Math.log(1 + bucket.total) / Math.log(1 + peak)) * 88 : 4;
+      const bounds = minimapBounds();
       const title = bucket.total
-        ? formatClock(lensState.data.firstTs + ((lensState.data.lastTs - lensState.data.firstTs) * index) / MINIMAP_BUCKETS) +
+        ? formatClock(bounds.from + ((bounds.to - bounds.from) * index) / MINIMAP_BUCKETS) +
           ' · ' + bucket.total + ' dòng (' + bucket.ERROR + ' lỗi, ' + bucket.WARNING + ' cảnh báo)'
         : 'không có log';
       return '<i data-bucket="' + bucket.firstIndex + '" title="' + escapeHtml(title) + '" style="height:' +
@@ -2900,10 +2942,15 @@ function renderMinimap() {
   lensState.el.cursor = lensState.el.map.querySelector('.fll-cursor');
   lensState.el.shadeLeft = lensState.el.map.querySelector('.fll-shade-l');
   lensState.el.shadeRight = lensState.el.map.querySelector('.fll-shade-r');
+  const bounds = minimapBounds();
   lensState.el.mapLabel.innerHTML =
-    '<span>' + formatClock(lensState.data.firstTs) + '</span>' +
+    '<span>' + formatClock(bounds.from) + '</span>' +
     '<span class="fll-maptext"></span>' +
-    '<span>' + formatClock(lensState.data.lastTs) + '</span>';
+    (lensState.mapZoom
+      ? '<button class="fll-mapzoom on" data-act="mapZoomOut" title="Thu về toàn bộ log">' +
+        formatClock(bounds.to) + ' &#10005;</button>'
+      : '<span>' + formatClock(bounds.to) + '</span>');
+  lensState.el.map.classList.toggle('fll-map-zoomed', !!lensState.mapZoom);
   lensState.el.mapText = lensState.el.mapLabel.querySelector('.fll-maptext');
   updateMinimapRange();
 }
@@ -2912,15 +2959,24 @@ function updateMinimapRange() {
   const shadeLeft = lensState.el.shadeLeft;
   const shadeRight = lensState.el.shadeRight;
   if (!shadeLeft || !shadeRight || !lensState.data) return;
-  const data = lensState.data;
-  const span = Math.max(1, data.lastTs - data.firstTs);
+  const bounds = minimapBounds();
+  const span = Math.max(1, bounds.to - bounds.from);
   const range = getVisibleTimeRange();
-  shadeLeft.style.width = Math.max(0, ((range.from - data.firstTs) / span) * 100).toFixed(2) + '%';
-  shadeRight.style.width = Math.max(0, ((data.lastTs - range.to) / span) * 100).toFixed(2) + '%';
+  shadeLeft.style.width =
+    Math.max(0, Math.min(100, ((range.from - bounds.from) / span) * 100)).toFixed(2) + '%';
+  shadeRight.style.width =
+    Math.max(0, Math.min(100, ((bounds.to - range.to) / span) * 100)).toFixed(2) + '%';
   lensState.el.map.classList.toggle('fll-map-ranged', hasAnyTimeRange());
   if (!lensState.el.mapText) return;
-  lensState.el.mapText.textContent = hasAnyTimeRange()
-    ? formatClock(range.from) + ' → ' + formatClock(range.to) + ' · ' + formatDuration(range.to - range.from)
+  if (hasAnyTimeRange()) {
+    lensState.el.mapText.innerHTML = escapeHtml(formatClock(range.from) + ' → ' + formatClock(range.to) +
+      ' · ' + formatDuration(range.to - range.from)) +
+      (lensState.mapZoom ? '' : ' <button class="fll-mapzoom" data-act="mapZoomIn" ' +
+        'title="Phóng minimap vào đúng khoảng này để nhìn rõ từng mốc">&#8596; phóng to</button>');
+    return;
+  }
+  lensState.el.mapText.textContent = lensState.mapZoom
+    ? 'đang phóng to · kéo để chọn khoảng nhỏ hơn'
     : 'kéo để chọn khoảng · bấm để nhảy · nháy đúp để bỏ chọn';
 }
 
@@ -2938,23 +2994,28 @@ let minimapDrag = null;
 function minimapTsFromClientX(clientX) {
   const rect = lensState.el.map.getBoundingClientRect();
   const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / Math.max(1, rect.width)));
-  const data = lensState.data;
-  return data.firstTs + ratio * Math.max(1, data.lastTs - data.firstTs);
+  const bounds = minimapBounds();
+  return bounds.from + ratio * Math.max(1, bounds.to - bounds.from);
 }
 
+// Ep ve trong be ngang cua minimap: khi dang phong to, moc nam ngoai khung se cho toa do am hoac vuot
+// ra ngoai — ep vao mep de mui ten van chi dung "no o phia ben kia" thay vi ve ra ngoai panel.
 function minimapClientXFromTs(ts) {
   const rect = lensState.el.map.getBoundingClientRect();
-  const data = lensState.data;
-  return rect.left + ((ts - data.firstTs) / Math.max(1, data.lastTs - data.firstTs)) * rect.width;
+  const bounds = minimapBounds();
+  const ratio = (ts - bounds.from) / Math.max(1, bounds.to - bounds.from);
+  return rect.left + Math.max(0, Math.min(1, ratio)) * rect.width;
 }
 
 // Chi ve lai hai mieng mo trong luc keo. Ap bo loc that su doi mot luot 4085 dong + layout bang log,
 // nang qua de chay theo tung nhip chuot — nen chi commit luc tha tay.
 function previewMinimapRange(from, to) {
-  const data = lensState.data;
-  const span = Math.max(1, data.lastTs - data.firstTs);
-  lensState.el.shadeLeft.style.width = Math.max(0, ((from - data.firstTs) / span) * 100).toFixed(2) + '%';
-  lensState.el.shadeRight.style.width = Math.max(0, ((data.lastTs - to) / span) * 100).toFixed(2) + '%';
+  const bounds = minimapBounds();
+  const span = Math.max(1, bounds.to - bounds.from);
+  lensState.el.shadeLeft.style.width =
+    Math.max(0, Math.min(100, ((from - bounds.from) / span) * 100)).toFixed(2) + '%';
+  lensState.el.shadeRight.style.width =
+    Math.max(0, Math.min(100, ((bounds.to - to) / span) * 100)).toFixed(2) + '%';
   if (lensState.el.mapText) {
     lensState.el.mapText.textContent = formatClock(from) + ' → ' + formatClock(to) +
       ' · ' + formatDuration(Math.max(0, to - from));
@@ -2995,6 +3056,7 @@ function handleMinimapMouseMove(event) {
   minimapDrag.hasMoved = true;
 
   const data = lensState.data;
+  const bounds = minimapBounds();
   const ts = minimapTsFromClientX(event.clientX);
   let from = minimapDrag.from;
   let to = minimapDrag.to;
@@ -3010,18 +3072,19 @@ function handleMinimapMouseMove(event) {
     const delta = ts - minimapDrag.anchorTs;
     from = minimapDrag.from + delta;
     to = minimapDrag.to + delta;
-    if (from < data.firstTs) {
-      to += data.firstTs - from;
-      from = data.firstTs;
+    if (from < bounds.from) {
+      to += bounds.from - from;
+      from = bounds.from;
     }
-    if (to > data.lastTs) {
-      from -= to - data.lastTs;
-      to = data.lastTs;
+    if (to > bounds.to) {
+      from -= to - bounds.to;
+      to = bounds.to;
     }
   }
+  void data;
 
-  minimapDrag.previewFrom = Math.max(data.firstTs, from);
-  minimapDrag.previewTo = Math.min(data.lastTs, to);
+  minimapDrag.previewFrom = Math.max(bounds.from, from);
+  minimapDrag.previewTo = Math.min(bounds.to, to);
   previewMinimapRange(minimapDrag.previewFrom, minimapDrag.previewTo);
 }
 
@@ -3068,8 +3131,15 @@ function updateMinimapCursor(ts) {
     cursor.style.opacity = '0';
     return;
   }
-  const span = Math.max(1, lensState.data.lastTs - lensState.data.firstTs);
-  cursor.style.left = (((ts - lensState.data.firstTs) / span) * 100).toFixed(2) + '%';
+  const bounds = minimapBounds();
+  const ratio = (ts - bounds.from) / Math.max(1, bounds.to - bounds.from);
+  if (ratio < 0 || ratio > 1) {
+    // Dong dang cuon toi nam ngoai khung dang phong to: an vach di con hon la ghim no o mep, vi ghim
+    // o mep thi nguoi doc tuong minh dang o dau khoang.
+    cursor.style.opacity = '0';
+    return;
+  }
+  cursor.style.left = (ratio * 100).toFixed(2) + '%';
   cursor.style.opacity = '1';
 }
 // AI-GENERATED END
@@ -4298,14 +4368,17 @@ function renderScreenDwellSection(view) {
   if (!screens.length) return '';
   const peak = Math.max(1, screens[0].ms);
   return secTitle('Ở lâu nhất trên màn', screens.length) +
-    '<div class="fll-hint" style="margin-bottom:8px">Con số này <b>tính ra</b> từ khoảng cách tới bước ' +
-    'màn hình kế tiếp, không phải trường có sẵn trong log. Các event nổ liên tiếp trong cùng một lần ' +
-    'chuyển màn sẽ ra ~0ms nên không có mặt ở đây.</div>' +
+    '<div class="fll-hint" style="margin-bottom:8px"><b>Tổng</b> thời gian ở trên màn đó, cộng qua các ' +
+    'lần vào. Số <b>tính ra</b> từ khoảng cách tới bước màn hình kế tiếp chứ không có sẵn trong log — ' +
+    'nên khoảng cách vắt qua hai phiên app, hoặc dài quá ' + MAX_PLAUSIBLE_DURATION_MS / 60000 +
+    ' phút (app nằm dưới nền chứ không phải người dùng ngồi nhìn), đều bị bỏ.</div>' +
     '<div class="fll-rank">' + screens.slice(0, 8)
-      .map((row) => '<div class="fll-rk" data-jscreen="' + escapeHtml(row.key) + '">' +
+      .map((row) => '<div class="fll-rk" data-jscreen="' + escapeHtml(row.key) + '" title="' +
+        row.count + ' lần vào, lần lâu nhất ' + formatDuration(row.maxMs) + '">' +
         '<u style="width:' + ((row.ms / peak) * 100).toFixed(1) + '%"></u>' +
         '<span>' + escapeHtml(row.key) + '</span>' +
-        '<b>' + formatDuration(row.ms) + ' &middot; ' + row.count + '&times;</b></div>')
+        '<b>' + formatDuration(row.ms) + (row.count > 1 ? ' &middot; ' + row.count + ' lần' : '') +
+        '</b></div>')
       .join('') + '</div>';
 }
 
@@ -4812,6 +4885,8 @@ function scanLog() {
   lensState.el.lastHit = null;
   lensState.isFiltering = false;
   lensState.visibleCount = data.entries.length;
+  // Sang log khac thi khoang dang phong to khong con nghia gi.
+  lensState.mapZoom = null;
   // Doi sang log khac (trang admin thay noi dung ma khong tai lai) co the lam tab dang mo bien mat.
   // Khong bat lai thi than panel ve tab do trong khi tren thanh tab khong con nut nao sang.
   const current = TAB_DEFS.find((tab) => tab.id === lensState.tab);
@@ -5198,6 +5273,17 @@ function handleLensClick(event) {
     tabUiState.issueLimit += ISSUE_PAGE_SIZE;
     const list = document.getElementById('fll-issue-list');
     if (list) list.innerHTML = renderIssueList();
+    return undefined;
+  }
+  if (action === 'mapZoomIn') {
+    const range = getVisibleTimeRange();
+    lensState.mapZoom = { from: range.from, to: range.to };
+    renderMinimap();
+    return undefined;
+  }
+  if (action === 'mapZoomOut') {
+    lensState.mapZoom = null;
+    renderMinimap();
     return undefined;
   }
   if (action === 'tglSec') return toggleSection(hit);

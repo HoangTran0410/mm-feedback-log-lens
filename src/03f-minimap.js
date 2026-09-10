@@ -13,14 +13,24 @@ Model: claude-opus-5
 
 /* ----------------------------------------------------------------- minimap */
 
+// Minimap ve trong khoang nao: ca log, hay chi khoang dang phong to. Moi cho quy doi thoi gian <-> toa
+// do deu phai di qua day, neu khong thi phong to xong vach danh dau va vi tri cuon se lech het.
+function minimapBounds() {
+  const zoom = lensState.mapZoom;
+  if (zoom) return { from: zoom.from, to: zoom.to };
+  return { from: lensState.data.firstTs, to: lensState.data.lastTs };
+}
+
 function buildBuckets(count) {
   const data = lensState.data;
-  const span = Math.max(1, data.lastTs - data.firstTs);
+  const bounds = minimapBounds();
+  const span = Math.max(1, bounds.to - bounds.from);
   const buckets = [];
   for (let i = 0; i < count; i += 1) buckets.push({ ERROR: 0, WARNING: 0, INFO: 0, DEBUG: 0, total: 0, firstIndex: -1 });
   data.entries.forEach((entry) => {
     if (!entry.ts || !entry.level) return;
-    const slot = Math.min(count - 1, Math.floor(((entry.ts - data.firstTs) / span) * count));
+    if (entry.ts < bounds.from || entry.ts > bounds.to) return;
+    const slot = Math.min(count - 1, Math.floor(((entry.ts - bounds.from) / span) * count));
     const bucket = buckets[slot];
     bucket[entry.level] = (bucket[entry.level] || 0) + 1;
     bucket.total += 1;
@@ -40,8 +50,9 @@ function renderMinimap() {
       else if (bucket.INFO) color = 'rgba(88,196,255,.55)';
       else if (bucket.DEBUG) color = 'rgba(125,133,144,.5)';
       const height = bucket.total ? 12 + (Math.log(1 + bucket.total) / Math.log(1 + peak)) * 88 : 4;
+      const bounds = minimapBounds();
       const title = bucket.total
-        ? formatClock(lensState.data.firstTs + ((lensState.data.lastTs - lensState.data.firstTs) * index) / MINIMAP_BUCKETS) +
+        ? formatClock(bounds.from + ((bounds.to - bounds.from) * index) / MINIMAP_BUCKETS) +
           ' · ' + bucket.total + ' dòng (' + bucket.ERROR + ' lỗi, ' + bucket.WARNING + ' cảnh báo)'
         : 'không có log';
       return '<i data-bucket="' + bucket.firstIndex + '" title="' + escapeHtml(title) + '" style="height:' +
@@ -56,10 +67,15 @@ function renderMinimap() {
   lensState.el.cursor = lensState.el.map.querySelector('.fll-cursor');
   lensState.el.shadeLeft = lensState.el.map.querySelector('.fll-shade-l');
   lensState.el.shadeRight = lensState.el.map.querySelector('.fll-shade-r');
+  const bounds = minimapBounds();
   lensState.el.mapLabel.innerHTML =
-    '<span>' + formatClock(lensState.data.firstTs) + '</span>' +
+    '<span>' + formatClock(bounds.from) + '</span>' +
     '<span class="fll-maptext"></span>' +
-    '<span>' + formatClock(lensState.data.lastTs) + '</span>';
+    (lensState.mapZoom
+      ? '<button class="fll-mapzoom on" data-act="mapZoomOut" title="Thu về toàn bộ log">' +
+        formatClock(bounds.to) + ' &#10005;</button>'
+      : '<span>' + formatClock(bounds.to) + '</span>');
+  lensState.el.map.classList.toggle('fll-map-zoomed', !!lensState.mapZoom);
   lensState.el.mapText = lensState.el.mapLabel.querySelector('.fll-maptext');
   updateMinimapRange();
 }
@@ -68,15 +84,24 @@ function updateMinimapRange() {
   const shadeLeft = lensState.el.shadeLeft;
   const shadeRight = lensState.el.shadeRight;
   if (!shadeLeft || !shadeRight || !lensState.data) return;
-  const data = lensState.data;
-  const span = Math.max(1, data.lastTs - data.firstTs);
+  const bounds = minimapBounds();
+  const span = Math.max(1, bounds.to - bounds.from);
   const range = getVisibleTimeRange();
-  shadeLeft.style.width = Math.max(0, ((range.from - data.firstTs) / span) * 100).toFixed(2) + '%';
-  shadeRight.style.width = Math.max(0, ((data.lastTs - range.to) / span) * 100).toFixed(2) + '%';
+  shadeLeft.style.width =
+    Math.max(0, Math.min(100, ((range.from - bounds.from) / span) * 100)).toFixed(2) + '%';
+  shadeRight.style.width =
+    Math.max(0, Math.min(100, ((bounds.to - range.to) / span) * 100)).toFixed(2) + '%';
   lensState.el.map.classList.toggle('fll-map-ranged', hasAnyTimeRange());
   if (!lensState.el.mapText) return;
-  lensState.el.mapText.textContent = hasAnyTimeRange()
-    ? formatClock(range.from) + ' → ' + formatClock(range.to) + ' · ' + formatDuration(range.to - range.from)
+  if (hasAnyTimeRange()) {
+    lensState.el.mapText.innerHTML = escapeHtml(formatClock(range.from) + ' → ' + formatClock(range.to) +
+      ' · ' + formatDuration(range.to - range.from)) +
+      (lensState.mapZoom ? '' : ' <button class="fll-mapzoom" data-act="mapZoomIn" ' +
+        'title="Phóng minimap vào đúng khoảng này để nhìn rõ từng mốc">&#8596; phóng to</button>');
+    return;
+  }
+  lensState.el.mapText.textContent = lensState.mapZoom
+    ? 'đang phóng to · kéo để chọn khoảng nhỏ hơn'
     : 'kéo để chọn khoảng · bấm để nhảy · nháy đúp để bỏ chọn';
 }
 
@@ -94,23 +119,28 @@ let minimapDrag = null;
 function minimapTsFromClientX(clientX) {
   const rect = lensState.el.map.getBoundingClientRect();
   const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / Math.max(1, rect.width)));
-  const data = lensState.data;
-  return data.firstTs + ratio * Math.max(1, data.lastTs - data.firstTs);
+  const bounds = minimapBounds();
+  return bounds.from + ratio * Math.max(1, bounds.to - bounds.from);
 }
 
+// Ep ve trong be ngang cua minimap: khi dang phong to, moc nam ngoai khung se cho toa do am hoac vuot
+// ra ngoai — ep vao mep de mui ten van chi dung "no o phia ben kia" thay vi ve ra ngoai panel.
 function minimapClientXFromTs(ts) {
   const rect = lensState.el.map.getBoundingClientRect();
-  const data = lensState.data;
-  return rect.left + ((ts - data.firstTs) / Math.max(1, data.lastTs - data.firstTs)) * rect.width;
+  const bounds = minimapBounds();
+  const ratio = (ts - bounds.from) / Math.max(1, bounds.to - bounds.from);
+  return rect.left + Math.max(0, Math.min(1, ratio)) * rect.width;
 }
 
 // Chi ve lai hai mieng mo trong luc keo. Ap bo loc that su doi mot luot 4085 dong + layout bang log,
 // nang qua de chay theo tung nhip chuot — nen chi commit luc tha tay.
 function previewMinimapRange(from, to) {
-  const data = lensState.data;
-  const span = Math.max(1, data.lastTs - data.firstTs);
-  lensState.el.shadeLeft.style.width = Math.max(0, ((from - data.firstTs) / span) * 100).toFixed(2) + '%';
-  lensState.el.shadeRight.style.width = Math.max(0, ((data.lastTs - to) / span) * 100).toFixed(2) + '%';
+  const bounds = minimapBounds();
+  const span = Math.max(1, bounds.to - bounds.from);
+  lensState.el.shadeLeft.style.width =
+    Math.max(0, Math.min(100, ((from - bounds.from) / span) * 100)).toFixed(2) + '%';
+  lensState.el.shadeRight.style.width =
+    Math.max(0, Math.min(100, ((bounds.to - to) / span) * 100)).toFixed(2) + '%';
   if (lensState.el.mapText) {
     lensState.el.mapText.textContent = formatClock(from) + ' → ' + formatClock(to) +
       ' · ' + formatDuration(Math.max(0, to - from));
@@ -151,6 +181,7 @@ function handleMinimapMouseMove(event) {
   minimapDrag.hasMoved = true;
 
   const data = lensState.data;
+  const bounds = minimapBounds();
   const ts = minimapTsFromClientX(event.clientX);
   let from = minimapDrag.from;
   let to = minimapDrag.to;
@@ -166,18 +197,19 @@ function handleMinimapMouseMove(event) {
     const delta = ts - minimapDrag.anchorTs;
     from = minimapDrag.from + delta;
     to = minimapDrag.to + delta;
-    if (from < data.firstTs) {
-      to += data.firstTs - from;
-      from = data.firstTs;
+    if (from < bounds.from) {
+      to += bounds.from - from;
+      from = bounds.from;
     }
-    if (to > data.lastTs) {
-      from -= to - data.lastTs;
-      to = data.lastTs;
+    if (to > bounds.to) {
+      from -= to - bounds.to;
+      to = bounds.to;
     }
   }
+  void data;
 
-  minimapDrag.previewFrom = Math.max(data.firstTs, from);
-  minimapDrag.previewTo = Math.min(data.lastTs, to);
+  minimapDrag.previewFrom = Math.max(bounds.from, from);
+  minimapDrag.previewTo = Math.min(bounds.to, to);
   previewMinimapRange(minimapDrag.previewFrom, minimapDrag.previewTo);
 }
 
@@ -224,8 +256,15 @@ function updateMinimapCursor(ts) {
     cursor.style.opacity = '0';
     return;
   }
-  const span = Math.max(1, lensState.data.lastTs - lensState.data.firstTs);
-  cursor.style.left = (((ts - lensState.data.firstTs) / span) * 100).toFixed(2) + '%';
+  const bounds = minimapBounds();
+  const ratio = (ts - bounds.from) / Math.max(1, bounds.to - bounds.from);
+  if (ratio < 0 || ratio > 1) {
+    // Dong dang cuon toi nam ngoai khung dang phong to: an vach di con hon la ghim no o mep, vi ghim
+    // o mep thi nguoi doc tuong minh dang o dau khoang.
+    cursor.style.opacity = '0';
+    return;
+  }
+  cursor.style.left = (ratio * 100).toFixed(2) + '%';
   cursor.style.opacity = '1';
 }
 // AI-GENERATED END

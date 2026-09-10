@@ -85,12 +85,16 @@ function build() {
   line('ERROR', '[Module: ThanhPhanBia] khong tai duoc muc 87 tu kho bia');
   line('WARNING', '[Module: ThanhPhanBia] tra ve rong, dung tam gia tri mac dinh');
 
+  // --- Man cuoi cua phien 1. Buoc man ke tiep nam o PHIEN SAU, cach ca tieng dong ho: do vat qua thi
+  // ra "o tren man hon mot tieng" trong khi app da bi tat. Bug that da gap tren log production.
+  tracker('auto_screen_navigated', 'app_id=vn.gia.lap, screen_name=ManHinhCuoiPhien, pre_screen_name=ManHinhMot');
+
   // --- khoang lang 6s
   line('INFO', '[Module: GiaLapIdle] khong co gi xay ra', 6000);
 
   // --- phien thu hai, ghi DU ca ba moc khoi dong cach nhau vai tram ms nhu log that.
   // Dem tung moc thi mot lan mo app thanh ba phien — day la bug that da gap.
-  line('INFO', '[Module: GiaLapDb] MomoDatabase init OK', 500);
+  line('INFO', '[Module: GiaLapDb] MomoDatabase init OK', 3600000);
   line('INFO', '@@ appSync >> syncStartApp', 369);
   line('INFO', '[Module: GiaLapDb] [PERF] SyncAppFeature, start', 382);
   tracker('auto_screen_navigated', 'app_id=vn.gia.lap, screen_name=ManHinhBa, pre_screen_name=ManHinhMot');

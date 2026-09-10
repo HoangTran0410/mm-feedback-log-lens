@@ -655,6 +655,28 @@ check('thoi luong dai phai doc duoc', () => {
   eq(L.formatDuration(14182000), '3h56m', 'vai tieng');
 });
 
+// Bug that: mot man bao "11h24m · 2×" trong khi hai dong log cua no cach nhau 2 giay. Nguyen nhan:
+// khoang cach do sang buoc man hinh ke tiep, ma buoc do nam o LAN MO APP SAU, cach ca tieng dong ho.
+check('o lau tren man: khong do vat qua hai phien app', () => {
+  const cuoiPhien = journey.screens.find((row) => row.key.indexOf('ManHinhCuoiPhien') >= 0);
+  ok(cuoiPhien, 'fixture phai co man cuoi phien 1');
+  eq(cuoiPhien.ms, 0, 'man cuoi mot phien khong duoc mang thoi gian cua khoang app bi tat');
+  journey.screens.forEach((row) => {
+    ok(row.ms <= 600000, 'khong man nao duoc vuot nguong hop ly: ' + row.key + ' = ' + row.ms + 'ms');
+  });
+});
+
+// Hien tong ma de canh "2x" thi de tuong moi lan bang tung do. Phai giu ca lan lau nhat.
+check('o lau tren man: giu ca tong lan lan lau nhat', () => {
+  journey.screens.forEach((row) => {
+    ok(row.maxMs <= row.ms, row.key + ': lan lau nhat khong the lon hon tong');
+  });
+  const html = L.renderSummaryTab();
+  if (journey.screens.some((row) => row.ms > 0)) {
+    ok(html.indexOf('lần vào, lần lâu nhất') >= 0, 'hang phai co title noi ro tong va lan lau nhat');
+  }
+});
+
 renderAll('log day du');
 
 L.TIMELINE_KIND_ORDER.forEach((kind) => {

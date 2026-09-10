@@ -504,14 +504,17 @@ function renderScreenDwellSection(view) {
   if (!screens.length) return '';
   const peak = Math.max(1, screens[0].ms);
   return secTitle('Ở lâu nhất trên màn', screens.length) +
-    '<div class="fll-hint" style="margin-bottom:8px">Con số này <b>tính ra</b> từ khoảng cách tới bước ' +
-    'màn hình kế tiếp, không phải trường có sẵn trong log. Các event nổ liên tiếp trong cùng một lần ' +
-    'chuyển màn sẽ ra ~0ms nên không có mặt ở đây.</div>' +
+    '<div class="fll-hint" style="margin-bottom:8px"><b>Tổng</b> thời gian ở trên màn đó, cộng qua các ' +
+    'lần vào. Số <b>tính ra</b> từ khoảng cách tới bước màn hình kế tiếp chứ không có sẵn trong log — ' +
+    'nên khoảng cách vắt qua hai phiên app, hoặc dài quá ' + MAX_PLAUSIBLE_DURATION_MS / 60000 +
+    ' phút (app nằm dưới nền chứ không phải người dùng ngồi nhìn), đều bị bỏ.</div>' +
     '<div class="fll-rank">' + screens.slice(0, 8)
-      .map((row) => '<div class="fll-rk" data-jscreen="' + escapeHtml(row.key) + '">' +
+      .map((row) => '<div class="fll-rk" data-jscreen="' + escapeHtml(row.key) + '" title="' +
+        row.count + ' lần vào, lần lâu nhất ' + formatDuration(row.maxMs) + '">' +
         '<u style="width:' + ((row.ms / peak) * 100).toFixed(1) + '%"></u>' +
         '<span>' + escapeHtml(row.key) + '</span>' +
-        '<b>' + formatDuration(row.ms) + ' &middot; ' + row.count + '&times;</b></div>')
+        '<b>' + formatDuration(row.ms) + (row.count > 1 ? ' &middot; ' + row.count + ' lần' : '') +
+        '</b></div>')
       .join('') + '</div>';
 }
 

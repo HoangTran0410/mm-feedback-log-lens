@@ -156,14 +156,17 @@ function groupJourneySteps(steps, kind) {
     if (step.kind !== kind) return;
     let row = map.get(step.label);
     if (!row) {
-      row = { key: step.label, count: 0, ms: 0, indices: [], detail: step.detail,
+      row = { key: step.label, count: 0, ms: 0, maxMs: 0, indices: [], detail: step.detail,
         firstTs: step.ts, lastTs: step.ts };
       map.set(step.label, row);
     }
     // Dem SO THAO TAC (so buoc da gop), khong phai so dong log — de con so o day khop voi the thong ke
     // dau tab. So dong tho van con nguyen trong row.indices de duyet tung dong.
     row.count += 1;
+    // ms la TONG cua moi lan vao man do; maxMs la lan lau nhat. Chi hien tong ma de canh "2x" thi
+    // nguoi doc de tuong 2 lan moi lan bang tung do.
     row.ms += step.ms;
+    if (step.ms > row.maxMs) row.maxMs = step.ms;
     step.indices.forEach((domIndex) => row.indices.push(domIndex));
     // Nhieu buoc cung nhan nhung khac boi canh (nut "transfer" o bill_detail va o detail_input):
     // giu detail cua buoc dau cho ca nhom la noi sai. Chi giu khi moi buoc deu giong nhau.
@@ -254,7 +257,7 @@ function buildJourney(entries) {
     const step = pickJourneyStep(entry.event, entry.eventParams);
     if (!step || !step.label) return;
     raw.push({ kind: step.kind, label: step.label, detail: step.detail || '', note: step.note || '',
-      event: entry.event, ts: entry.ts, domIndex: entry.domIndex });
+      event: entry.event, ts: entry.ts, domIndex: entry.domIndex, session: entry.session });
   });
 
   // Cung ly do nhu tab Timeline: log co dong timestamp lui ve truoc, thu tu dong khong phai thu tu thoi gian.
@@ -267,12 +270,25 @@ function buildJourney(entries) {
   // ms cua mot buoc "screen" = khoang cach toi buoc screen/move ke tiep. Day la SO TINH RA, khong phai
   // truong nao trong log — cac event no lien tuc trong cung mot lan chuyen man se ra ~0ms, chi buoc cuoi
   // cua chum moi mang con so that. Truong dwell_time co san cua roothome nam rieng trong detail.
+  //
+  // Hai cho phai chan, neu khong con so ra vo nghia (da gap that: mot man bao "11h24m" trong khi hai
+  // dong log cua no cach nhau 2 giay):
+  //   - buoc man hinh cuoi cua MOT PHIEN khong duoc do sang buoc dau cua phien sau: giua hai phien app
+  //     da bi tat, khong ai "o tren man" ca.
+  //   - khoang cach qua MAX_PLAUSIBLE_DURATION_MS thi gan nhu chac chan la app bi day xuong nen chu
+  //     khong phai nguoi dung ngoi nhin. Bo han (0 = khong biet) chu khong bao mot con so sai.
   let boundaryTs = steps.length ? steps[steps.length - 1].ts : null;
+  let boundarySession = steps.length ? steps[steps.length - 1].session : null;
   for (let i = steps.length - 1; i >= 0; i -= 1) {
-    if (steps[i].kind === 'screen' && steps[i].ts && boundaryTs) {
-      steps[i].ms = Math.max(0, boundaryTs - steps[i].ts);
+    const step = steps[i];
+    if (step.kind === 'screen' && step.ts && boundaryTs && step.session === boundarySession) {
+      const span = Math.max(0, boundaryTs - step.ts);
+      step.ms = span <= MAX_PLAUSIBLE_DURATION_MS ? span : 0;
     }
-    if (steps[i].kind === 'screen' || steps[i].kind === 'move') boundaryTs = steps[i].ts || boundaryTs;
+    if (step.kind === 'screen' || step.kind === 'move') {
+      boundaryTs = step.ts || boundaryTs;
+      boundarySession = step.session;
+    }
   }
 
   const byCount = (a, b) => b.count - a.count;

@@ -128,9 +128,16 @@ const PANEL_CSS = [
   '.fll-map-ranged .fll-shade-r{border-left:2px solid var(--acc);box-shadow:-2px 0 8px rgba(255,46,136,.4)}',
   '.fll-maptext{font-variant-numeric:tabular-nums;opacity:.75}',
   '.fll-map-ranged + .fll-maplbl .fll-maptext{opacity:1;color:var(--acc);font-weight:650}',
-  '.fll-maptext.aiming{opacity:1;color:var(--acc);font-weight:700;font-variant-numeric:tabular-nums}',
+  '.fll-maptext.aiming{opacity:1;color:#fff;font-weight:700;font-variant-numeric:tabular-nums}',
   '.fll-cursor{position:absolute;top:0;bottom:0;width:2px;background:var(--acc);pointer-events:none;',
   'box-shadow:0 0 10px var(--acc);opacity:0;transition:.12s}',
+  /* Nut phong to nam ngay trong dong nhan duoi minimap — cho duy nhat vua lien quan vua khong an
+     mat cho cua chinh minimap. */
+  '.fll-mapzoom{font-size:9px;font-weight:700;padding:1px 7px;border-radius:20px;cursor:pointer;',
+  'background:var(--bg3);color:var(--txt);border:1px solid var(--line)!important;white-space:nowrap}',
+  '.fll-mapzoom:hover{border-color:var(--acc)!important;color:var(--acc)}',
+  '.fll-mapzoom.on{background:var(--acc);color:#fff;border-color:var(--acc)!important}',
+  '.fll-map-zoomed{border-color:var(--acc)}',
   '.fll-maplbl{display:flex;justify-content:space-between;gap:8px;margin:5px 17px 0;font-size:9.5px;',
   'color:var(--mut);font-variant-numeric:tabular-nums;flex:0 0 auto}',
 
@@ -199,12 +206,17 @@ const PANEL_CSS = [
   /* ---------- mui ten tu muc dang di chuot len minimap ---------- */
   /* Mot lop SVG phu len ca panel. pointer-events:none de khong chan chuot; z-index cao hon .fll-sheet
      (8) vi duong ke phai di TU trong tam truot RA den minimap nam ngoai no. */
+  /* Mui ten tung to accent — cung ho hong voi cot ERROR cua minimap (#ff5f6d) va voi chinh
+     .fll-cursor (vach vi tri cuon, cung accent), nen dat len minimap la chim nghim. Nay to TRANG kem
+     vien mau nen panel: tren cot hong, cot vang hay cho trong deu noi, va khong lan voi vach cuon. */
   '.fll-aim{position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;z-index:9;',
   'opacity:0;transition:opacity .12s}',
   '.fll-aim.on{opacity:1}',
-  '.fll-aim-line{fill:none;stroke:var(--acc);stroke-width:1.5;stroke-dasharray:4 3;opacity:.85}',
-  '.fll-aim-head{fill:var(--acc)}',
-  '.fll-aim-ticks rect{fill:var(--acc);opacity:.5}',
+  /* Duong ke van de accent: no chay tren cac the toi trong than panel, o do accent doc tot ma khong
+     de len chu nhieu nhu net trang. Chi cai DAU MUI TEN va vach tren minimap moi doi sang trang. */
+  '.fll-aim-line{fill:none;stroke:var(--acc);stroke-width:1.6;stroke-dasharray:4 3;opacity:.9}',
+  '.fll-aim-head{fill:#fff;stroke:var(--bg);stroke-width:1;paint-order:stroke}',
+  '.fll-aim-ticks rect{fill:#fff;stroke:var(--bg);stroke-width:1;paint-order:stroke;opacity:.75}',
   '.fll-aim-ticks rect.fll-aim-first{opacity:1}',
   '.fll-aimed{outline:1px solid var(--acc);outline-offset:1px;border-radius:8px}',
 
