@@ -35,7 +35,25 @@ const RE_BATCH = /LOGGER: END OF BATCH/;
 // debug nao chan (da doc source app). Do tren 50 feedback production that: "MomoDatabase init OK"
 // co mat o 44/50 log — 6 log con lai can moc du phong, vi file log bi xoay vong thi dong khoi dong
 // la dong bi cat dau tien.
-const RE_SESSION = /MomoDatabase init OK|@@ appSync >> syncStartApp|\[PERF\] SyncAppFeature, start/;
+//
+// NHUNG ca ba moc deu no trong CUNG mot lan khoi dong, cach nhau vai tram ms. Dem moi moc la mot phien
+// thi mot lan mo app thanh ba phien — bug that, nguoi dung bat duoc. Do tren ba log that:
+//   - khoang cach GIUA ba moc cua cung mot lan khoi dong: 369, 382, 470, 916, 1000, 1119, 1829, 2078ms
+//   - khoang cach giua HAI lan khoi dong that: 75 440ms va 163 029ms
+// Hai nhom cach nhau 36 lan, nen nguong 5s nam giua khoang trong do, khong sat mep nao.
+const SESSION_MARKERS = [
+  { kind: 'db', re: /MomoDatabase init OK/ },
+  { kind: 'sync', re: /@@ appSync >> syncStartApp/ },
+  { kind: 'perf', re: /\[PERF\] SyncAppFeature, start/ },
+];
+const SESSION_BURST_MS = 5000;
+
+function sessionMarkerKind(message) {
+  for (let i = 0; i < SESSION_MARKERS.length; i += 1) {
+    if (SESSION_MARKERS[i].re.test(message)) return SESSION_MARKERS[i].kind;
+  }
+  return '';
+}
 
 function getLogRowElements() {
   return Array.from(document.querySelectorAll(ROW_SELECTOR));
@@ -152,6 +170,9 @@ function parseEntry(rawText, domIndex, lineNo, el) {
     signature: '',
     http: null,
     session: 1,
+    // Dat true cho dong DAU TIEN cua moi chum moc khoi dong. Tab Dien bien doc co nay chu khong
+    // do lai regex, neu khong mot lan mo app se ve ra ba moc "App khoi dong" chong nhau.
+    isSessionStart: false,
   };
 
   const head = RE_HEAD.exec(rawText);
@@ -323,9 +344,26 @@ function analyzeLog(gapThresholdMs) {
     return parseEntry(text, index, Number.isNaN(parsedLineNo) ? index + 1 : parsedLineNo, el);
   });
 
+  // Mot lan khoi dong = mot CHUM moc, khong phai mot moc. Sang phien moi khi: cach moc truoc qua
+  // SESSION_BURST_MS, HOAC gap lai dung loai moc da thay trong chum nay — mot process khong the ghi
+  // "MomoDatabase init OK" hai lan, nen moc trung loai chac chan la lan khoi dong khac. Ve dieu kien
+  // thu hai: dung tren bon chum quan sat duoc (moi chum dung mot moc moi loai), CHUA XAC MINH duoc
+  // rang khong log nao lap lai mot loai moc giua chung mot lan chay.
   let sessionCount = 0;
+  let lastMarkerTs = 0;
+  let burstKinds = new Set();
   entries.forEach((entry) => {
-    if (RE_SESSION.test(entry.message)) sessionCount += 1;
+    const kind = sessionMarkerKind(entry.message);
+    if (kind) {
+      const gap = entry.ts && lastMarkerTs ? entry.ts - lastMarkerTs : Infinity;
+      if (gap > SESSION_BURST_MS || burstKinds.has(kind)) {
+        sessionCount += 1;
+        burstKinds = new Set();
+        entry.isSessionStart = true;
+      }
+      burstKinds.add(kind);
+      if (entry.ts) lastMarkerTs = entry.ts;
+    }
     entry.session = Math.max(1, sessionCount);
   });
 
@@ -2180,7 +2218,14 @@ function formatClock(ts) {
 function formatDuration(ms) {
   if (ms == null) return '';
   if (ms < 1000) return ms + 'ms';
-  return (ms / 1000).toFixed(ms < 10000 ? 1 : 0) + 's';
+  if (ms < 60000) return (ms / 1000).toFixed(ms < 10000 ? 1 : 0) + 's';
+  // Khoang lang giua hai lan mo app co the dai vai tieng. "14182s" thi khong ai doc ra la gan bon
+  // tieng — phai tu chia trong dau. Tren mot phut thi doi sang phut/gio.
+  const totalSeconds = Math.round(ms / 1000);
+  const minutes = Math.floor(totalSeconds / 60) % 60;
+  const hours = Math.floor(totalSeconds / 3600);
+  if (hours) return hours + 'h' + String(minutes).padStart(2, '0') + 'm';
+  return minutes + 'm' + String(totalSeconds % 60).padStart(2, '0') + 's';
 }
 
 function formatCount(value) {
@@ -3234,8 +3279,8 @@ Model: claude-opus-5
 // Ve bang MOT lop SVG phu len ca panel (pointer-events:none) chu khong chen the vao tung hang: nhu vay
 // khong renderer nao phai biet den chuyen nay, va tab moi them sau nay tu dong co luon.
 
-const AIM_SELECTOR = '[data-jump],[data-bucket],[data-group],[data-call],[data-saw],[data-apifail],' +
-  '[data-jscreen],[data-jtap],[data-jload],[data-tracefail]';
+const AIM_SELECTOR = '[data-aim],[data-jump],[data-bucket],[data-group],[data-call],[data-saw],' +
+  '[data-apifail],[data-jscreen],[data-jtap],[data-jload],[data-tracefail]';
 // Mot nhom loi co the co hang tram dong. Ve het thi minimap thanh mot mang do dac, nhin khong ra gi;
 // 60 vach da du day de thay "rai deu" hay "dom mot cho".
 const AIM_MAX_TICKS = 60;
@@ -3245,6 +3290,9 @@ const AIM_MAX_TICKS = 60;
 function aimIndicesFor(el) {
   const view = getView();
   const data = el.dataset;
+  // data-aim di truoc data-jump: co nhung hang tro toi mot KHOANG (khoang lang co dau va cuoi) trong
+  // khi cu bam thi chi nhay toi mot dong. Mui ten phai danh dau ca khoang do.
+  if (data.aim != null) return data.aim.split(',').map(Number).filter((index) => !Number.isNaN(index));
   if (data.jump != null) return [Number(data.jump)];
   if (data.bucket != null) return Number(data.bucket) >= 0 ? [Number(data.bucket)] : [];
   if (data.group != null) {
@@ -4416,15 +4464,20 @@ function buildTimelineEvents(data) {
   const events = [];
 
   data.scopedEntries.forEach((entry) => {
-    if (RE_SESSION.test(entry.message)) {
+    if (entry.isSessionStart) {
       events.push({ ts: entry.ts, group: 'app', kind: 'boot', title: 'App khởi động — phiên ' + entry.session,
         detail: entry.message, index: entry.domIndex });
     }
   });
 
+  // Khoang lang la mot KHOANG, khong phai mot diem. Truoc day hang nay hien gio cua dong TRUOC khoang
+  // lang nhung bam (va mui ten) lai tro toi dong SAU no — hai dau cach nhau ca tieng dong ho, nen nhin
+  // vao thay giao dien tu mau thuan. Nay hien ca hai moc, va mui ten danh dau ca hai dau tren minimap.
   data.gaps.forEach((gap) => {
-    events.push({ ts: gap.before.ts, group: 'app', kind: 'gap', title: 'Khoảng lặng ' + formatDuration(gap.ms),
-      detail: 'dừng sau: ' + gap.before.message.slice(0, 90), index: gap.after.domIndex });
+    events.push({ ts: gap.before.ts, tsEnd: gap.after.ts, group: 'app', kind: 'gap',
+      title: 'Khoảng lặng ' + formatDuration(gap.ms),
+      detail: 'dừng sau: ' + gap.before.message.slice(0, 90),
+      index: gap.after.domIndex, aim: [gap.before.domIndex, gap.after.domIndex] });
   });
 
   data.groups.filter((group) => group.level === 'ERROR' && !isGroupMuted(group)).forEach((group) => {
@@ -4491,12 +4544,14 @@ function renderTimelineTab() {
 
   const shown = events.slice(0, tabUiState.tlLimit);
   return header + '<div class="fll-tl">' + shown
-    .map((event) => '<div class="fll-ev ' + event.kind + '" data-jump="' + event.index + '">' +
+    .map((event) => '<div class="fll-ev ' + event.kind + '" data-jump="' + event.index + '"' +
+      (event.aim ? ' data-aim="' + event.aim.join(',') + '"' : '') + '>' +
       '<div class="fll-ev-t">' +
       (event.count > 1 ? '<span class="fll-jn">' + event.count + '&times;</span>' : '') +
       escapeHtml(event.title) +
       (event.ms >= 1000 ? '<span class="fll-jms">' + formatDuration(event.ms) + '</span>' : '') +
-      '<em>' + formatClock(event.ts) + '</em></div>' +
+      '<em>' + formatClock(event.ts) +
+      (event.tsEnd ? ' &rarr; ' + formatClock(event.tsEnd) : '') + '</em></div>' +
       (event.detail ? '<div class="fll-ev-d">' + escapeHtml(event.detail) + '</div>' : '') +
       '</div>')
     .join('') + '</div>' +

@@ -15,8 +15,8 @@ Model: claude-opus-5
 // Ve bang MOT lop SVG phu len ca panel (pointer-events:none) chu khong chen the vao tung hang: nhu vay
 // khong renderer nao phai biet den chuyen nay, va tab moi them sau nay tu dong co luon.
 
-const AIM_SELECTOR = '[data-jump],[data-bucket],[data-group],[data-call],[data-saw],[data-apifail],' +
-  '[data-jscreen],[data-jtap],[data-jload],[data-tracefail]';
+const AIM_SELECTOR = '[data-aim],[data-jump],[data-bucket],[data-group],[data-call],[data-saw],' +
+  '[data-apifail],[data-jscreen],[data-jtap],[data-jload],[data-tracefail]';
 // Mot nhom loi co the co hang tram dong. Ve het thi minimap thanh mot mang do dac, nhin khong ra gi;
 // 60 vach da du day de thay "rai deu" hay "dom mot cho".
 const AIM_MAX_TICKS = 60;
@@ -26,6 +26,9 @@ const AIM_MAX_TICKS = 60;
 function aimIndicesFor(el) {
   const view = getView();
   const data = el.dataset;
+  // data-aim di truoc data-jump: co nhung hang tro toi mot KHOANG (khoang lang co dau va cuoi) trong
+  // khi cu bam thi chi nhay toi mot dong. Mui ten phai danh dau ca khoang do.
+  if (data.aim != null) return data.aim.split(',').map(Number).filter((index) => !Number.isNaN(index));
   if (data.jump != null) return [Number(data.jump)];
   if (data.bucket != null) return Number(data.bucket) >= 0 ? [Number(data.bucket)] : [];
   if (data.group != null) {

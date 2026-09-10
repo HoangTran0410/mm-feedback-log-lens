@@ -72,7 +72,8 @@ function loadLens() {
     'parseKeyValueMap,renderSummaryTab,renderIssuesTab,renderHttpSection,renderSlowSections,' +
     'renderFilterTab,' +
     'renderTimelineTab,renderConfigTab,buildConfigs,tabUiState,lensState,TAB_DEFS,TIMELINE_GROUPS,' +
-    'applyFilter,aimIndicesFor,sectionKey,isSectionOpen,setSectionOpen,loadOpenSections};';
+    'applyFilter,aimIndicesFor,sectionKey,isSectionOpen,setSectionOpen,loadOpenSections,' +
+    'buildTimelineEvents,formatDuration};';
   const wired = src.replace(/\n\}\)\(\);\s*$/, '\n' + exportLine + '\n})();\n');
   if (wired === src) throw new Error('khong chen duoc dong export vao IIFE cua extension/lens.js');
   (0, eval)(wired);
@@ -131,6 +132,9 @@ const stepsOf = (kind) => journey.steps.filter((step) => step.kind === kind);
 
 check('moc phien nhan ca dang co duoi "in <N>ms" lan dang khong', () => {
   eq(data.sessionCount, 2, 'fixture co hai lan khoi dong');
+  // Phien 2 ghi du ba moc cach nhau 369ms va 382ms. Dem tung moc thi ra 4 phien.
+  const starts = data.entries.filter((entry) => entry.isSessionStart);
+  eq(starts.length, 2, 'so dong duoc danh dau la moc bat dau phien');
 });
 
 check('doc duoc log fixture', () => {
@@ -545,6 +549,46 @@ check('badge: to accent khi muc do dang co bo loc bat', () => {
 check('tab Dien bien: co chip loc theo phien app', () => {
   ok(L.renderTimelineTab().indexOf('data-act="setSession"') >= 0,
     'log fixture co 2 phien nen phai co chip chon phien');
+});
+
+// Bug that: ba moc khoi dong no trong cung mot lan mo app, cach nhau vai tram ms, ma moi moc lai
+// tinh thanh mot phien. Do tren log that: khoang cach trong cung mot chum toi da 2078ms, con giua hai
+// lan khoi dong that toi thieu 75 440ms.
+check('phien app: ba moc sat nhau chi la MOT lan khoi dong', () => {
+  eq(data.sessionCount, 2, 'so phien');
+  const perSession = {};
+  data.entries.forEach((entry) => {
+    if (entry.isSessionStart) perSession[entry.session] = (perSession[entry.session] || 0) + 1;
+  });
+  eq(JSON.stringify(perSession), '{"1":1,"2":1}', 'moi phien dung mot moc bat dau');
+});
+
+check('phien app: tab Dien bien khong ve ba moc "App khoi dong" chong nhau', () => {
+  const html = L.renderTimelineTab();
+  eq((html.match(/App khởi động/g) || []).length, 2, 'so moc khoi dong tren dong thoi gian');
+});
+
+// Bug that: hang "Khoang lang" hien gio cua dong TRUOC khoang lang, nhung bam (va mui ten) lai tro
+// toi dong SAU no. Hai dau co the cach nhau ca tieng dong ho -> nhin vao thay giao dien tu mau thuan.
+check('khoang lang: hang hien ca hai dau moc, mui ten danh dau ca hai', () => {
+  const gapEvent = L.buildTimelineEvents(L.lensState.data).find((event) => event.kind === 'gap');
+  ok(gapEvent, 'fixture phai co it nhat mot khoang lang');
+  ok(gapEvent.tsEnd && gapEvent.tsEnd > gapEvent.ts, 'phai co moc ket thuc, va no o sau moc bat dau');
+  eq(gapEvent.aim.length, 2, 'mui ten tro toi ca hai dau');
+  eq(gapEvent.aim[1], gapEvent.index, 'dau thu hai chinh la dong ma cu bam se nhay toi');
+  const html = L.renderTimelineTab();
+  ok(html.indexOf('data-aim="' + gapEvent.aim.join(',') + '"') >= 0, 'thuoc tinh data-aim phai co trong HTML');
+  eq(L.aimIndicesFor({ dataset: { aim: gapEvent.aim.join(','), jump: String(gapEvent.index) } }).length, 2,
+    'data-aim phai duoc doc TRUOC data-jump');
+});
+
+// "14182s" khong ai doc ra la gan bon tieng.
+check('thoi luong dai phai doc duoc', () => {
+  eq(L.formatDuration(950), '950ms', 'duoi mot giay');
+  eq(L.formatDuration(4200), '4.2s', 'vai giay');
+  eq(L.formatDuration(45000), '45s', 'duoi mot phut');
+  eq(L.formatDuration(155000), '2m35s', 'vai phut');
+  eq(L.formatDuration(14182000), '3h56m', 'vai tieng');
 });
 
 renderAll('log day du');

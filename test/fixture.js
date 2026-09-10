@@ -88,8 +88,11 @@ function build() {
   // --- khoang lang 6s
   line('INFO', '[Module: GiaLapIdle] khong co gi xay ra', 6000);
 
-  // --- phien thu hai
+  // --- phien thu hai, ghi DU ca ba moc khoi dong cach nhau vai tram ms nhu log that.
+  // Dem tung moc thi mot lan mo app thanh ba phien — day la bug that da gap.
   line('INFO', '[Module: GiaLapDb] MomoDatabase init OK', 500);
+  line('INFO', '@@ appSync >> syncStartApp', 369);
+  line('INFO', '[Module: GiaLapDb] [PERF] SyncAppFeature, start', 382);
   tracker('auto_screen_navigated', 'app_id=vn.gia.lap, screen_name=ManHinhBa, pre_screen_name=ManHinhMot');
   tracker('feature_source', 'action=start_feature, from=tinh_nang_mot, to=tinh_nang_hai');
 

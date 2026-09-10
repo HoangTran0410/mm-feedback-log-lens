@@ -680,15 +680,20 @@ function buildTimelineEvents(data) {
   const events = [];
 
   data.scopedEntries.forEach((entry) => {
-    if (RE_SESSION.test(entry.message)) {
+    if (entry.isSessionStart) {
       events.push({ ts: entry.ts, group: 'app', kind: 'boot', title: 'App khởi động — phiên ' + entry.session,
         detail: entry.message, index: entry.domIndex });
     }
   });
 
+  // Khoang lang la mot KHOANG, khong phai mot diem. Truoc day hang nay hien gio cua dong TRUOC khoang
+  // lang nhung bam (va mui ten) lai tro toi dong SAU no — hai dau cach nhau ca tieng dong ho, nen nhin
+  // vao thay giao dien tu mau thuan. Nay hien ca hai moc, va mui ten danh dau ca hai dau tren minimap.
   data.gaps.forEach((gap) => {
-    events.push({ ts: gap.before.ts, group: 'app', kind: 'gap', title: 'Khoảng lặng ' + formatDuration(gap.ms),
-      detail: 'dừng sau: ' + gap.before.message.slice(0, 90), index: gap.after.domIndex });
+    events.push({ ts: gap.before.ts, tsEnd: gap.after.ts, group: 'app', kind: 'gap',
+      title: 'Khoảng lặng ' + formatDuration(gap.ms),
+      detail: 'dừng sau: ' + gap.before.message.slice(0, 90),
+      index: gap.after.domIndex, aim: [gap.before.domIndex, gap.after.domIndex] });
   });
 
   data.groups.filter((group) => group.level === 'ERROR' && !isGroupMuted(group)).forEach((group) => {
@@ -755,12 +760,14 @@ function renderTimelineTab() {
 
   const shown = events.slice(0, tabUiState.tlLimit);
   return header + '<div class="fll-tl">' + shown
-    .map((event) => '<div class="fll-ev ' + event.kind + '" data-jump="' + event.index + '">' +
+    .map((event) => '<div class="fll-ev ' + event.kind + '" data-jump="' + event.index + '"' +
+      (event.aim ? ' data-aim="' + event.aim.join(',') + '"' : '') + '>' +
       '<div class="fll-ev-t">' +
       (event.count > 1 ? '<span class="fll-jn">' + event.count + '&times;</span>' : '') +
       escapeHtml(event.title) +
       (event.ms >= 1000 ? '<span class="fll-jms">' + formatDuration(event.ms) + '</span>' : '') +
-      '<em>' + formatClock(event.ts) + '</em></div>' +
+      '<em>' + formatClock(event.ts) +
+      (event.tsEnd ? ' &rarr; ' + formatClock(event.tsEnd) : '') + '</em></div>' +
       (event.detail ? '<div class="fll-ev-d">' + escapeHtml(event.detail) + '</div>' : '') +
       '</div>')
     .join('') + '</div>' +

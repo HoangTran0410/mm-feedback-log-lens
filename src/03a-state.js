@@ -124,7 +124,14 @@ function formatClock(ts) {
 function formatDuration(ms) {
   if (ms == null) return '';
   if (ms < 1000) return ms + 'ms';
-  return (ms / 1000).toFixed(ms < 10000 ? 1 : 0) + 's';
+  if (ms < 60000) return (ms / 1000).toFixed(ms < 10000 ? 1 : 0) + 's';
+  // Khoang lang giua hai lan mo app co the dai vai tieng. "14182s" thi khong ai doc ra la gan bon
+  // tieng — phai tu chia trong dau. Tren mot phut thi doi sang phut/gio.
+  const totalSeconds = Math.round(ms / 1000);
+  const minutes = Math.floor(totalSeconds / 60) % 60;
+  const hours = Math.floor(totalSeconds / 3600);
+  if (hours) return hours + 'h' + String(minutes).padStart(2, '0') + 'm';
+  return minutes + 'm' + String(totalSeconds % 60).padStart(2, '0') + 's';
 }
 
 function formatCount(value) {
