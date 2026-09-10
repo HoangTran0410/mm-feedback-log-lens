@@ -74,7 +74,7 @@ function loadLens() {
     'renderTimelineTab,renderConfigTab,buildConfigs,tabUiState,lensState,TAB_DEFS,' +
     'applyFilter,aimIndicesFor,sectionKey,isSectionOpen,setSectionOpen,loadOpenSections,' +
     'buildTimelineEvents,formatDuration,renderTimelineList,TIMELINE_KIND_ORDER,TIMELINE_KINDS,' +
-    'canZoomFurther,minimapBounds};';
+    'canZoomFurther,minimapBounds,pickJourneyLabel};';
   const wired = src.replace(/\n\}\)\(\);\s*$/, '\n' + exportLine + '\n})();\n');
   if (wired === src) throw new Error('khong chen duoc dong export vao IIFE cua extension/lens.js');
   (0, eval)(wired);
@@ -201,7 +201,7 @@ check('hai thao tac cach 5s KHONG gop', () => {
 });
 
 check('popup muc INFO van vao duoc muc "user da thay"', () => {
-  const saw = journey.saw.find((row) => row.key === 'Popup Bia Canh Bao');
+  const saw = journey.saw.find((row) => row.key === 'popup Popup Bia Canh Bao');
   ok(saw, 'phai bat duoc popup; hien co: ' + journey.saw.map((r) => r.key).join(', '));
   eq(saw.count, 1, 'so lan');
   // va no KHONG duoc lot vao nhom loi, vi no la INFO
@@ -734,6 +734,28 @@ check('minimap: lui tung nac phong to', () => {
   L.lensState.mapZoomStack = [];
   eq(L.lensState.mapZoom, null, 'khung ve la ca log');
   eq(L.lensState.mapZoomStack.length, 0, 'ngan xep phai rong theo');
+});
+
+// Bug that: popup ghi title=null thi nhan ra dung chu "popup", nen hai popup khac han nhau bi gom
+// thanh mot hang "2x popup" — nguoi doc khong con gi de phan biet. Quy tac uu tien phai tut xuong
+// component_name, roi component_id, roi feature_code.
+check('nhan buoc: popup khong co title thi lay ten thanh phan', () => {
+  const keys = journey.saw.map((row) => row.key);
+  ok(keys.indexOf('popup goi_y_yeu_thich') >= 0, 'phai lay component_name; hien co: ' + keys.join(', '));
+  ok(keys.indexOf('popup nhac_cap_nhat') >= 0, 'component_id phai cat lay doan cuoi');
+  eq(keys.filter((key) => key === 'popup ?').length, 0, 'khong duoc con hang nao ten tron');
+  // Hai popup do khac nhau that -> phai la HAI hang, khong duoc gom thanh mot "2x"
+  const gopNham = journey.saw.filter((row) => row.key === 'popup' && row.count > 1);
+  eq(gopNham.length, 0, 'khong duoc gom hai popup khac nhau vao mot hang');
+});
+
+check('nhan buoc: cat bot nhan qua dai', () => {
+  const dai = L.pickJourneyLabel(['x'.repeat(120)], '?');
+  eq(dai.length, 48, 'nhan phai bi cat con 48 ky tu');
+  ok(dai.endsWith('…'), 'va co dau cat');
+  eq(L.pickJourneyLabel(['null', '', 'undefined', 'ten_that'], '?'), 'ten_that', 'bo qua gia tri rong');
+  eq(L.pickJourneyLabel(['a/b/c/ten_cuoi'], '?'), 'ten_cuoi', 'component_id lay doan cuoi');
+  eq(L.pickJourneyLabel(['null'], 'du_phong'), 'du_phong', 'het lua chon thi dung du phong');
 });
 
 renderAll('log day du');

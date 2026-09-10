@@ -55,6 +55,14 @@ giữa chừng. Tab có hay không là tính chất của cả log; nội dung b
 **Chữ hướng dẫn trên giao diện: một câu.** Giải thích dài để trong chú giải của chính phần tử nó nói
 về. Panel chỉ rộng 480px, mỗi câu thừa đẩy nội dung thật xuống dưới màn.
 
+**Đặt tên một bước hành trình: đi theo bậc, không lấy một trường duy nhất.** `pickJourneyLabel()`
+lấy trường đầu tiên không rỗng theo thứ tự *"càng riêng cho bước này và càng giống thứ user nhìn thấy
+thì càng ưu tiên"*: (1) chữ user thật sự đọc được — `title`, `button_name`; (2) tên thành phần do dev
+đặt — `component_name`, `popup_name`, đuôi của `component_id`; (3) bối cảnh rộng hơn — `feature_code`,
+`service_name`. Bậc 3 không bao giờ nên đứng một mình ở chỗ khác (một `feature_code` có hàng chục
+popup), nhưng vẫn hơn chữ "popup" trơn. Lý do có luật này: trên log thật `title=null` khá thường, và
+khi đó hai popup khác hẳn nhau bị gom thành một hàng `2× popup` — mất sạch cái để phân biệt.
+
 **Chú giải dùng `data-tip`, KHÔNG dùng `title`.** Độ trễ trước khi hiện `title=""` do hệ điều hành
 quyết định — không CSS hay JS nào đổi được. Panel này có tới 120 chỗ mang chú giải, nên lướt chuột qua
 là tooltip của trình duyệt nhảy liên tục và che mất giao diện phía sau. `src/03j-tooltip.js` tự vẽ:

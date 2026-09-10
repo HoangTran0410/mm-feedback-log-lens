@@ -59,6 +59,29 @@ const MINIAPP_FAIL_STAGES = {
   pu_recording: 'popup đang ghi màn hình',
 };
 
+// Quy tac dat nhan: lay truong dau tien KHONG rong, xep theo "cang rieng cho buoc nay va cang giong
+// thu user nhin thay thi cang uu tien". Ba bac:
+//   1. Chu user THAT SU doc duoc tren man: title, button_name, item_title
+//   2. Ten thanh phan do dev dat: component_name, popup_name, duoi cua component_id
+//   3. Boi canh rong hon: feature_code, service_name
+// Bac 3 khong bao gio nen dung mot minh o cho khac, vi mot feature_code co hang chuc popup; nhung khi
+// hai bac tren deu rong thi no van hon chu "popup" tron — it ra con biet popup do thuoc cho nao.
+// Vi sao can: tren log that co popup ghi title=null, nhan ra dung chu "popup", nen hai popup khac han
+// nhau bi gom thanh mot hang "2x popup" ma khong con gi de phan biet.
+const JOURNEY_LABEL_MAX = 48;
+
+function pickJourneyLabel(candidates, fallback) {
+  for (let i = 0; i < candidates.length; i += 1) {
+    const value = journeyValue(candidates[i]);
+    if (!value) continue;
+    // component_id la duong dan "<appId>/<feature>/<screen>/Popup/<ten>" — chi doan cuoi moi la ten.
+    const tail = value.indexOf('/') >= 0 ? value.slice(value.lastIndexOf('/') + 1).trim() : value;
+    const name = tail || value;
+    return name.length > JOURNEY_LABEL_MAX ? name.slice(0, JOURNEY_LABEL_MAX - 1) + '…' : name;
+  }
+  return fallback;
+}
+
 function pickJourneyStep(event, params) {
   const screen = journeyValue(params.screen_name);
   if (event === 'auto_screen_navigated') {
@@ -107,16 +130,21 @@ function pickJourneyStep(event, params) {
       note: dwell ? 'đứng ' + formatDuration(dwell) : '' };
   }
   if (event === 'auto_popup_displayed') {
-    return { kind: 'saw', label: journeyValue(params.title) || 'popup',
-      detail: journeyParts([params.screen_name, params.desc]) };
+    return { kind: 'saw',
+      label: 'popup ' + pickJourneyLabel([params.title, params.component_name, params.component_id,
+        params.desc, params.feature_code], '?'),
+      detail: journeyParts([params.screen_name, params.feature_code, params.desc]) };
   }
   if (event === 'service_popup_displayed') {
-    return { kind: 'saw', label: journeyValue(params.popup_name) || 'popup',
+    return { kind: 'saw',
+      label: 'popup ' + pickJourneyLabel([params.popup_name, params.title, params.component_name,
+        params.service_name], '?'),
       detail: journeyParts([params.screen_name, params.service_name]) };
   }
   if (event === 'auto_bottomsheet_displayed') {
     return { kind: 'saw',
-      label: 'sheet ' + (journeyValue(params.component_name) || journeyValue(params.title) || '?'),
+      label: 'sheet ' + pickJourneyLabel([params.title, params.component_name, params.component_id,
+        params.feature_code], '?'),
       detail: journeyParts([params.screen_name, params.feature_code]) };
   }
   // Ten stage lay tu AppEvent.FeatureMiniAppLoad.Stage trong source app, khong phai doan tu log.

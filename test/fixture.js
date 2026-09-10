@@ -56,6 +56,12 @@ function build() {
 
   // --- popup o muc INFO: thu ma phan gom nhom loi khong bao gio thay
   tracker('auto_popup_displayed', 'app_id=vn.gia.lap, screen_name=ManHinhMot, action=open, title=Popup Bia Canh Bao');
+  // --- HAI popup KHAC NHAU nhung deu title=null. Chi lay title thi ca hai cung ten "popup" va bi gom
+  // thanh mot hang "2x popup" — mat sach cai de phan biet. Phai tut xuong component_name.
+  tracker('auto_popup_displayed', 'app_id=vn.gia.lap, screen_name=ManHinhMot, feature_code=tinh_nang_bia, ' +
+    'component_name=goi_y_yeu_thich, action=open, title=null, desc=null');
+  tracker('auto_popup_displayed', 'app_id=vn.gia.lap, screen_name=ManHinhHai, feature_code=tinh_nang_khac, ' +
+    'component_id=vn.gia.lap/tinh_nang_khac/ManHinhHai/Popup/nhac_cap_nhat, action=open, title=null');
 
   // --- ops: MOT call nhung log ghi thanh HAI dong cung trace_id -> dedupe con 1
   tracker('ops_request_be', 'api=API_BIA_MOT, api_path=bia/mot, trace_id=TRACE-BIA-0001, screen_name=ManHinhMot');
