@@ -1,15 +1,8 @@
-/*
-File: src/03a-state.js
-Created At: 2026-09-08 16:00:00 +07:00
-Created By: AI
-AI Agent: Claude Code
-Model: claude-opus-5
-*/
 // @ts-check
-// AI-GENERATED START — hang so dung chung, lensState, tat tieng chu ky, ham dinh dang
-// Tach ra tu src/03-shell.js (992 dong / 67 ham). Cac file src/*.js duoc build.sh noi lai
-// theo thu tu ten file va boc trong MOT IIFE nen van dung chung scope — tach chi de doc,
-// khong doi cach chung goi nhau.
+// hằng số dùng chung, lensState, tắt tiếng chữ ký, hàm định dạng
+// Tách ra từ src/03-shell.js (992 dòng / 67 hàm). Các file src/*.js được build.sh nối lại
+// theo thứ tự tên file và bọc trong MỘT IIFE nên vẫn dùng chung scope — tách chỉ để đọc,
+// không đổi cách chúng gọi nhau.
 
 const MINIMAP_BUCKETS = 90;
 const SPARKLINE_BUCKETS = 26;
@@ -42,15 +35,15 @@ const lensState = {
   mutedSignatures: new Set(),
   filterTemplates: [],
   isShowingMuted: false,
-  // 'keep' = danh dau dong duoc giu, 'drop' = danh dau dong bi loai. Chon theo phia it hon,
-  // vi chi phi loc nam o SO LAN cham class chu khong phai o layout.
+  // 'keep' = đánh dấu dòng được giữ, 'drop' = đánh dấu dòng bị loại. Chọn theo phía ít hơn,
+  // vì chi phí lọc nằm ở SỐ LẦN chạm class chứ không phải ở layout.
   filterDomMode: 'keep',
-  // Nguoi dung bam "x" tren feedback nay: dung tu gan lai nua (nhung sang feedback khac thi gan lai).
+  // Người dùng bấm "x" trên feedback này: đừng tự gắn lại nữa (nhưng sang feedback khác thì gắn lại).
   isDismissed: false,
-  // Nho lan truoc dang mo panel hay dang thu gon, de sang feedback khac tra ve dung dang do.
+  // Nhớ lần trước đang mở panel hay đang thu gọn, để sang feedback khác trả về đúng dạng đó.
   wasPanelOpen: false,
-  // Dong bi bo loc an nhung nguoi dung van nhay toi: phai dem rieng, khong thi con so
-  // "dang hien N/total" se noi doi.
+  // Dòng bị bộ lọc ẩn nhưng người dùng vẫn nhảy tới: phải đếm riêng, không thì con số
+  // "đang hiện N/total" sẽ nói dối.
   forcedVisibleIndices: new Set(),
   filter: {
     levels: new Set(),
@@ -58,27 +51,33 @@ const lensState = {
     text: '',
     useRegex: true,
     hideOthers: true,
-    // Khoang thoi gian tuy y. Chip preset ghi (lastTs - N, lastTs); keo tren minimap ghi khoang bat ky.
+    // Khoảng thời gian tuỳ ý. Chip preset ghi (lastTs - N, lastTs); kéo trên minimap ghi khoảng bất kỳ.
     timeFrom: null,
     timeTo: null,
+    // Preset đang bật, tính bằng ms ("2 phút cuối" = 120000), null = khoảng tự chọn hoặc không lọc.
+    // Phải NHỚ chứ không suy ngược từ (timeFrom, timeTo): setTimeWindowPreset kẹp timeFrom về firstTs,
+    // nên trên log ngắn hơn preset thì hiệu hai mốc không còn bằng preset và chip không sáng, nhãn
+    // lại đổi thành hai mốc giờ tuyệt đối. Đo trên ba log thật (dài 291s / 572s / 234s): preset
+    // "5 phút cuối" hỏng ở CẢ BA. Nhớ preset còn cho phép tính lại cửa sổ khi sang log khác.
+    windowPreset: null,
     session: null,
-    // Bo qua khoi dong bi lap lai nguyen xi. Mac dinh TAT: bao truoc roi de nguoi doc bam, vi khu nham
-    // mot khoi khong lap thi so lieu cung sai — chi la sai theo huong khac va khong con dau hieu nao.
+    // Bỏ qua khối dòng bị lặp lại nguyên xi. Mặc định TẮT: báo trước rồi để người đọc bấm, vì khử nhầm
+    // một khối không lặp thì số liệu cũng sai — chỉ là sai theo hướng khác và không còn dấu hiệu nào.
     skipDuplicate: false,
   },
-  // Muc dang di chuot qua, de biet luc nao phai ve lai mui ten len minimap (va luc nao thi thoi).
+  // Mục đang di chuột qua, để biết lúc nào phải vẽ lại mũi tên lên minimap (và lúc nào thì thôi).
   aimEl: null,
-  // Phan tu chuot dang dung tren, de biet luc nao phai hien tooltip tu ve (va luc nao thi thoi).
+  // Phần tử chuột đang dừng trên, để biết lúc nào phải hiện tooltip tự vẽ (và lúc nào thì thôi).
   tipEl: null,
-  // Khoang thoi gian minimap dang VE (null = ve nguyen ca log). Doc lap voi bo loc: phong to chi doi
-  // cai nhin, khong doi tap dong dang hien.
+  // Khoảng thời gian minimap đang VẼ (null = vẽ nguyên cả log). Độc lập với bộ lọc: phóng to chỉ đổi
+  // cái nhìn, không đổi tập dòng đang hiện.
   mapZoom: null,
-  // Cac nac phong to truoc do, de lui tung nac mot thay vi nhay thang ve ca log.
+  // Các nấc phóng to trước đó, để lùi từng nấc một thay vì nhảy thẳng về cả log.
   mapZoomStack: [],
   el: {},
 };
 
-/* ------------------------------------------- tat tieng chu ky (nho qua phien) */
+/* ------------------------------------------- tắt tiếng chữ ký (nhớ qua phiên) */
 
 function loadMutedSignatures() {
   try {
@@ -92,7 +91,7 @@ function persistMutedSignatures() {
   try {
     localStorage.setItem(MUTE_STORAGE_KEY, JSON.stringify(Array.from(lensState.mutedSignatures)));
   } catch (error) {
-    // Rieng tu / het dung luong: tat tieng van chay trong phien nay, chi khong nho sang lan sau.
+    // Riêng tư / hết dung lượng: tắt tiếng vẫn chạy trong phiên này, chỉ không nhớ sang lần sau.
   }
 }
 
@@ -110,7 +109,7 @@ function countUnmutedErrorGroups(source) {
   return source.groups.filter((group) => group.level === 'ERROR' && !isGroupMuted(group)).length;
 }
 
-// Cac tab doc qua day: co bo loc thi la thong ke cua tap dang hien, khong thi la ca file.
+// Các tab đọc qua đây: có bộ lọc thì là thống kê của tập đang hiện, không thì là cả file.
 function getView() {
   return lensState.view || lensState.data;
 }
@@ -135,8 +134,8 @@ function formatDuration(ms) {
   if (ms == null) return '';
   if (ms < 1000) return ms + 'ms';
   if (ms < 60000) return (ms / 1000).toFixed(ms < 10000 ? 1 : 0) + 's';
-  // Khoang lang giua hai lan mo app co the dai vai tieng. "14182s" thi khong ai doc ra la gan bon
-  // tieng — phai tu chia trong dau. Tren mot phut thi doi sang phut/gio.
+  // Khoảng lặng giữa hai lần mở app có thể dài vài tiếng. "14182s" thì không ai đọc ra là gần bốn
+  // tiếng — phải tự chia trong đầu. Trên một phút thì đổi sang phút/giờ.
   const totalSeconds = Math.round(ms / 1000);
   const minutes = Math.floor(totalSeconds / 60) % 60;
   const hours = Math.floor(totalSeconds / 3600);
@@ -147,4 +146,3 @@ function formatDuration(ms) {
 function formatCount(value) {
   return value >= 1000 ? (value / 1000).toFixed(1) + 'k' : String(value);
 }
-// AI-GENERATED END

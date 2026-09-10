@@ -1,20 +1,13 @@
-/*
-File: src/02g-config.js
-Created At: 2026-09-10 16:00:00 +07:00
-Created By: AI
-AI Agent: Claude Code
-Model: claude-opus-5
-*/
 // @ts-check
-// AI-GENERATED START — rut cac dong "config" ma app nhan tu BE / webadmin / CDN / A-B testing
+// rút các dòng "config" mà app nhận từ BE / webadmin / CDN / A-B testing
 //
-// Vi sao tach rieng khoi buildIssueGroups: nhung dong nay deu o muc INFO nen khong bao gio loi qua
-// nhom loi, va chung khong phai su kien nguoi dung nen khong vao hanh trinh. Chung tra loi mot cau
-// khac han: "luc do may nay dang chay voi cau hinh gi".
+// Vì sao tách riêng khỏi buildIssueGroups: những dòng này đều ở mức INFO nên không bao giờ lọt qua
+// nhóm lỗi, và chúng không phải sự kiện người dùng nên không vào hành trình. Chúng trả lời một câu
+// khác hẳn: "lúc đó máy này đang chạy với cấu hình gì".
 //
-// Nguon (source) KHONG suy doan: moi nhan duoi day deu doc duoc thang tu chinh dong log
-// (chu "webadmin", url CDN, ten lop ABTesting...). Dong nao khong tu noi nguon thi vao nhom 'oth'
-// chu khong doan bua.
+// Nguồn (source) KHÔNG suy đoán: mọi nhãn dưới đây đều đọc được thẳng từ chính dòng log
+// (chữ "webadmin", url CDN, tên lớp ABTesting...). Dòng nào không tự nói nguồn thì vào nhóm 'oth'
+// chứ không đoán bừa.
 
 const CONFIG_SOURCE_ORDER = ['ab', 'be', 'wa', 'cdn', 'app', 'oth'];
 const CONFIG_SOURCE_META = {
@@ -60,23 +53,23 @@ const RE_CFG_OMEGA = /OMEGA FEATURE TESTINGS LIST CODE:\s*([\s\S]+)$/;
 const RE_CFG_SENTRY_KMP = /@@SentryKMP\s*::\s*(.+?)\s+(\w+=[\s\S]+)$/;
 const RE_CFG_SPAM = /(ApiSpamDetector):\s*Config:\s*([\s\S]+)$/;
 const RE_CFG_AUTH_BG = /(AuthenticationBackgroundConfigApi)\s*>>\s*fetchConfig\s*>>\s*loaded\s+([\s\S]+)$/;
-// Kotlin/KMM in data class ra dang TenLop(a=1, b=2). Chi nhan khi TEN LOP co chu Config/Setting —
-// khong the bat moi cap ngoac, gan nua dong log nao cung co ngoac.
+// Kotlin/KMM in data class ra dạng TenLop(a=1, b=2). Chỉ nhận khi TÊN LỚP có chữ Config/Setting —
+// không thể bắt mọi cặp ngoặc, gần nửa dòng log nào cũng có ngoặc.
 const RE_CFG_DATA_CLASS = /([A-Z]\w*(?:Config|Setting)\w*)\((.{20,})\)\s*$/;
-// Duong dan API co chu "config": xet tren path da bo query, vi query cua API khac cung co
-// "displayConfig=" ma do khong phai API cau hinh.
+// Đường dẫn API có chữ "config": xét trên path đã bỏ query, vì query của API khác cũng có
+// "displayConfig=" mà đó không phải API cấu hình.
 const RE_CFG_URL = /config/i;
 
-// Khong dat \b truoc "config": trong log chu nay hau het dinh lien voi tu khac (fetchConfig,
-// getTabMeConfigBE, displayConfig) nen \b se truot het.
-// Loai rieng dong tu "configure/configuring/configured" (dong bao da dung xong mot buoc, khong
-// mang gia tri cau hinh nao); "configuration(s)" thi van nhan.
+// Không đặt \b trước "config": trong log chữ này hầu hết dính liền với từ khác (fetchConfig,
+// getTabMeConfigBE, displayConfig) nên \b sẽ trượt hết.
+// Loại riêng động từ "configure/configuring/configured" (dòng báo đã dùng xong một bước, không
+// mang giá trị cấu hình nào); "configuration(s)" thì vẫn nhận.
 const RE_CFG_WORD = /config(?!ur(?:e|ing|ed)\b)|setting|feature.?flag|toggle|kill.?switch/i;
-// Dong tu noi la nhan ve tu mot loi goi -> xep vao 'be'. Khong co dau hieu nay thi de 'oth'.
+// Động từ nói là nhận về từ một lời gọi -> xếp vào 'be'. Không có dấu hiệu này thì để 'oth'.
 const RE_CFG_FROM_BE = /response|payload|fetched|downloaded/i;
 const RE_CFG_BLOB = /[{[]/;
-// Nam module nay deu da co cho rieng (tab HTTP, nhom loi Grafana, hanh trinh tracker; con MQTT va
-// NOTIFICATION la ban tin day xuong chu khong phai cau hinh) — de chung vao day chi lam loang.
+// Năm module này đều đã có chỗ riêng (tab HTTP, nhóm lỗi Grafana, hành trình tracker; còn MQTT và
+// NOTIFICATION là bản tin đẩy xuống chứ không phải cấu hình) — để chúng vào đây chỉ làm loãng.
 const RE_CFG_SKIP_MODULE = /^(HTTP|Grafana|MoMoTracker|MQTT|NOTIFICATION)/;
 
 function cfgHit(source, key, value, note) {
@@ -85,7 +78,7 @@ function cfgHit(source, key, value, note) {
   return { source, key: trimmed.slice(0, 90), value: String(value).trim(), note: note || '' };
 }
 
-// Cat duoi url lay ten file, vi chinh ten file moi la "khoa" cua cau hinh do.
+// Cắt đuôi url lấy tên file, vì chính tên file mới là "khoá" của cấu hình đó.
 function cdnConfigName(url) {
   const clean = url.split('?')[0].replace(/\/+$/, '');
   const name = clean.slice(clean.lastIndexOf('/') + 1);
@@ -143,8 +136,8 @@ function matchConfigSpecific(message) {
   return null;
 }
 
-// Luoi vet cuoi cung, co y hep: chu "config" phai nam TRUOC khoi JSON. Nho vay dong payload khuyen mai
-// dai 5000 ky tu (mo dau bang "{", chu displayConfig nam sau do) khong bi keo vao day.
+// Lưới vét cuối cùng, cố ý hẹp: chữ "config" phải nằm TRƯỚC khối JSON. Nhờ vậy dòng payload khuyến mãi
+// dài 5000 ký tự (mở đầu bằng "{", chữ displayConfig nằm sau đó) không bị kéo vào đây.
 function matchConfigGeneric(message) {
   const blob = message.search(RE_CFG_BLOB);
   if (blob < 0) return null;
@@ -179,10 +172,10 @@ function buildConfigs(entries, httpCalls) {
     group.count += 1;
     group.indices.push(entry.domIndex);
     if (hit.note && !group.note) group.note = hit.note;
-    // Chi ghi khi gia tri KHAC lan truoc. Nho vay values.length > 1 co dung mot nghia:
-    // cau hinh nay doi giua chung phien — thu dang de y nhat khi "pha an".
-    // Nhung van phai gom DU chi so dong cua moi gia tri: mot khoa ghi 4 lan cung mot gia tri thi
-    // van la 4 dong log co that, phai duyet duoc ca bon chu khong chi nhay toi dong dau.
+    // Chỉ ghi khi giá trị KHÁC lần trước. Nhờ vậy values.length > 1 có đúng một nghĩa:
+    // cấu hình này đổi giữa chừng phiên — thứ đáng để ý nhất khi "phá án".
+    // Nhưng vẫn phải gom ĐỦ chỉ số dòng của mọi giá trị: một khoá ghi 4 lần cùng một giá trị thì
+    // vẫn là 4 dòng log có thật, phải duyệt được cả bốn chứ không chỉ nhảy tới dòng đầu.
     const last = group.values[group.values.length - 1];
     if (last && last.value === hit.value) {
       last.indices.push(entry.domIndex);
@@ -194,8 +187,8 @@ function buildConfigs(entries, httpCalls) {
       domIndex: entry.domIndex,
       lineNo: entry.lineNo,
       time: entry.time,
-      // Xet tren GIA TRI chu khong phai ca dong: dong log nao cung co "[Module: X]" nen do tren
-      // entry.raw thi hang nao cung moc ra nut JSON, bam vao lai chang co JSON nao.
+      // Xét trên GIÁ TRỊ chứ không phải cả dòng: dòng log nào cũng có "[Module: X]" nên đo trên
+      // entry.raw thì hàng nào cũng mọc ra nút JSON, bấm vào lại chẳng có JSON nào.
       hasJson: RE_CFG_BLOB.test(hit.value),
     });
   });
@@ -216,9 +209,9 @@ function buildConfigs(entries, httpCalls) {
   CONFIG_SOURCE_ORDER.forEach((source) => {
     bySource[source] = items.filter((item) => item.source === source);
   });
-  // Call BE co chu "config" tren duong dan: chinh no la cho app di XIN cau hinh. Cac dong nay nam o
-  // module HTTP nen bi loai khoi vong quet ben tren; keo rieng ra day de tab tra loi duoc ca cau
-  // "app xin cau hinh gi tu BE" chu khong chi "app nhan duoc gi".
+  // Call BE có chữ "config" trên đường dẫn: chính nó là chỗ app đi XIN cấu hình. Các dòng này nằm ở
+  // module HTTP nên bị loại khỏi vòng quét bên trên; kéo riêng ra đây để tab trả lời được cả câu
+  // "app xin cấu hình gì từ BE" chứ không chỉ "app nhận được gì".
   const calls = (httpCalls || []).filter((call) => RE_CFG_URL.test(call.path || ''));
   return {
     items,
@@ -230,4 +223,3 @@ function buildConfigs(entries, httpCalls) {
     hasAny: items.length > 0 || calls.length > 0,
   };
 }
-// AI-GENERATED END

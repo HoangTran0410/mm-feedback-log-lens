@@ -1,33 +1,26 @@
-/*
-File: src/03h-aim.js
-Created At: 2026-09-10 18:00:00 +07:00
-Created By: AI
-AI Agent: Claude Code
-Model: claude-opus-5
-*/
 // @ts-check
-// AI-GENERATED START — di chuot qua mot muc bat ky: ve mui ten tu muc do len dung vi tri cua no tren minimap
+// di chuột qua một mục bất kỳ: vẽ mũi tên từ mục đó lên đúng vị trí của nó trên minimap
 //
-// Van de: moi hang trong moi tab deu co gio va so dong, nhung do la CON SO. Nguoi doc phai tu dich
-// "10:02:50" ra "khoang giua log" moi biet no nam o dau trong ca phien. Minimap ngay tren dau da la
-// truc thoi gian roi — chi thieu mot duong noi giua hai cai.
+// Vấn đề: mỗi hàng trong mỗi tab đều có giờ và số dòng, nhưng đó là CON SỐ. Người đọc phải tự dịch
+// "10:02:50" ra "khoảng giữa log" mới biết nó nằm ở đâu trong cả phiên. Minimap ngay trên đầu đã là
+// trục thời gian rồi — chỉ thiếu một đường nối giữa hai cái.
 //
-// Ve bang MOT lop SVG phu len ca panel (pointer-events:none) chu khong chen the vao tung hang: nhu vay
-// khong renderer nao phai biet den chuyen nay, va tab moi them sau nay tu dong co luon.
+// Vẽ bằng MỘT lớp SVG phủ lên cả panel (pointer-events:none) chứ không chèn thẻ vào từng hàng: như vậy
+// không renderer nào phải biết đến chuyện này, và tab mới thêm sau này tự động có luôn.
 
 const AIM_SELECTOR = '[data-aim],[data-lines],[data-jump],[data-bucket],[data-group],[data-call],' +
   '[data-saw],[data-apifail],[data-jscreen],[data-jtap],[data-jload],[data-tracefail]';
-// Mot nhom loi co the co hang tram dong. Ve het thi minimap thanh mot mang do dac, nhin khong ra gi;
-// 60 vach da du day de thay "rai deu" hay "dom mot cho".
+// Một nhóm lỗi có thể có hàng trăm dòng. Vẽ hết thì minimap thành một mảng đỏ đặc, nhìn không ra gì;
+// 60 vạch đã đủ dày để thấy "rải đều" hay "dồn một chỗ".
 const AIM_MAX_TICKS = 60;
 
-// Cung mot cach doc nhu handleLensClick — mot hang tro toi nhung dong nao thi mui ten chi toi dung
-// nhung dong do. Tach ra ham rieng de test goi duoc ma khong can DOM that.
+// Cùng một cách đọc như handleLensClick — một hàng trỏ tới những dòng nào thì mũi tên chỉ tới đúng
+// những dòng đó. Tách ra hàm riêng để test gọi được mà không cần DOM thật.
 function aimIndicesFor(el) {
   const view = getView();
   const data = el.dataset;
-  // data-aim di truoc data-jump: co nhung hang tro toi mot KHOANG (khoang lang co dau va cuoi) trong
-  // khi cu bam thi chi nhay toi mot dong. Mui ten phai danh dau ca khoang do.
+  // data-aim đi trước data-jump: có những hàng trỏ tới một KHOẢNG (khoảng lặng có đầu và cuối) trong
+  // khi cứ bấm thì chỉ nhảy tới một dòng. Mũi tên phải đánh dấu cả khoảng đó.
   if (data.aim != null) return data.aim.split(',').map(Number).filter((index) => !Number.isNaN(index));
   if (data.lines != null) return data.lines.split(',').map(Number).filter((index) => !Number.isNaN(index));
   if (data.jump != null) return [Number(data.jump)];
@@ -73,8 +66,8 @@ function ensureAimLayer() {
   if (lensState.el.aim && lensState.el.aim.parentNode === panel) return lensState.el.aim;
   const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
   svg.setAttribute('class', 'fll-aim');
-  // Khong dat viewBox: khong co viewBox thi mot don vi cua SVG = mot px CSS, nen toa do lay tu
-  // getBoundingClientRect dung thang duoc, khong phai quy doi.
+  // Không đặt viewBox: không có viewBox thì một đơn vị của SVG = một px CSS, nên toạ độ lấy từ
+  // getBoundingClientRect dùng thẳng được, không phải quy đổi.
   svg.innerHTML = '<g class="fll-aim-ticks"></g><path class="fll-aim-line"></path>' +
     '<polygon class="fll-aim-head"></polygon>';
   panel.appendChild(svg);
@@ -88,7 +81,7 @@ function hideAim() {
   if (previous && previous.classList) previous.classList.remove('fll-aimed');
   if (lensState.el.aim) lensState.el.aim.classList.remove('on');
   if (lensState.el.mapText) lensState.el.mapText.classList.remove('aiming');
-  // Tra dong chu giua nhan minimap ve dung trang thai bo loc hien tai.
+  // Trả dòng chữ giữa nhãn minimap về đúng trạng thái bộ lọc hiện tại.
   if (lensState.data && lensState.el.mapText) updateMinimapRange();
 }
 
@@ -107,7 +100,7 @@ function drawAim(el) {
   const panelRect = panel.getBoundingClientRect();
   const mapRect = map.getBoundingClientRect();
   const itemRect = el.getBoundingClientRect();
-  // Hang bi cuon khuat len tren minimap thi mui ten se dam nguoc — thoi khong ve.
+  // Hàng bị cuộn khuất lên trên minimap thì mũi tên sẽ đâm ngược — thôi không vẽ.
   if (itemRect.top < mapRect.bottom + 4 || itemRect.bottom > panelRect.bottom) {
     svg.classList.remove('on');
     return;
@@ -116,8 +109,8 @@ function drawAim(el) {
   const mapTop = mapRect.top - panelRect.top;
   const endX = minimapClientXFromTs(timed[0].ts) - panelRect.left;
   const endY = mapRect.bottom - panelRect.top;
-  // Bat dau tu mep TRAI cua hang chu khong phai tam: hang rong ca panel, lay tam thi duong ke moc ra
-  // tu giua mot dong chu, nhin nhu khong dinh vao dau ca.
+  // Bắt đầu từ mép TRÁI của hàng chứ không phải tâm: hàng rộng cả panel, lấy tâm thì đường kẻ mọc ra
+  // từ giữa một dòng chữ, nhìn như không dính vào đâu cả.
   const startX = Math.min(itemRect.left + 18, itemRect.right - 8) - panelRect.left;
   const startY = itemRect.top - panelRect.top;
   const lift = Math.max(16, (startY - endY) * 0.45);
@@ -127,8 +120,8 @@ function drawAim(el) {
     ' C' + startX.toFixed(1) + ' ' + (startY - lift).toFixed(1) +
     ',' + endX.toFixed(1) + ' ' + (endY + lift).toFixed(1) +
     ',' + endX.toFixed(1) + ' ' + endY.toFixed(1));
-  // Mui ten quay len va nam BEN TRONG minimap. Truoc do no cham o mep duoi minimap nen de len dong
-  // nhan gio ngay ben duoi (dong nhan chi cao ~14px) — thay khi chup man hinh.
+  // Mũi tên quay lên và nằm BÊN TRONG minimap. Trước đó nó chạm ở mép dưới minimap nên đè lên dòng
+  // nhãn giờ ngay bên dưới (dòng nhãn chỉ cao ~14px) — thấy khi chụp màn hình.
   svg.querySelector('.fll-aim-head').setAttribute('points',
     endX.toFixed(1) + ',' + (endY - 9).toFixed(1) + ' ' +
     (endX - 4.5).toFixed(1) + ',' + (endY - 1).toFixed(1) + ' ' +
@@ -136,7 +129,7 @@ function drawAim(el) {
   svg.querySelector('.fll-aim-ticks').innerHTML = timed.slice(0, AIM_MAX_TICKS)
     .map((entry, index) => {
       const x = minimapClientXFromTs(entry.ts) - panelRect.left;
-      // Vach dau tien la cai mui ten dang chi toi: to va dam hon nhung vach con lai.
+      // Vạch đầu tiên là cái mũi tên đang chỉ tới: to và đậm hơn những vạch còn lại.
       const width = index === 0 ? 3 : 2;
       return '<rect class="' + (index === 0 ? 'fll-aim-first' : '') + '" x="' +
         (x - width / 2).toFixed(1) + '" y="' + mapTop.toFixed(1) +
@@ -163,9 +156,8 @@ function handleLensHover(event) {
   drawAim(hit);
 }
 
-// Cuon thi hang di chuyen ma chuot khong doi -> mouseover khong ban lai. Ve lai theo su kien cuon
-// (bat o pha capture vi 'scroll' khong noi bot len).
+// Cuộn thì hàng di chuyển mà chuột không đổi -> mouseover không bắn lại. Vẽ lại theo sự kiện cuộn
+// (bắt ở pha capture vì 'scroll' không nổi bọt lên).
 function handleAimScroll() {
   if (lensState.aimEl) drawAim(lensState.aimEl);
 }
-// AI-GENERATED END

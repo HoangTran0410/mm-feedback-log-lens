@@ -1,14 +1,7 @@
-/*
-File: src/02e-derive.js
-Created At: 2026-09-08 16:00:00 +07:00
-Created By: AI
-AI Agent: Claude Code
-Model: claude-opus-5
-*/
 // @ts-check
-// AI-GENERATED START — gom moi thong ke phu thuoc "dang nhin nhung dong nao" vao mot cho
-// Tach ra tu src/02-insights.js (946 dong). Cac file src/*.js duoc build.sh noi lai theo thu tu
-// ten file va boc trong MOT IIFE nen van dung chung scope — tach chi de doc.
+// gom mọi thống kê phụ thuộc "đang nhìn những dòng nào" vào một chỗ
+// Tách ra từ src/02-insights.js (946 dòng). Các file src/*.js được build.sh nối lại theo thứ tự
+// tên file và bọc trong MỘT IIFE nên vẫn dùng chung scope — tách chỉ để đọc.
 
 function deriveStats(entries, gaps) {
   const levels = {};
@@ -27,8 +20,8 @@ function deriveStats(entries, gaps) {
     badHttpCalls: httpCalls.filter(isBadHttpCall),
     durations: extractDurations(entries),
     modules: countBy(entries, (entry) => entry.module),
-    tags: countBy(entries, (entry) => entry.tag),
-    flows: countBy(entries, (entry) => entry.flow),
+    // Đã bỏ `tags` và `flows`: hai lượt countBy trên toàn bộ dòng, chạy lại mỗi lần đổi bộ lọc, mà
+    // không renderer nào đọc. entry.tag / entry.flow vẫn còn vì bộ lọc nội dung đọc chúng.
     events: countBy(entries, (entry) => entry.event),
     journey: buildJourney(entries, gaps),
     traceIssues: buildTraceIssues(entries),
@@ -38,12 +31,11 @@ function deriveStats(entries, gaps) {
 }
 
 function attachInsights(data) {
-  // Correlation KHONG scope theo bo loc: mot cmdId la mot chuoi request, xem chuoi thi phai xem tron ven
-  // ke ca nhung dong dang bi bo loc giau di.
+  // Correlation KHÔNG scope theo bộ lọc: một cmdId là một chuỗi request, xem chuỗi thì phải xem trọn vẹn
+  // kể cả những dòng đang bị bộ lọc giấu đi.
   data.correlations = buildCorrelations(data.entries);
   data.correlationValueSet = new Set(data.correlations.map((bucket) => bucket.value));
   data.sessions = buildSessions(data.entries);
   data.feedback = readFeedbackContext();
   return data;
 }
-// AI-GENERATED END

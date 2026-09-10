@@ -1,17 +1,10 @@
-/*
-File: src/03i-sections.js
-Created At: 2026-09-10 18:00:00 +07:00
-Created By: AI
-AI Agent: Claude Code
-Model: claude-opus-5
-*/
 // @ts-check
-// AI-GENERATED START — bien moi tieu de muc (.fll-sec) thanh mot muc dong/mo duoc, nho trang thai qua phien
+// biến mỗi tiêu đề mục (.fll-sec) thành một mục đóng/mở được, nhớ trạng thái qua phiên
 //
-// Lam BANG CACH GOM LAI SAU KHI VE, khong sua tung renderer: cac renderer noi chuoi
-// "<div class=fll-sec>Ten</div>" roi den noi dung, tuc muc chi la mot moc phang chu khong phai mot
-// khoi bao ngoai. Neu doi sang khoi bao ngoai thi phai sua hon 20 cho va moi tab them sau nay lai
-// phai nho lam theo. Gom o day thi chi mot cho biet chuyen nay, va tab moi tu dong co.
+// Làm BẰNG CÁCH GOM LẠI SAU KHI VẼ, không sửa từng renderer: các renderer nối chuỗi
+// "<div class=fll-sec>Tên</div>" rồi đến nội dung, tức mục chỉ là một mốc phẳng chứ không phải một
+// khối bao ngoài. Nếu đổi sang khối bao ngoài thì phải sửa hơn 20 chỗ và mỗi tab thêm sau này lại
+// phải nhớ làm theo. Gom ở đây thì chỉ một chỗ biết chuyện này, và tab mới tự động có.
 
 const SECTION_OPEN_KEY = 'fll.openSections';
 
@@ -25,7 +18,7 @@ function loadOpenSections() {
     const raw = JSON.parse(localStorage.getItem(SECTION_OPEN_KEY));
     if (Array.isArray(raw)) raw.forEach((key) => openSectionKeys.add(String(key)));
   } catch (error) {
-    // Rieng tu / du lieu cu hong: coi nhu chua mo muc nao, mac dinh van la dong het.
+    // Riêng tư / dữ liệu cũ hỏng: coi như chưa mở mục nào, mặc định vẫn là đóng hết.
   }
   return openSectionKeys;
 }
@@ -34,12 +27,12 @@ function persistOpenSections() {
   try {
     localStorage.setItem(SECTION_OPEN_KEY, JSON.stringify(Array.from(loadOpenSections())));
   } catch (error) {
-    // Khong luu duoc thi phien nay van dong/mo binh thuong, chi khong nho sang lan sau.
+    // Không lưu được thì phiên này vẫn đóng/mở bình thường, chỉ không nhớ sang lần sau.
   }
 }
 
-// Khoa gom ca ten tab: hai tab co the co muc trung ten (vi du "Phiên app"), mo o tab nay khong co
-// nghia la mo o tab kia.
+// Khoá gồm cả tên tab: hai tab có thể có mục trùng tên (ví dụ "Phiên app"), mở ở tab này không có
+// nghĩa là mở ở tab kia.
 function sectionKey(tabId, title) {
   return tabId + '::' + title;
 }
@@ -55,8 +48,8 @@ function setSectionOpen(key, isOpen) {
   persistOpenSections();
 }
 
-// Bo qua the khong phai element (children chi tra ve element) va the .fll-sec long trong khoi khac —
-// chi quet dung cap con truc tiep cua vung than, dung noi cac renderer dat tieu de muc.
+// Bỏ qua thẻ không phải element (children chỉ trả về element) và thẻ .fll-sec lồng trong khối khác —
+// chỉ quét đúng cấp con trực tiếp của vùng thân, đúng nơi các renderer đặt tiêu đề mục.
 function collapsifySections(container, tabId) {
   if (!container || !container.children) return;
   const nodes = Array.from(container.children);
@@ -66,8 +59,8 @@ function collapsifySections(container, tabId) {
       if (bodyOfCurrentSection) bodyOfCurrentSection.appendChild(node);
       return;
     }
-    // Lay data-sec chu khong lay textContent: textContent con dinh ca badge ("Phiên app3 phiên"),
-    // ma badge doi theo tung log — dung no lam khoa thi mo o log nay, sang log khac lai thay dong.
+    // Lấy data-sec chứ không lấy textContent: textContent còn dính cả badge ("Phiên app3 phiên"),
+    // mà badge đổi theo từng log — dùng nó làm khoá thì mở ở log này, sang log khác lại thấy đóng.
     const title = node.getAttribute('data-sec') || (node.textContent || '').trim();
     const key = sectionKey(tabId, title);
     const wrap = document.createElement('div');
@@ -82,17 +75,64 @@ function collapsifySections(container, tabId) {
     bodyOfCurrentSection.className = 'fll-secb';
     wrap.appendChild(bodyOfCurrentSection);
   });
-  // Chen o tim SAU khi da chuyen het noi dung vao than muc — luc gom o tren than con dang rong.
+  // Chèn ô tìm SAU khi đã chuyển hết nội dung vào thân mục — lúc gom ở trên thân còn đang rỗng.
+  // Cắt bớt TRƯỚC ô tìm: ô tìm đọc số hàng đang hiện để viết đúng câu "tìm trong N mục đang hiện".
+  Array.from(container.querySelectorAll('.fll-secb')).forEach(capSectionRows);
   Array.from(container.querySelectorAll('.fll-secb')).forEach(addSectionSearch);
 }
 
-// Mot muc co bao nhieu hang thi moi dang co o tim. Duoi nguong nay thi liec mat la thay het.
+// Cắt bớt hàng thừa của mục dài, SAU KHI VẼ — cùng cách đã dùng cho ô đóng/mở và ô tìm nhanh.
+//
+// Vì sao không cắt trong từng renderer: cắt ở đó thì TỔNG bị mất luôn. Đó là lỗi thật đã có:
+// extractDurations cắt còn 80 hàng TRƯỚC khi trả về, nên badge ghi "80" trong khi log có 160 con số,
+// mà chữ ngay dưới lại ghi "MỌI con số thời lượng". Cắt ở đây thì renderer trả về đủ, badge đúng, và
+// phần bị giấu vẫn còn trong DOM để ô tìm và nút "Hiện thêm" chạm tới.
+const SECTION_MAX_ROWS = 12;
+
+// Mục tự quản lý phân trang (danh sách nhóm lỗi, danh sách mốc) đã có nút "Hiện thêm" riêng đọc theo
+// dữ liệu đầy đủ — cắt thêm một lần nữa ở đây là cắt chồng lên phân trang của nó.
+function hasOwnPaging(sectionBody) {
+  return !!sectionBody.querySelector('[data-act="moreIssues"], [data-act="moreTimeline"]');
+}
+
+function capSectionRows(sectionBody) {
+  if (hasOwnPaging(sectionBody)) return;
+  const container = sectionRowContainer(sectionBody);
+  const rows = sectionRows(container, null);
+  if (rows.length <= SECTION_MAX_ROWS) return;
+  rows.slice(SECTION_MAX_ROWS).forEach((node) => {
+    node.hidden = true;
+    node.setAttribute('data-capped', '1');
+  });
+  const button = document.createElement('button');
+  button.className = 'fll-btn fll-secmore';
+  button.setAttribute('data-act', 'moreSection');
+  button.textContent = 'Hiện thêm — còn ' + (rows.length - SECTION_MAX_ROWS) + ' mục';
+  sectionBody.appendChild(button);
+}
+
+// Bỏ hẳn giới hạn của mục đó (không bung từng nấc): một mục dài nhất cũng chỉ vài chục hàng, mà bấm
+// hai ba lần mới thấy hết thì khó chịu hơn là cuộn.
+function expandSection(button) {
+  const sectionBody = button.parentElement;
+  if (!sectionBody) return;
+  Array.from(sectionBody.querySelectorAll('[data-capped]')).forEach((node) => {
+    node.hidden = false;
+    node.removeAttribute('data-capped');
+  });
+  button.remove();
+  // Ô tìm vừa được nới rộng phạm vi: viết lại câu mô tả cho khỏi nói dối.
+  const box = sectionBody.querySelector('.fll-secq');
+  if (box) refreshSectionSearchScope(box);
+}
+
+// Một mục có bao nhiêu hàng thì mới đáng có ô tìm. Dưới ngưỡng này thì liếc mắt là thấy hết.
 const SECTION_SEARCH_MIN_ROWS = 6;
 
-// Hang cua mot muc khong phai luc nao cung la con truc tiep cua than muc: nhieu danh sach duoc boc
-// trong DUNG MOT the (.fll-rank, .fll-lvkey, #fll-issue-list), luc do dem con truc tiep ra 1 va o tim
-// se khong bao gio duoc chen. Neu than muc chi co mot the con ma the do lai co nhieu con thi chinh
-// no moi la cho chua hang.
+// Hàng của một mục không phải lúc nào cũng là con trực tiếp của thân mục: nhiều danh sách được bọc
+// trong ĐÚNG MỘT thẻ (.fll-rank, .fll-lvkey, #fll-issue-list), lúc đó đếm con trực tiếp ra 1 và ô tìm
+// sẽ không bao giờ được chèn. Nếu thân mục chỉ có một thẻ con mà thẻ đó lại có nhiều con thì chính
+// nó mới là chỗ chứa hàng.
 function sectionRowContainer(sectionBody) {
   const kids = Array.from(sectionBody.children).filter((node) => node.classList &&
     !node.classList.contains('fll-hint') && !node.classList.contains('fll-secq') &&
@@ -104,19 +144,19 @@ function sectionRowContainer(sectionBody) {
 function sectionRows(container, box) {
   return Array.from(container.children).filter((node) => node !== box && node.classList &&
     !node.classList.contains('fll-hint') && !node.classList.contains('fll-secq') &&
-    !node.classList.contains('fll-secq-note'));
+    !node.classList.contains('fll-secmore') && !node.classList.contains('fll-secq-note'));
 }
 
-// Chen o tim vao ngay trong muc, SAU KHI VE, thay vi sua tung renderer. Do that: moi o tim kieu cu
-// (#fll-q, #fll-httpq, #fll-modq, #fll-tlq) deu phai sua o hai file — them mot truong tabUiState, mot
-// nhanh trong handleLensInput, mot the input, mot id container. Nhan len ~20 muc la ~80 cho sua va moi
-// muc them sau nay lai phai nho lam theo. Lam o day thi mot cho biet, moi muc du dai deu tu co.
+// Chèn ô tìm vào ngay trong mục, SAU KHI VẼ, thay vì sửa từng renderer. Đo thật: mỗi ô tìm kiểu cũ
+// (#fll-q, #fll-httpq, #fll-modq, #fll-tlq) đều phải sửa ở hai file — thêm một trường tabUiState, một
+// nhánh trong handleLensInput, một thẻ input, một id container. Nhân lên ~20 mục là ~80 chỗ sửa và mỗi
+// mục thêm sau này lại phải nhớ làm theo. Làm ở đây thì một chỗ biết, mọi mục đủ dài đều tự có.
 //
-// Danh doi: o nay loc tren DOM DA VE, nen muc nao phan trang (danh sach nhom loi) thi no chi tim trong
-// trang dang hien. Vi vay muc nao DA co o tim rieng (tim tren toan bo du lieu) thi bo qua, khong chen.
-// Nhieu muc chi ve mot phan (bang xep hang cat con 8 hang, danh sach nhom co phan trang) trong khi
-// badge tren tieu de ghi TONG. O tim chi tim duoc phan da ve, nen no phai noi ro dieu do — neu khong
-// se ra canh "muc ghi 64 module, go ten mot module co that, bao khong khop".
+// Đánh đổi: ô này lọc trên DOM ĐÃ VẼ, nên mục nào phân trang (danh sách nhóm lỗi) thì nó chỉ tìm trong
+// trang đang hiện. Vì vậy mục nào ĐÃ có ô tìm riêng (tìm trên toàn bộ dữ liệu) thì bỏ qua, không chèn.
+// Nhiều mục chỉ vẽ một phần (danh sách nhóm có phân trang) trong khi
+// badge trên tiêu đề ghi TỔNG. Ô tìm chỉ tìm được phần đã vẽ, nên nó phải nói rõ điều đó — nếu không
+// sẽ ra cảnh "mục ghi 64 module, gõ tên một module có thật, báo không khớp".
 function sectionShownTotal(sectionBody) {
   const header = sectionBody.parentElement && sectionBody.parentElement.querySelector('.fll-secbdg');
   const badge = header ? parseInt(header.textContent, 10) : NaN;
@@ -126,29 +166,43 @@ function sectionShownTotal(sectionBody) {
 function addSectionSearch(sectionBody) {
   if (sectionBody.querySelector('input')) return;
   const container = sectionRowContainer(sectionBody);
-  const shown = sectionRows(container, null).length;
-  if (shown < SECTION_SEARCH_MIN_ROWS) return;
-  const total = sectionShownTotal(sectionBody);
+  if (sectionRows(container, null).length < SECTION_SEARCH_MIN_ROWS) return;
   const box = document.createElement('input');
   box.className = 'fll-in fll-secq';
-  box.setAttribute('placeholder', total > shown
-    ? 'Tìm trong ' + shown + ' mục đang hiện (mục có ' + total + ')...'
-    : 'Tìm nhanh trong mục này...');
   sectionBody.insertBefore(box, sectionBody.firstChild);
+  refreshSectionSearchScope(box);
 }
 
-// Loc ngay tren DOM: khong ve lai gi ca nen khong mat tieu diem, khong can debounce.
+// Phạm vi của ô tìm = số hàng ô tìm CHẠM TỚI ĐƯỢC. Hàng bị capSectionRows giấu đi vẫn chạm tới được
+// (chúng nằm trong DOM, chỉ đang hidden) — còn hàng chưa hề được vẽ (mục tự phân trang) thì không.
+// Câu chữ phải nói đúng điều đó, nếu không sẽ ra cảnh "mục ghi 64 module, gõ tên một module có thật,
+// báo không khớp".
+function refreshSectionSearchScope(box) {
+  const sectionBody = box.parentElement;
+  if (!sectionBody) return;
+  const reach = sectionRows(sectionRowContainer(sectionBody), box).length;
+  const total = sectionShownTotal(sectionBody);
+  box.setAttribute('placeholder', total > reach
+    ? 'Tìm trong ' + reach + ' mục đã vẽ (mục có ' + total + ')...'
+    : 'Tìm nhanh trong mục này...');
+}
+
+// Lọc ngay trên DOM: không vẽ lại gì cả nên không mất tiêu điểm, không cần debounce.
 function filterSectionRows(box) {
   const sectionBody = box.parentElement;
   const container = sectionRowContainer(sectionBody);
   const query = box.value.trim().toLowerCase();
   const rows = sectionRows(container, box);
+  const more = sectionBody.querySelector('.fll-secmore');
   let shown = 0;
   rows.forEach((node) => {
     const hit = !query || (node.textContent || '').toLowerCase().indexOf(query) >= 0;
-    node.hidden = !hit;
+    // Đang gõ tìm thì bỏ qua giới hạn cắt: gõ đúng tên một hàng bị cắt mà vẫn "không mục nào khớp"
+    // là kiểu sai khó chịu nhất. Xoá ô tìm thì trả lại trạng thái cắt cũ.
+    node.hidden = query ? !hit : !!node.getAttribute('data-capped');
     if (hit) shown += 1;
   });
+  if (more) more.hidden = !!query;
   let note = sectionBody.querySelector('.fll-secq-note');
   if (!query) {
     if (note) note.remove();
@@ -160,11 +214,11 @@ function filterSectionRows(box) {
     sectionBody.insertBefore(note, box.nextSibling);
   }
   const total = sectionShownTotal(sectionBody);
-  const chuaVe = total > rows.length ? ' — mục có ' + total + ', ô này chỉ tìm trong phần đang hiện' : '';
+  const chuaVe = total > rows.length ? ' — mục có ' + total + ', ô này chỉ tìm trong phần đã vẽ' : '';
   note.textContent = (shown ? 'Khớp ' + shown + '/' + rows.length : 'Không mục nào khớp') + chuaVe + '.';
 }
 
-// Dong/mo TAI CHO, khong ve lai ca tab: ve lai se mat vi tri cuon va lam mat luon o tim dang go do.
+// Đóng/mở TẠI CHỖ, không vẽ lại cả tab: vẽ lại sẽ mất vị trí cuộn và làm mất luôn ô tìm đang gõ dở.
 function toggleSection(header) {
   const wrap = header.parentElement;
   if (!wrap || !wrap.classList.contains('fll-secw')) return;
@@ -174,8 +228,8 @@ function toggleSection(header) {
   hideAim();
 }
 
-// Mo muc dang chua phan tu nay ra roi moi cuon toi. Khong co buoc nay thi cac loi tat ("bấm thẻ phiên
-// app o Tong quan") se cuon toi mot cho dang bi dong, tuc khong thay gi.
+// Mở mục đang chứa phần tử này ra rồi mới cuộn tới. Không có bước này thì các lối tắt ("bấm thẻ phiên
+// app ở Tổng quan") sẽ cuộn tới một chỗ đang bị đóng, tức không thấy gì.
 function revealElement(el) {
   let node = el;
   while (node && node !== lensState.el.body) {
@@ -187,4 +241,3 @@ function revealElement(el) {
     node = node.parentElement;
   }
 }
-// AI-GENERATED END

@@ -1,29 +1,22 @@
-/*
-File: src/02h-duplicate.js
-Created At: 2026-09-11 00:30:00 +07:00
-Created By: AI
-AI Agent: Claude Code
-Model: claude-opus-5
-*/
 // @ts-check
-// AI-GENERATED START — phat hien mot khoi dong bi lap lai nguyen xi trong log
+// phát hiện một khối dòng bị lặp lại nguyên xi trong log
 //
-// Vi sao can: mot log feedback production that (autoId 45490371) dai 4222 dong hoa ra la 2111 dong dau
-// LAP LAI Y HET — md5 hai nua bang nhau, cho noi nam ngay sau mot dong "LOGGER: END OF BATCH". Tool
-// khong biet chuyen do nen dem gap doi MOI THU: moi nhom loi, moi call HTTP, moi event tracker. Doc
-// "loi nay xay ra 4 lan" trong khi that ra 2 lan la doc sai han van de.
+// Vì sao cần: một log feedback production thật (autoId 45490371) dài 4222 dòng hoá ra là 2111 dòng đầu
+// LẶP LẠI Y HỆT — md5 hai nửa bằng nhau, chỗ nối nằm ngay sau một dòng "LOGGER: END OF BATCH". Tool
+// không biết chuyện đó nên đếm gấp đôi MỌI THỨ: mọi nhóm lỗi, mọi call HTTP, mọi event tracker. Đọc
+// "lỗi này xảy ra 4 lần" trong khi thật ra 2 lần là đọc sai hẳn vấn đề.
 //
-// Cach tim: moi dong trung nhau sinh ra mot "phieu" cho do lech giua hai lan xuat hien. Log bi noi doi
-// se do don gan het phieu vao DUNG MOT do lech (2111). Sau do xac minh bang cach dem chuoi lien tiep
-// dai nhat khop theo do lech do — trung ngau nhien vai dong le te thi khong tao duoc chuoi dai.
+// Cách tìm: mỗi dòng trùng nhau sinh ra một "phiếu" cho độ lệch giữa hai lần xuất hiện. Log bị nối đôi
+// sẽ dồn gần hết phiếu vào ĐÚNG MỘT độ lệch (2111). Sau đó xác minh bằng cách đếm chuỗi liên tiếp
+// dài nhất khớp theo độ lệch đó — trùng ngẫu nhiên vài dòng lẻ tẻ thì không tạo được chuỗi dài.
 //
-// Co y KHONG tu dong bo khoi lap: bao truoc, de nguoi doc bam. Khu nham mot khoi khong lap thi so lieu
-// cung sai, chi la sai theo huong khac — ma luc do khong con dau hieu nao de nhan ra.
+// Cố ý KHÔNG tự động bỏ khối lặp: báo trước, để người đọc bấm. Khử nhầm một khối không lặp thì số liệu
+// cũng sai, chỉ là sai theo hướng khác — mà lúc đó không còn dấu hiệu nào để nhận ra.
 
-// Duoi nguong nay coi nhu trung ngau nhien: log sach nhat trong ba log that co chuoi lap dai nhat
-// 8 dong (cac dong dinh ky nhu heartbeat, "END OF BATCH"). 40 la cach xa nguong do.
+// Dưới ngưỡng này coi như trùng ngẫu nhiên: log sạch nhất trong ba log thật có chuỗi lặp dài nhất
+// 8 dòng (các dòng định kỳ như heartbeat, "END OF BATCH"). 40 là cách xa ngưỡng đó.
 const DUPLICATE_MIN_RUN = 40;
-// Dong qua ngan (dau phan cach, dong trong) trung nhau la chuyen binh thuong, khong tinh phieu.
+// Dòng quá ngắn (dấu phân cách, dòng trống) trùng nhau là chuyện bình thường, không tính phiếu.
 const DUPLICATE_MIN_LINE = 24;
 
 function tallyDuplicateOffsets(entries) {
@@ -43,7 +36,7 @@ function tallyDuplicateOffsets(entries) {
   return offsets;
 }
 
-// Do lech duoc nhieu phieu nhat moi la ung vien; con lai la trung le te.
+// Độ lệch được nhiều phiếu nhất mới là ứng viên; còn lại là trùng lẻ tẻ.
 function bestDuplicateOffset(offsets) {
   let best = 0;
   let bestVotes = 0;
@@ -56,11 +49,11 @@ function bestDuplicateOffset(offsets) {
   return { offset: best, votes: bestVotes };
 }
 
-// Chuoi lien tiep dai nhat ma entries[i] giong het entries[i - offset].
+// Chuỗi liên tiếp dài nhất mà entries[i] giống hệt entries[i - offset].
 //
-// Dong ngan (dong trong, dong phan cach) la TRUNG TINH: khong tinh la khop, nhung cung khong cat dut
-// chuoi. Do that: coi chung la cat dut thi khoi lap 2111 dong cua log production chi nhan ra duoc 491
-// dong, vi cu vai chuc dong lai co mot dong trong xen vao.
+// Dòng ngắn (dòng trống, dòng phân cách) là TRUNG TÍNH: không tính là khớp, nhưng cũng không cắt đứt
+// chuỗi. Đo thật: coi chúng là cắt đứt thì khối lặp 2111 dòng của log production chỉ nhận ra được 491
+// dòng, vì cứ vài chục dòng lại có một dòng trống xen vào.
 function longestRunAtOffset(entries, offset) {
   let runStart = -1;
   let runCount = 0;
@@ -92,22 +85,19 @@ function findDuplicateBlock(entries) {
     offset,
     from,
     to,
-    // length = ca doan bi lap (ke ca dong trong xen giua); matched = so dong that su khop tung ky tu.
+    // length = cả đoạn bị lặp (kể cả dòng trống xen giữa); matched = số dòng thật sự khớp từng ký tự.
     length: to - from + 1,
     matched: run.count,
-    // Khoi goc ma khoi tren lap lai — de nguoi doc nhay toi doi chieu.
-    sourceFrom: from - offset,
     lineFrom: entries[from].lineNo,
     lineTo: entries[to].lineNo,
     sourceLineFrom: entries[from - offset].lineNo,
   };
 }
 
-// Danh dau tren tung entry de bo loc va thong ke doc duoc. Tra ve chinh thong tin khoi de gan vao data.
+// Đánh dấu trên từng entry để bộ lọc và thống kê đọc được. Trả về chính thông tin khối để gắn vào data.
 function markDuplicateEntries(entries) {
   const block = findDuplicateBlock(entries);
   if (!block) return null;
   for (let index = block.from; index <= block.to; index += 1) entries[index].isDuplicate = true;
   return block;
 }
-// AI-GENERATED END

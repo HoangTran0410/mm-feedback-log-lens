@@ -1,11 +1,5 @@
 #!/bin/bash
-# File: build.sh
-# Created At: 2026-09-08 16:00:00 +07:00
-# Created By: AI
-# AI Agent: Claude Code
-# Model: claude-opus-5
-#
-# AI-GENERATED START — nối src/*.js thành một IIFE rồi ghi thẳng vào extension/lens.js,
+# nối src/*.js thành một IIFE rồi ghi thẳng vào extension/lens.js,
 # chạy bộ test, và ghi số liệu thật vào README (không ai gõ tay số nữa).
 # Từng có thêm dist/ nhưng sau khi bỏ bản bookmarklet thì nó chỉ còn là bản sao y hệt
 # của extension/lens.js — một đầu ra, một chỗ, khỏi lệch nhau.
@@ -22,10 +16,10 @@ mkdir -p extension
 
 node --check extension/lens.js
 
-# Kiem kieu bang tsc neu may co san. Co y KHONG bat buoc: build.sh phai chay duoc tren may khong cai
-# gi ngoai node. Moi file src/*.js co "// @ts-check" o dau, va vi chung khong co import/export nen
-# TypeScript coi chung la script dung chung mot global scope — dung nhu cach build.sh boc tat ca vao
-# mot IIFE. Khong sinh file nao: tsconfig.json dat noEmit.
+# Kiểm kiểu bằng tsc nếu máy có sẵn. Cố ý KHÔNG bắt buộc: build.sh phải chạy được trên máy không cài
+# gì ngoài node. Mọi file src/*.js có "// @ts-check" ở đầu, và vì chúng không có import/export nên
+# TypeScript coi chúng là script dùng chung một global scope — đúng như cách build.sh bọc tất cả vào
+# một IIFE. Không sinh file nào: tsconfig.json đặt noEmit.
 if command -v tsc >/dev/null 2>&1; then
   tsc --noEmit
   echo "kiểu OK (tsc)"
@@ -78,4 +72,3 @@ if (updated !== readme) {
 NODE
 
 echo "extension/lens.js $(wc -c < extension/lens.js | tr -d ' ') bytes — cú pháp OK"
-# AI-GENERATED END

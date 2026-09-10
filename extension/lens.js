@@ -1,14 +1,7 @@
 (function(){"use strict";
-/*
-File: src/01-analyzer.js
-Created At: 2026-09-08 16:00:00 +07:00
-Created By: AI
-AI Agent: Claude Code
-Model: claude-opus-5
-*/
 // @ts-check
-// AI-GENERATED START — doc DOM log cua trang feedback admin, parse thanh entry co cau truc + thong ke
-// Cac file src/*.js duoc build.sh noi lai va boc trong MOT IIFE nen dung chung scope. Dat ten khong trung nhau.
+// đọc DOM log của trang feedback admin, parse thành entry có cấu trúc + thống kê
+// Các file src/*.js được build.sh nối lại và bọc trong MỘT IIFE nên dùng chung scope. Đặt tên không trùng nhau.
 
 const LEVEL_ALIAS = { WARN: 'WARNING', VERBOSE: 'DEBUG', TRACE: 'DEBUG', FATAL: 'ERROR' };
 const LEVEL_ORDER = ['ERROR', 'WARNING', 'INFO', 'DEBUG'];
@@ -31,20 +24,20 @@ const RE_URL = /\[URL: (\S+?)\]/;
 const RE_STATUS = /--status: (\d+)/;
 const RE_ERRCODE = /"errorCode"\s*:\s*"?(-?\d+)|errorCode=(-?\d+)/;
 const RE_BATCH = /LOGGER: END OF BATCH/;
-// Trang thai app nam ghep trong dong MQTT: "... - appState: BACKGROUND - isReady: false".
-// Day la cho DUY NHAT trong log noi ra app dang o nen hay dang mo — khong co dong lifecycle rieng
-// (da tim: didEnterBackground / willEnterForeground / onPause deu 0 lan tren ca ba log).
+// Trạng thái app nằm ghép trong dòng MQTT: "... - appState: BACKGROUND - isReady: false".
+// Đây là chỗ DUY NHẤT trong log nói ra app đang ở nền hay đang mở — không có dòng lifecycle riêng
+// (đã tìm: didEnterBackground / willEnterForeground / onPause đều 0 lần trên cả ba log).
 const RE_APP_STATE = /appState[:= ]+([A-Z]+)/;
-// Ba moc deu ghi dung mot lan moi lan process khoi dong, deu o muc INFO va deu khong bi bat ky co
-// debug nao chan (da doc source app). Do tren 50 feedback production that: "MomoDatabase init OK"
-// co mat o 44/50 log — 6 log con lai can moc du phong, vi file log bi xoay vong thi dong khoi dong
-// la dong bi cat dau tien.
+// Ba mốc đều ghi đúng một lần mỗi lần process khởi động, đều ở mức INFO và đều không bị bất kỳ cờ
+// debug nào chặn (đã đọc source app). Đo trên 50 feedback production thật: "MomoDatabase init OK"
+// có mặt ở 44/50 log — 6 log còn lại cần mốc dự phòng, vì file log bị xoay vòng thì dòng khởi động
+// là dòng bị cắt đầu tiên.
 //
-// NHUNG ca ba moc deu no trong CUNG mot lan khoi dong, cach nhau vai tram ms. Dem moi moc la mot phien
-// thi mot lan mo app thanh ba phien — bug that, nguoi dung bat duoc. Do tren ba log that:
-//   - khoang cach GIUA ba moc cua cung mot lan khoi dong: 369, 382, 470, 916, 1000, 1119, 1829, 2078ms
-//   - khoang cach giua HAI lan khoi dong that: 75 440ms va 163 029ms
-// Hai nhom cach nhau 36 lan, nen nguong 5s nam giua khoang trong do, khong sat mep nao.
+// NHƯNG cả ba mốc đều nổ trong CÙNG một lần khởi động, cách nhau vài trăm ms. Đếm mỗi mốc là một phiên
+// thì một lần mở app thành ba phiên — bug thật, người dùng bắt được. Đo trên ba log thật:
+//   - khoảng cách GIỮA ba mốc của cùng một lần khởi động: 369, 382, 470, 916, 1000, 1119, 1829, 2078ms
+//   - khoảng cách giữa HAI lần khởi động thật: 75 440ms và 163 029ms
+// Hai nhóm cách nhau 36 lần, nên ngưỡng 5s nằm giữa khoảng trống đó, không sát mép nào.
 const SESSION_MARKERS = [
   { kind: 'db', re: /MomoDatabase init OK/ },
   { kind: 'sync', re: /@@ appSync >> syncStartApp/ },
@@ -63,7 +56,7 @@ function getLogRowElements() {
   return Array.from(document.querySelectorAll(ROW_SELECTOR));
 }
 
-// Log khong scroll theo window ma theo mot div long ben trong, phai tim dung no de nhay dong.
+// Log không scroll theo window mà theo một div lồng bên trong, phải tìm đúng nó để nhảy dòng.
 function getLogScrollContainer(rowEl) {
   let node = rowEl ? rowEl.parentElement : null;
   while (node && node !== document.body) {
@@ -84,9 +77,9 @@ function parseModules(body) {
   return names;
 }
 
-// Gom cac dong cung ban chat ve mot chu ky: bo timestamp, con tro, object id, uuid, appId, moi con so.
-// errorCode duoc giu nguyen (lookbehind) vi day la tin hieu phan biet loi that su.
-// Do trên log that: 958 dong WARNING gom con 252 nhom (truoc khi bo <ptr>/<appId>/so nho la 411).
+// Gom các dòng cùng bản chất về một chữ ký: bỏ timestamp, con trỏ, object id, uuid, appId, mọi con số.
+// errorCode được giữ nguyên (lookbehind) vì đây là tín hiệu phân biệt lỗi thật sự.
+// Đo trên log thật: 958 dòng WARNING gom còn 252 nhóm (trước khi bỏ <ptr>/<appId>/số nhỏ là 411).
 function normalizeSignature(text) {
   return text
     .replace(/\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}[:.]\d{3}/g, '<ts>')
@@ -114,7 +107,7 @@ function parseHttpFields(body) {
     host = parsed.host;
     path = parsed.pathname + (parsed.search ? '?...' : '');
   } catch (error) {
-    // URL tuong doi hoac bi cat giua chung: giu nguyen chuoi goc.
+    // URL tương đối hoặc bị cắt giữa chừng: giữ nguyên chuỗi gốc.
   }
 
   let direction = 'other';
@@ -132,20 +125,20 @@ function parseHttpFields(body) {
   };
 }
 
-// params cua MoMoTracker khong phai JSON ma la map "k=v, k=v": parseKeyValueMap (02-insights) da xu ly
-// dung dau phay nam trong gia tri (bundle_sof=1,2) va map long nhau (last_component={...}).
-// Do tren log that: 940/940 dong co "| params: {" deu parse ra map, khong dong nao that bai.
-// indexOf chan truoc vi dai da so dong khong he co params, khong can chay regex.
+// params của MoMoTracker không phải JSON mà là map "k=v, k=v": parseKeyValueMap (02-insights) đã xử lý
+// đúng dấu phẩy nằm trong giá trị (bundle_sof=1,2) và map lồng nhau (last_component={...}).
+// Đo trên log thật: 940/940 dòng có "| params: {" đều parse ra map, không dòng nào thất bại.
+// indexOf chặn trước vì đại đa số dòng không hề có params, không cần chạy regex.
 function parseEventParams(message) {
   if (message.indexOf('| params: {') < 0) return null;
   const hit = RE_EVENT_PARAMS.exec(message);
   return hit ? parseKeyValueMap(hit[1]) : null;
 }
 
-// Grafana ghi tham so duoi dang TraceParameter(k=v, k=v) — cung mot dinh dang k=v voi params cua
-// tracker, chi khac cap bao ngoai. Boc lai thanh {k=v} de dung chung parseKeyValueMap, huong luon
-// ca phan noi lai manh bi dau phay xe doi. Do tren hai log that (mot UAT, mot prod): 3904/3904 dong
-// TraceParameter parse ra map co truong flow.
+// Grafana ghi tham số dưới dạng TraceParameter(k=v, k=v) — cùng một định dạng k=v với params của
+// tracker, chỉ khác cặp bao ngoài. Bọc lại thành {k=v} để dùng chung parseKeyValueMap, hưởng luôn
+// cả phần nối lại mảnh bị dấu phẩy xẻ đôi. Đo trên hai log thật (một UAT, một prod): 3904/3904 dòng
+// TraceParameter parse ra map có trường flow.
 function parseTraceParameter(message) {
   const hit = RE_TRACE_PARAM.exec(message);
   return hit ? parseKeyValueMap('{' + hit[1] + '}') : null;
@@ -160,6 +153,10 @@ function parseEntry(rawText, domIndex, lineNo, el) {
     kind: 'log',
     level: '',
     ts: null,
+    // Mốc dùng RIÊNG cho cửa sổ thời gian: dòng không có giờ thừa hưởng giờ của dòng có giờ gần nhất
+    // phía trên. Không nhập vào ts vì ts đi vào khoảng lặng, minimap, phiên app — thêm giờ giả vào đó
+    // là đổi số liệu, còn ở đây chỉ là để dòng tiếp nối không bị cửa sổ thời gian cắt mất.
+    windowTs: null,
     time: '',
     modules: [],
     module: '',
@@ -174,12 +171,12 @@ function parseEntry(rawText, domIndex, lineNo, el) {
     signature: '',
     http: null,
     session: 1,
-    // Dat true cho dong DAU TIEN cua moi chum moc khoi dong. Tab Dien bien doc co nay chu khong
-    // do lai regex, neu khong mot lan mo app se ve ra ba moc "App khoi dong" chong nhau.
+    // Đặt true cho dòng ĐẦU TIÊN của mỗi chùm mốc khởi động. Tab Diễn biến đọc cờ này chứ không
+    // dò lại regex, nếu không một lần mở app sẽ vẽ ra ba mốc "App khởi động" chồng nhau.
     isSessionStart: false,
-    // Nam trong khoi bi lap lai nguyen xi (xem src/02h-duplicate.js).
+    // Nằm trong khối bị lặp lại nguyên xi (xem src/02h-duplicate.js).
     isDuplicate: false,
-    // 'FOREGROUND' | 'BACKGROUND' | '' — doc tu dong MQTT, xem RE_APP_STATE.
+    // 'FOREGROUND' | 'BACKGROUND' | '' — đọc từ dòng MQTT, xem RE_APP_STATE.
     appState: '',
   };
 
@@ -214,7 +211,7 @@ function parseEntry(rawText, domIndex, lineNo, el) {
     entry.eventParams = parseEventParams(entry.message);
   }
 
-  // indexOf chan truoc: chi dong Grafana moi mang trace, chay regex tren moi dong la vo ich.
+  // indexOf chặn trước: chỉ dòng Grafana mới mang trace, chạy regex trên mọi dòng là vô ích.
   if (entry.message.indexOf('@@ grafana >> ') >= 0) {
     const traceVerb = RE_TRACE_VERB.exec(entry.message);
     if (traceVerb) {
@@ -227,8 +224,8 @@ function parseEntry(rawText, domIndex, lineNo, el) {
   if (appState) entry.appState = appState[1];
 
   entry.http = parseHttpFields(body);
-  // Chi ERROR/WARNING moi vao buildIssueGroups. Tinh chu ky cho ca 4085 dong la lang phi nang nhat
-  // luc khoi dong: 7 luot replace tren nhung dong payload HTTP dai toi 10KB ma khong ai dung den.
+  // Chỉ ERROR/WARNING mới vào buildIssueGroups. Tính chữ ký cho cả 4085 dòng là lãng phí nặng nhất
+  // lúc khởi động: 7 lượt replace trên những dòng payload HTTP dài tới 10KB mà không ai dùng đến.
   if (entry.level === 'ERROR' || entry.level === 'WARNING') {
     entry.signature = normalizeSignature(entry.message).slice(0, SIGNATURE_MAX_LENGTH);
   }
@@ -258,8 +255,8 @@ function buildIssueGroups(entries) {
         module: entry.module,
         signature: entry.signature,
         sample: entry.message,
-        // Loi cua chinh lop do luong, khong phai loi user gap. Danh dau ngay luc gom de tab Van de
-        // tach rieng ra — do tren 50 feedback production: 1267/2488 dong ERROR (51%) la loai nay.
+        // Lỗi của chính lớp đo lường, không phải lỗi user gặp. Đánh dấu ngay lúc gom để tab Vấn đề
+        // tách riêng ra — đo trên 50 feedback production: 1267/2488 dòng ERROR (51%) là loại này.
         noiseLabel: telemetryNoiseLabel(entry.message),
         indices: [],
         firstTs: entry.ts,
@@ -279,65 +276,111 @@ function buildIssueGroups(entries) {
   });
 }
 
-// Ghep response voi request gan nhat cung URL. Request khong co response => nghi treo/timeout.
-function buildHttpCalls(entries) {
-  const calls = [];
-  const pendingByUrl = new Map();
-  entries.forEach((entry) => {
-    if (!entry.http) return;
-    const http = entry.http;
-    if (http.direction !== 'res') {
-      const call = {
-        reqIndex: entry.domIndex,
-        resIndex: null,
-        ts: entry.ts,
-        time: entry.time,
-        method: http.method,
-        url: http.url,
-        host: http.host,
-        path: http.path,
-        status: http.status,
-        errorCode: http.errorCode,
-        duration: null,
-      };
-      calls.push(call);
-      pendingByUrl.set(http.url, call);
-      return;
-    }
-    const pending = pendingByUrl.get(http.url);
-    if (pending && pending.resIndex === null) {
-      pending.resIndex = entry.domIndex;
-      pending.status = http.status;
-      pending.errorCode = http.errorCode;
-      pending.duration = entry.ts && pending.ts ? entry.ts - pending.ts : null;
-      pendingByUrl.delete(http.url);
-      return;
-    }
-    calls.push({
-      reqIndex: null,
-      resIndex: entry.domIndex,
-      ts: entry.ts,
-      time: entry.time,
-      method: http.method,
-      url: http.url,
-      host: http.host,
-      path: http.path,
-      status: http.status,
-      errorCode: http.errorCode,
-      duration: null,
-    });
-  });
-  return calls;
+// Ghép request với response theo CÙNG MỘT URL, FIFO theo thứ tự dòng, có cửa sổ lùi một dòng.
+//
+// Vì sao cần cửa sổ lùi: logger ghi theo lô nên dòng ResponsePayload có thể nằm TRƯỚC dòng
+// RequestPayload của chính nó. Đo trên ba log thật: 0 / 3 / 16 cặp nằm ngược, và MỌI cặp ngược quan
+// sát được đều lệch đúng MỘT dòng (Δdòng = -1, Δts = 0 hoặc -2ms) — hai dòng ra trong cùng một lần
+// flush. Vì vậy HTTP_PAIR_LOOKAHEAD = 1.
+//
+// Bản cũ ghép response với request đứng trước nó theo dòng nên hỏng cả hai đầu: request thật bị báo
+// "không có response" (=> vào badHttpCalls, vào thẻ "HTTP bất thường", vào ticket), rồi chính
+// response đó lại sinh thêm một hàng "call ma". Đo trên log production: 94 dòng request và 94 dòng
+// response mà ra 104 call, 10 cái báo thiếu response. Sau khi sửa: 94 call, 0 cái thiếu response.
+//
+// ĐÃ THỬ và bỏ: ghép theo trục THỜI GIAN thay vì thứ tự dòng. Trục thời gian nhiễu hơn nhiều — trên
+// log uat1 có một cặp request/response nằm đúng thứ tự dòng mà timestamp lệch NGƯỢC 728ms, chặn theo
+// ts thì cặp đó bị xẻ đôi. Thứ tự dòng sai ít hơn, và sai theo một kiểu duy nhất (lệch một dòng).
+//
+// CHƯA XÁC MINH: giả định một URL trả về theo đúng thứ tự gọi. Dòng HTTP trong log chỉ có [Method:]
+// và [URL:], không có trường nào nối request với response, nên không có cách nào chắc hơn.
+const HTTP_PAIR_LOOKAHEAD = 1;
+
+function makeHttpCall(entry) {
+  const http = entry.http;
+  return {
+    reqIndex: null,
+    resIndex: null,
+    ts: entry.ts,
+    time: entry.time,
+    method: http.method,
+    url: http.url,
+    host: http.host,
+    path: http.path,
+    status: http.status,
+    errorCode: http.errorCode,
+    duration: null,
+  };
 }
 
-// Gap phai tinh tren truc thoi gian da sort: logger flush theo lo nen thu tu dong khong phai thu tu thoi gian.
-// Cua so xe dich cho phep giua moc doi trang thai va hai dau khoang lang.
+function pairHttpSides(reqs, ress, calls) {
+  const open = [];
+  let next = 0;
+  ress.forEach((res) => {
+    // Mở mọi request nằm trước response này (cộng cửa sổ lùi), rồi lấy cái chờ lâu nhất.
+    while (next < reqs.length && reqs[next].domIndex <= res.domIndex + HTTP_PAIR_LOOKAHEAD) {
+      open.push(reqs[next]);
+      next += 1;
+    }
+    const req = open.shift();
+    if (!req) {
+      // Response mồ côi: request của nó nằm ngoài log (log bị cắt đầu) hoặc đang bị bộ lọc giấu đi.
+      // Đo trên log uat1: 52 dòng request / 58 dòng response, 6 response đầu file không có request.
+      const orphan = makeHttpCall(res);
+      orphan.resIndex = res.domIndex;
+      calls.push(orphan);
+      return;
+    }
+    const call = makeHttpCall(req);
+    call.reqIndex = req.domIndex;
+    call.resIndex = res.domIndex;
+    call.status = res.http.status;
+    call.errorCode = res.http.errorCode;
+    // Lệch âm (response ghi trước request) thì để trống chứ không báo số âm: không biết call chạy bao
+    // lâu thì hàng đó hiện giờ thay vì hiện một con số sai.
+    const delta = res.ts && req.ts ? res.ts - req.ts : -1;
+    call.duration = delta >= 0 ? delta : null;
+    calls.push(call);
+  });
+  open.concat(reqs.slice(next)).forEach((req) => {
+    const call = makeHttpCall(req);
+    call.reqIndex = req.domIndex;
+    calls.push(call);
+  });
+}
+
+function buildHttpCalls(entries) {
+  const byUrl = new Map();
+  entries.forEach((entry) => {
+    if (!entry.http) return;
+    let pair = byUrl.get(entry.http.url);
+    if (!pair) {
+      pair = { reqs: [], ress: [] };
+      byUrl.set(entry.http.url, pair);
+    }
+    // direction 'other' (không có cả RequestPayload lẫn ResponsePayload) tính là phía request, giữ
+    // nguyên như bản cũ. Đo trên ba log thật: 0 dòng rơi vào nhánh này.
+    (entry.http.direction === 'res' ? pair.ress : pair.reqs).push(entry);
+  });
+  const calls = [];
+  // entries đi vào theo thứ tự dòng nên reqs/ress đã sẵn thứ tự, không cần sort lại.
+  byUrl.forEach((pair) => pairHttpSides(pair.reqs, pair.ress, calls));
+  // Trả về theo thứ tự dòng của đầu sớm nhất: danh sách call trên panel đọc từ trên xuống.
+  return calls.sort((a, b) => httpCallAnchor(a) - httpCallAnchor(b));
+}
+
+function httpCallAnchor(call) {
+  return call.reqIndex != null ? call.reqIndex : call.resIndex;
+}
+
+// Gap phải tính trên trục thời gian đã sort: logger flush theo lô nên thứ tự dòng không phải thứ tự thời gian.
+// Cửa sổ xê dịch cho phép giữa mốc đổi trạng thái và hai đầu khoảng lặng.
 const GAP_STATE_TOLERANCE_MS = 2000;
 
-// Danh dau khoang lang nao la do APP XUONG NEN chu khong phai app treo. Truoc day tool bao hai truong
-// hop nhu nhau — do la false positive lon nhat cua tinh nang khoang lang: "user bam Home" bi doc thanh
-// "app dung im". Do tren log that (33112319): 22 khoang lang, dung 2 cai dai nhat (142.7s va 231.8s)
-// la app o nen, 20 cai con lai khong co moc doi trang thai nao.
+// Đánh dấu khoảng lặng nào là do APP XUỐNG NỀN chứ không phải app treo. Trước đây tool báo hai trường
+// hợp như nhau — đó là false positive lớn nhất của tính năng khoảng lặng: "user bấm Home" bị đọc thành
+// "app đứng im". Đo trên log thật (33112319): 22 khoảng lặng, đúng 2 cái dài nhất (142.7s và 231.8s)
+// là app ở nền, 20 cái còn lại không có mốc đổi trạng thái nào.
 function markBackgroundGaps(gaps, timed) {
   const marks = [];
   let last = '';
@@ -348,11 +391,11 @@ function markBackgroundGaps(gaps, timed) {
   });
   if (!marks.length) return;
   gaps.forEach((gap) => {
-    // Phai co CA HAI dau: xuong nen trong long khoang lang, va tro lai o cuoi khoang. Chi thay mot
-    // dau thi khong ket luan — co the la app xuong nen roi bi giet han.
-    // Noi long CA hai dau bang GAP_STATE_TOLERANCE_MS. Do that: moc xuong nen nam SOM HON gap.before
-    // vai chuc ms, vi ba module MQTT cung ghi mot luc va dong cuoi truoc khoang lang la dong thu ba,
-    // con moc doi trang thai la dong thu nhat. Chan cung "moc >= gap.before.ts" thi truot het.
+    // Phải có CẢ HAI đầu: xuống nền trong lòng khoảng lặng, và trở lại ở cuối khoảng. Chỉ thấy một
+    // đầu thì không kết luận — có thể là app xuống nền rồi bị giết hẳn.
+    // Nới lỏng CẢ hai đầu bằng GAP_STATE_TOLERANCE_MS. Đo thật: mốc xuống nền nằm SỚM HƠN gap.before
+    // vài chục ms, vì ba module MQTT cùng ghi một lúc và dòng cuối trước khoảng lặng là dòng thứ ba,
+    // còn mốc đổi trạng thái là dòng thứ nhất. Chặn cứng "mốc >= gap.before.ts" thì trượt hết.
     const down = marks.find((mark) => mark.state === 'BACKGROUND' &&
       mark.ts >= gap.before.ts - GAP_STATE_TOLERANCE_MS && mark.ts <= gap.after.ts);
     if (!down) return;
@@ -366,11 +409,11 @@ function markBackgroundGaps(gaps, timed) {
 }
 
 function buildGaps(entries, gapThresholdMs) {
-  // Bo dong thuoc khoi lap: log bi noi doi thi moi moc thoi gian xuat hien hai lan, hai dong lien tiep
-  // sau khi sort cach nhau 0ms nen KHONG con khoang lang nao duoc nhan ra. Do that tren log
-  // production bi noi doi: 0 khoang lang truoc khi bo, dung so that sau khi bo. Khoi lap khong the
-  // tao ra hay xoa di mot khoang im lang co that — no chi che mat, nen bo la dung ca khi nguoi dung
-  // chua bat "bo khoi lap".
+  // Bỏ dòng thuộc khối lặp: log bị nối đôi thì mọi mốc thời gian xuất hiện hai lần, hai dòng liên tiếp
+  // sau khi sort cách nhau 0ms nên KHÔNG còn khoảng lặng nào được nhận ra. Đo thật trên log
+  // production bị nối đôi: 0 khoảng lặng trước khi bỏ, đúng số thật sau khi bỏ. Khối lặp không thể
+  // tạo ra hay xoá đi một khoảng im lặng có thật — nó chỉ che mất, nên bỏ là đúng cả khi người dùng
+  // chưa bật "bỏ khối lặp".
   const timed = entries.filter((entry) => entry.ts && !entry.isDuplicate).slice()
     .sort((a, b) => a.ts - b.ts);
   const gaps = [];
@@ -396,11 +439,11 @@ function analyzeLog(gapThresholdMs) {
     return parseEntry(text, index, Number.isNaN(parsedLineNo) ? index + 1 : parsedLineNo, el);
   });
 
-  // Mot lan khoi dong = mot CHUM moc, khong phai mot moc. Sang phien moi khi: cach moc truoc qua
-  // SESSION_BURST_MS, HOAC gap lai dung loai moc da thay trong chum nay — mot process khong the ghi
-  // "MomoDatabase init OK" hai lan, nen moc trung loai chac chan la lan khoi dong khac. Ve dieu kien
-  // thu hai: dung tren bon chum quan sat duoc (moi chum dung mot moc moi loai), CHUA XAC MINH duoc
-  // rang khong log nao lap lai mot loai moc giua chung mot lan chay.
+  // Một lần khởi động = một CHÙM mốc, không phải một mốc. Sang phiên mới khi: cách mốc trước quá
+  // SESSION_BURST_MS, HOẶC gặp lại đúng loại mốc đã thấy trong chùm này — một process không thể ghi
+  // "MomoDatabase init OK" hai lần, nên mốc trùng loại chắc chắn là lần khởi động khác. Về điều kiện
+  // thứ hai: đúng trên bốn chùm quan sát được (mỗi chùm đúng một mốc mỗi loại), CHƯA XÁC MINH được
+  // rằng không log nào lặp lại một loại mốc giữa chừng một lần chạy.
   let sessionCount = 0;
   let lastMarkerTs = 0;
   let burstKinds = new Set();
@@ -422,18 +465,25 @@ function analyzeLog(gapThresholdMs) {
   let outOfOrder = 0;
   let previousTs = 0;
   entries.forEach((entry) => {
-    if (!entry.ts) return;
+    // Đo trên ba log thật: 240 / 180 / 85 dòng không có giờ (dòng tiếp nối của stack trace, dòng
+    // trống, dòng "END OF BATCH"). Trước đây cửa sổ thời gian loại thẳng chúng, nên bật cửa sổ quanh
+    // đúng lúc lỗi nổ ra thì chính phần stack trace nhiều dòng của lỗi đó bị giấu đi.
+    if (!entry.ts) {
+      entry.windowTs = previousTs || null;
+      return;
+    }
     if (previousTs && entry.ts < previousTs) outOfOrder += 1;
     previousTs = entry.ts;
+    entry.windowTs = entry.ts;
   });
 
-  // Danh dau khoi lap TRUOC khi tinh thong ke: bo loc "bo khoi lap" doc co nay.
+  // Đánh dấu khối lặp TRƯỚC khi tính thống kê: bộ lọc "bỏ khối lặp" đọc cờ này.
   const duplicate = markDuplicateEntries(entries);
 
   const timeline = buildGaps(entries, gapThresholdMs);
 
-  // Phan phu thuoc tap dong (levels/groups/http/modules/...) nam trong deriveStats, dung chung voi
-  // luc tinh lai theo bo loc. Phan con lai la thuoc tinh cua ca file, khong bao gio scope.
+  // Phần phụ thuộc tập dòng (levels/groups/http/modules/...) nằm trong deriveStats, dùng chung với
+  // lúc tính lại theo bộ lọc. Phần còn lại là thuộc tính của cả file, không bao giờ scope.
   return Object.assign({
     rowEls,
     entries,
@@ -447,25 +497,16 @@ function analyzeLog(gapThresholdMs) {
     lastTs: timeline.timed.length ? timeline.timed[timeline.timed.length - 1].ts : 0,
   }, deriveStats(entries, timeline.gaps));
 }
-// AI-GENERATED END
-/*
-File: src/02a-insights.js
-Created At: 2026-09-08 16:00:00 +07:00
-Created By: AI
-AI Agent: Claude Code
-Model: claude-opus-5
-*/
 // @ts-check
-// AI-GENERATED START — thoi luong, ID lien ket, phien app, metadata feedback
-// Tach ra tu src/02-insights.js (946 dong). Cac file src/*.js duoc build.sh noi lai theo thu tu
-// ten file va boc trong MOT IIFE nen van dung chung scope — tach chi de doc.
+// thời lượng, ID liên kết, phiên app, metadata feedback
+// Tách ra từ src/02-insights.js (946 dòng). Các file src/*.js được build.sh nối lại theo thứ tự
+// tên file và bọc trong MỘT IIFE nên vẫn dùng chung scope — tách chỉ để đọc.
 
-// Chay sau analyzeLog tren cung mang entries. Tach rieng de 01-analyzer.js khong phinh qua 500 dong.
+// Chạy sau analyzeLog trên cùng mảng entries. Tách riêng để 01-analyzer.js không phình quá 500 dòng.
 
-// Vai cho trong log ghi nham epoch vao truong duration= (vi du duration=1788836518693),
-// nen bo moi gia tri vuot nguong nay thay vi tin mu.
+// Vài chỗ trong log ghi nhầm epoch vào trường duration= (ví dụ duration=1788836518693),
+// nên bỏ mọi giá trị vượt ngưỡng này thay vì tin mù.
 const MAX_PLAUSIBLE_DURATION_MS = 600000;
-const MAX_DURATION_ROWS = 80;
 
 const DURATION_PATTERNS = [
   { kind: 'duration', re: /\bduration=(\d+)\b/ },
@@ -475,8 +516,8 @@ const DURATION_PATTERNS = [
   { kind: 'waited', re: /\btotalWaited[A-Za-z]*\s*[:=]\s*(\d+)/ },
   { kind: 'took', re: /\btook (\d+)\s?ms\b/ },
 ];
-// Co y KHONG bat pattern chung chung kieu /(\d+)\s?ms/: no an ca gia tri cau hinh
-// (vi du mot module khai bao cua so cho 5000ms) va day len dau bang nhu the la thao tac cham.
+// Cố ý KHÔNG bắt pattern chung chung kiểu /(\d+)\s?ms/: nó ăn cả giá trị cấu hình
+// (ví dụ một module khai báo cửa sổ chờ 5000ms) và đẩy lên đầu bảng như thể là thao tác chậm.
 
 const CORRELATION_PATTERNS = [
   { key: 'cmdId', re: /"cmdId"\s*:\s*"([^"]{6,})"/g },
@@ -493,7 +534,7 @@ function extractDurations(entries) {
   const rows = [];
   entries.forEach((entry) => {
     if (!entry.message) return;
-    // Sang loc bang indexOf truoc: dai da so dong khong he co so do thoi gian, khong can chay 6 regex.
+    // Sàng lọc bằng indexOf trước: đại đa số dòng không hề có số đo thời gian, không cần chạy 6 regex.
     if (entry.message.indexOf('ms') < 0 && entry.message.indexOf('duration=') < 0 &&
       entry.message.indexOf('Waited') < 0) return;
     for (let i = 0; i < DURATION_PATTERNS.length; i += 1) {
@@ -513,16 +554,19 @@ function extractDurations(entries) {
       return;
     }
   });
-  return rows.sort((a, b) => b.ms - a.ms).slice(0, MAX_DURATION_ROWS);
+  // KHÔNG cắt bớt ở đây: cắt trước khi trả về thì tổng bị mất luôn, badge của mục ghi 80 trong khi
+  // log có 160 con số — mà chữ ngay dưới lại ghi "Mọi con số thời lượng". Việc cắt bớt để cho
+  // capSectionRows() làm sau khi vẽ, lúc đó vẫn còn tổng thật để ghi badge.
+  return rows.sort((a, b) => b.ms - a.ms);
 }
 
-// Mot cmdId xuat hien o nhieu dong = mot request di qua nhieu lop. Gom lai la dung duoc ca luong.
+// Một cmdId xuất hiện ở nhiều dòng = một request đi qua nhiều lớp. Gom lại là dựng được cả luồng.
 function buildCorrelations(entries) {
   const byValue = new Map();
   entries.forEach((entry) => {
     entry.correlationIds = [];
     if (!entry.raw) return;
-    // Cung ly do: quet 5 regex toan cuc tren 1.2MB text la vo ich khi dong do khong chua ten ID nao.
+    // Cùng lý do: quét 5 regex toàn cục trên 1.2MB text là vô ích khi dòng đó không chứa tên ID nào.
     if (entry.raw.indexOf('cmdId') < 0 && entry.raw.indexOf('request_id') < 0 &&
       entry.raw.indexOf('riskId') < 0 && entry.raw.indexOf('traceId') < 0) return;
     CORRELATION_PATTERNS.forEach((pattern) => {
@@ -568,8 +612,8 @@ function buildSessions(entries) {
   return sessions.filter(Boolean);
 }
 
-// Metadata cua feedback nam ngay tren trang duoi dang <span class="ant-tag">Nhan: gia tri</span>.
-// Current Context dung truoc Error Context trong DOM nen lay lan xuat hien dau tien la dung cai dang co hieu luc.
+// Metadata của feedback nằm ngay trên trang dưới dạng <span class="ant-tag">Nhãn: giá trị</span>.
+// Current Context đứng trước Error Context trong DOM nên lấy lần xuất hiện đầu tiên là đúng cái đang có hiệu lực.
 function readFeedbackContext() {
   const context = {};
   document.querySelectorAll('span[class*="ant-tag"]').forEach((el) => {
@@ -585,20 +629,12 @@ function readFeedbackContext() {
   if (timeHit) context.submittedAt = timeHit[1] + ' ' + timeHit[2];
   return context;
 }
-// AI-GENERATED END
-/*
-File: src/02b-payload.js
-Created At: 2026-09-08 16:00:00 +07:00
-Created By: AI
-AI Agent: Claude Code
-Model: claude-opus-5
-*/
 // @ts-check
-// AI-GENERATED START — tach khoi JSON trong dong log, va lop k=v dung chung cho ca tracker lan Grafana
-// Tach ra tu src/02-insights.js (946 dong). Cac file src/*.js duoc build.sh noi lai theo thu tu
-// ten file va boc trong MOT IIFE nen van dung chung scope — tach chi de doc.
+// tách khối JSON trong dòng log, và lớp k=v dùng chung cho cả tracker lẫn Grafana
+// Tách ra từ src/02-insights.js (946 dòng). Các file src/*.js được build.sh nối lại theo thứ tự
+// tên file và bọc trong MỘT IIFE nên vẫn dùng chung scope — tách chỉ để đọc.
 
-// Tra ve ca vi tri bat dau/ket thuc: nguoi goi con phai doc tiep phan dang sau khoi JSON nay.
+// Trả về cả vị trí bắt đầu/kết thúc: người gọi còn phải đọc tiếp phần đằng sau khối JSON này.
 function extractJsonBlock(text) {
   const start = text.search(/[{[]/);
   if (start < 0) return null;
@@ -625,22 +661,22 @@ function extractJsonBlock(text) {
   return null;
 }
 
-// Logger cua app cat bot message qua dai ("... exceeds 10000 characters."), nen khoi JSON khong
-// bao gio dong lai va JSON.parse chiu thua. Nhung phan da co van la du lieu doc duoc: cat den diem
-// an toan gan nhat roi tu dong not cac ngoac con mo.
+// Logger của app cắt bớt message quá dài ("... exceeds 10000 characters."), nên khối JSON không
+// bao giờ đóng lại và JSON.parse chịu thua. Nhưng phần đã có vẫn là dữ liệu đọc được: cắt đến điểm
+// an toàn gần nhất rồi tự đóng nốt các ngoặc còn mở.
 //
-// "Diem an toan" = vi tri ma cat o do van con la JSON hop le: ngay sau mot GIA TRI hoan chinh,
-// ngay sau dau mo ngoac, hoac ngay TRUOC mot dau phay. Co y KHONG nhan diem an toan sau mot so
-// chua co dau phan cach dang sau: 1788464400000 bi cat thanh 1788 van parse duoc nhung la so SAI —
-// tha bo han con hon dua ra mot con so bia.
-// Nhan luon cum **** la mot 'gia tri': cho bi che van la du lieu that, de repairMaskedJson don sau.
+// "Điểm an toàn" = vị trí mà cắt ở đó vẫn còn là JSON hợp lệ: ngay sau một GIÁ TRỊ hoàn chỉnh,
+// ngay sau dấu mở ngoặc, hoặc ngay TRƯỚC một dấu phẩy. Cố ý KHÔNG nhận điểm an toàn sau một số
+// chưa có dấu phân cách đằng sau: 1788464400000 bị cắt thành 1788 vẫn parse được nhưng là số SAI —
+// thà bỏ hẳn còn hơn đưa ra một con số bịa.
+// Nhận luôn cụm **** là một 'giá trị': chỗ bị che vẫn là dữ liệu thật, để repairMaskedJson dọn sau.
 const JSON_LITERAL_RE = /^(-?\d+(\.\d+)?([eE][-+]?\d+)?|true|false|null|\*{2,})$/;
 
 function findSafeJsonCut(text, start) {
   const frames = [];
   let safeCut = -1;
-  // Gan trong closure markSafe() ben duoi nen phai noi ro kieu: neu de tu suy tu `null`
-  // thi TypeScript thu hep con `never` va bao loi o cho doc lai.
+  // Gán trong closure markSafe() bên dưới nên phải nói rõ kiểu: nếu để tự suy từ `null`
+  // thì TypeScript thu hẹp còn `never` và báo lỗi ở chỗ đọc lại.
   /** @type {string[] | null} */
   let safeFrames = null;
   let isInString = false;
@@ -665,7 +701,7 @@ function findSafeJsonCut(text, start) {
       else if (char === '"') {
         isInString = false;
         const frame = frames[frames.length - 1];
-        // Trong object, chuoi dau tien cua moi cap la TEN truong — cat ngay sau no la hong.
+        // Trong object, chuỗi đầu tiên của mỗi cặp là TÊN trường — cắt ngay sau nó là hỏng.
         if (frame && frame.type === '{' && !frame.hasKey) frame.hasKey = true;
         else closeValue(i + 1);
       }
@@ -689,18 +725,18 @@ function findSafeJsonCut(text, start) {
     } else if (char === ',') {
       markSafe(i);
     } else if (literalStart < 0 && !/[\s:]/.test(char)) {
-      // Ky tu khong the mo dau mot gia tri JSON = da het phan du lieu, phan sau la chu cua logger
-      // ("... Log message truncated; exceeds 10000 characters."). Dung han, dung nuot no lam gia tri.
+      // Ký tự không thể mở đầu một giá trị JSON = đã hết phần dữ liệu, phần sau là chữ của logger
+      // ("... Log message truncated; exceeds 10000 characters."). Dừng hẳn, đừng nuốt nó làm giá trị.
       if (!/[-0-9tfn*]/.test(char)) break;
       literalStart = i;
     }
   }
-  // Het text khi dang o giua mot chuoi (vi du "payload":"[{\\"id\\":...): dong chuoi lai de giu phan
-  // da doc duoc, thay vi vut ca truong. Them dau … de nhin la biet gia tri nay bi cat giua chung.
+  // Hết text khi đang ở giữa một chuỗi (ví dụ "payload":"[{\\"id\\":...): đóng chuỗi lại để giữ phần
+  // đã đọc được, thay vì vứt cả trường. Thêm dấu … để nhìn là biết giá trị này bị cắt giữa chừng.
   if (isInString && frames.length && stringStart > safeCut) {
     const frame = frames[frames.length - 1];
     if (frame.type !== '{' || frame.hasKey) {
-      // Khi cho cat nam giua chuoi, dong chu cua logger bi ket luon BEN TRONG gia tri — cat no ra.
+      // Khi chỗ cắt nằm giữa chuỗi, dòng chữ của logger bị kẹt luôn BÊN TRONG giá trị — cắt nó ra.
       const marker = /\.{3}\s*Log message truncated[^"]*$/.exec(text);
       let cut = marker ? marker.index : text.length;
       let slashes = 0;
@@ -723,11 +759,11 @@ function closersFor(types) {
     .join('');
 }
 
-// Log che gia tri nhay cam truoc khi gui len server, va che theo hai kieu:
-//   {"userId":"0","****","****","sessionKey":""}   — chuoi "****" tro troi
-//   {"userId":12345678,****,"balance":"..."}      — **** tran, khong co nhay
-// Ca hai deu lam JSON.parse hong. Quet co phan biet trong/ngoai chuoi de khong dung nham
-// nhung gia tri ma chinh no chua dau sao, vi du "accountNo":"**** **** **32".
+// Log che giá trị nhạy cảm trước khi gửi lên server, và che theo hai kiểu:
+//   {"userId":"0","****","****","sessionKey":""}   — chuỗi "****" trơ trọi
+//   {"userId":12345678,****,"balance":"..."}      — **** trần, không có nháy
+// Cả hai đều làm JSON.parse hỏng. Quét có phân biệt trong/ngoài chuỗi để không đụng nhầm
+// những giá trị mà chính nó chứa dấu sao, ví dụ "accountNo":"**** **** **32".
 function findMaskedSpans(block) {
   const spans = [];
   let isInString = false;
@@ -740,7 +776,7 @@ function findMaskedSpans(block) {
       else if (char === '\\') isEscaped = true;
       else if (char === '"') {
         isInString = false;
-        // Chuoi toan dau sao va khong theo sau boi ':' thi khong phai ten truong — no la cho bi che.
+        // Chuỗi toàn dấu sao và không theo sau bởi ':' thì không phải tên trường — nó là chỗ bị che.
         if (/^\*{2,}$/.test(block.slice(stringStart + 1, i)) && nextNonSpaceChar(block, i + 1) !== ':') {
           spans.push([stringStart, i + 1]);
         }
@@ -775,7 +811,7 @@ function firstNonSpaceIndex(text, from) {
   return text.length;
 }
 
-// Sua tu cuoi ve dau de chi so cua cac cho con lai khong bi lech.
+// Sửa từ cuối về đầu để chỉ số của các chỗ còn lại không bị lệch.
 function repairMaskedJson(block) {
   const spans = findMaskedSpans(block);
   if (!spans.length) return block;
@@ -787,11 +823,11 @@ function repairMaskedJson(block) {
     const before = lastNonSpaceIndex(out, start - 1);
     const after = firstNonSpaceIndex(out, end);
     if (before >= 0 && out[before] === ':') {
-      // Gia tri bi che: giu lai de nguoi doc van thay truong do ton tai, chi boc them cap nhay.
+      // Giá trị bị che: giữ lại để người đọc vẫn thấy trường đó tồn tại, chỉ bọc thêm cặp nháy.
       out = out.slice(0, start) + '"****"' + out.slice(end);
     } else if (out[after] === '{' || out[after] === '[' || out[after] === '"') {
-      // Cho che an ca TEN truong, con gia tri thi khong: ,****{"displayName":...}
-      // Danh so de hai cho bi che trong cung mot object khong de len nhau lam mat du lieu.
+      // Chỗ che ăn cả TÊN trường, còn giá trị thì không: ,****{"displayName":...}
+      // Đánh số để hai chỗ bị che trong cùng một object không đè lên nhau làm mất dữ liệu.
       maskedKeyCount += 1;
       out = out.slice(0, start) + '"****#' + maskedKeyCount + '":' + out.slice(end);
     } else if (before >= 0 && out[before] === ',') {
@@ -809,23 +845,23 @@ function parseJsonMaybeMasked(block) {
   try {
     return { pretty: JSON.stringify(JSON.parse(block), null, 2), isParsed: true, isRepaired: false };
   } catch (error) {
-    // Roi vao day gan nhu luon la vi cho bi che; thu don rieng nhung cho do roi parse lai.
+    // Rơi vào đây gần như luôn là vì chỗ bị che; thử dọn riêng những chỗ đó rồi parse lại.
   }
   const repaired = repairMaskedJson(block);
   if (repaired !== block) {
     try {
       return { pretty: JSON.stringify(JSON.parse(repaired), null, 2), isParsed: true, isRepaired: true };
     } catch (error) {
-      // Hong vi ly do khac (thuong la log cat bot payload dai): tra nguyen van.
+      // Hỏng vì lý do khác (thường là log cắt bớt payload dài): trả nguyên văn.
     }
   }
   return { pretty: block, isParsed: false, isRepaired: false };
 }
 
-// Dong HTTP goi payload theo dang "--ten: gia tri" noi duoi nhau tren cung mot dong:
+// Dòng HTTP gói payload theo dạng "--tên: giá trị" nối đuôi nhau trên cùng một dòng:
 //   [RequestPayload: --encrypted: false --body: {...} --encryptedBody:  --header: {...}]--exception: none
-// Doc tung truong mot, va khi gia tri la JSON thi nhay thang qua het khoi do — nho vay
-// mot chuoi "--x:" nam ben trong JSON khong bi tuong nham la truong moi.
+// Đọc từng trường một, và khi giá trị là JSON thì nhảy thẳng qua hết khối đó — nhờ vậy
+// một chuỗi "--x:" nằm bên trong JSON không bị tưởng nhầm là trường mới.
 const PAYLOAD_FIELD_RE = /--([A-Za-z][A-Za-z0-9_]*)\s*:/g;
 const BODY_LABEL_RE = /(?:responseBody|requestBody|body|payload)\s*:/i;
 
@@ -835,7 +871,7 @@ function countChar(text, char) {
   return total;
 }
 
-// Truong cuoi thuong dinh theo dau ] dong khoi [RequestPayload: ...]. Chi cat khi that su thua.
+// Trường cuối thường dính theo dấu ] đóng khối [RequestPayload: ...]. Chỉ cắt khi thật sự thừa.
 function trimPayloadScalar(text) {
   let value = text.trim();
   while (value.slice(-1) === ']' && countChar(value, ']') > countChar(value, '[')) {
@@ -875,12 +911,12 @@ function splitPayloadFields(raw) {
   return fields;
 }
 
-// Nhieu dong khong log JSON ma log thang Map.toString() cua Kotlin/Java:
+// Nhiều dòng không log JSON mà log thẳng Map.toString() của Kotlin/Java:
 //   {stage=sync_step, location={lat=0.0, long=0.0}, locationString={"lat":0.0}}
-// JSON.parse chiu thua nhung day van la du lieu co cau truc, doc duoi dang cay de hon nhieu.
+// JSON.parse chịu thua nhưng đây vẫn là dữ liệu có cấu trúc, đọc dưới dạng cây dễ hơn nhiều.
 const KV_MAP_HEAD_RE = /^\{\s*[A-Za-z_][\w.-]*\s*=/;
 
-// Cat theo dau phay o do sau 0 de gia tri long nhau khong bi xe doi.
+// Cắt theo dấu phẩy ở độ sâu 0 để giá trị lồng nhau không bị xẻ đôi.
 function splitTopLevel(body) {
   const parts = [];
   let depth = 0;
@@ -905,11 +941,11 @@ function parseKeyValueMap(text) {
   let lastKey = null;
   splitTopLevel(text.slice(1, -1)).forEach((part) => {
     const at = part.indexOf('=');
-    // Dinh dang nay khong bao quanh gia tri, nen gia tri co dau phay ben trong (bundle_sof=1,2)
-    // bi splitTopLevel xe doi va manh sau khong con dau '=' nao. Truoc day manh do bi bo di —
-    // mat du lieu ma khong bao gi. Do tren mot log that: 20 manh roi rung im lang, o moneysource,
-    // bundle_sof, list_sof, ref_id va ca title (title chinh la nhan popup trong "User da nhin thay gi").
-    // Chi noi lai manh KHONG co dau '=' nao; manh co '=' van xu ly y nhu truoc.
+    // Định dạng này không bao quanh giá trị, nên giá trị có dấu phẩy bên trong (bundle_sof=1,2)
+    // bị splitTopLevel xẻ đôi và mảnh sau không còn dấu '=' nào. Trước đây mảnh đó bị bỏ đi —
+    // mất dữ liệu mà không báo gì. Đo trên một log thật: 20 mảnh rơi rụng im lặng, ở moneysource,
+    // bundle_sof, list_sof, ref_id và cả title (title chính là nhãn popup trong "User đã nhìn thấy gì").
+    // Chỉ nối lại mảnh KHÔNG có dấu '=' nào; mảnh có '=' vẫn xử lý y như trước.
     if (at < 0) {
       if (lastKey !== null && typeof result[lastKey] === 'string') result[lastKey] += ',' + part;
       return;
@@ -927,7 +963,7 @@ function parseKeyValueMap(text) {
         result[key] = JSON.parse(value);
         return;
       } catch (error) {
-        // Khong phai JSON that: giu nguyen van.
+        // Không phải JSON thật: giữ nguyên văn.
       }
     }
     result[key] = value;
@@ -953,8 +989,8 @@ function buildJsonSection(name, text) {
       isTruncated: true, isMap: false, bytes: raw.length };
   }
   const parsed = parseJsonMaybeMasked(block.text);
-  // bytes do tren nguyen van trong log, khong do tren ban pretty-print: nguoi doc muon biet
-  // request nang bao nhieu, khong phai ban da them thut le nang bao nhieu.
+  // bytes đo trên nguyên văn trong log, không đo trên bản pretty-print: người đọc muốn biết
+  // request nặng bao nhiêu, không phải bản đã thêm thụt lề nặng bao nhiêu.
   if (parsed.isParsed) {
     return { name, kind: 'json', pretty: parsed.pretty, isParsed: true, isRepaired: parsed.isRepaired,
       isTruncated: false, isMap: false, bytes: block.text.length };
@@ -968,7 +1004,7 @@ function buildJsonSection(name, text) {
     isTruncated: false, isMap: false, bytes: block.text.length };
 }
 
-// Tra ve danh sach truong de tam truot ve tung khoi mot, thay vi chi mot khoi JSON duy nhat.
+// Trả về danh sách trường để tấm trượt vẽ từng khối một, thay vì chỉ một khối JSON duy nhất.
 function buildPayloadSections(raw) {
   const sections = [];
   splitPayloadFields(raw).forEach((field) => {
@@ -982,8 +1018,8 @@ function buildPayloadSections(raw) {
   });
   if (sections.length) return sections;
 
-  // Dong khong theo dang "--ten:" (vi du "@@SomeService :: responseBody: {...}") van co the
-  // chua mot khoi JSON tro troi. Uu tien cat sau nhan body/payload de khong vo phai [Module: HTTP].
+  // Dòng không theo dạng "--tên:" (ví dụ "@@SomeService :: responseBody: {...}") vẫn có thể
+  // chứa một khối JSON trơ trọi. Ưu tiên cắt sau nhãn body/payload để không vỡ phải [Module: HTTP].
   const label = BODY_LABEL_RE.exec(raw);
   const tail = label ? raw.slice(label.index + label[0].length) : raw.slice(raw.indexOf('{'));
   if (raw.indexOf('{') < 0 && !label) return sections;
@@ -991,35 +1027,27 @@ function buildPayloadSections(raw) {
   if (section) sections.push(section);
   return sections;
 }
-// AI-GENERATED END
-/*
-File: src/02c-journey.js
-Created At: 2026-09-08 16:00:00 +07:00
-Created By: AI
-AI Agent: Claude Code
-Model: claude-opus-5
-*/
 // @ts-check
-// AI-GENERATED START — dung lai thao tac cua user tu event MoMoTracker
-// Tach ra tu src/02-insights.js (946 dong). Cac file src/*.js duoc build.sh noi lai theo thu tu
-// ten file va boc trong MOT IIFE nen van dung chung scope — tach chi de doc.
+// dựng lại thao tác của user từ event MoMoTracker
+// Tách ra từ src/02-insights.js (946 dòng). Các file src/*.js được build.sh nối lại theo thứ tự
+// tên file và bọc trong MỘT IIFE nên vẫn dùng chung scope — tách chỉ để đọc.
 
-/* ---------------------------------------------- hanh trinh tuong tac cua user */
+/* ---------------------------------------------- hành trình tương tác của user */
 
-// Moi dong MoMoTracker deu ghi o muc INFO nen khong dong nao lot vao buildIssueGroups: nhung gi user
-// THAY va CHAM hoan toan vo hinh voi phan gom nhom loi. Do tren log that (33112319): 955 dong tracker,
-// 46 loai event, trong do popup "MAX-API SPAM DETECTED" dap vao mat user 5 lan ma khong kem mot ERROR nao.
-// Log ghi lap: nhieu event tracker xuat hien 2 dong giong het nhau. Do tren log that (78 cap trung
-// noi dung), khoang cach chia lam hai cum tach bach — mot cum 0..~1.1s (ghi lap) va mot cum tu 70s tro
-// len (user lam lai that su o phien sau). Chon 1000ms nam giua hai cum: tha dem du con hon gop nham
-// hai lan bam that thanh mot, vi "user bam lai vi app khong phan hoi" chinh la thu can nhin thay.
+// Mọi dòng MoMoTracker đều ghi ở mức INFO nên không dòng nào lọt vào buildIssueGroups: những gì user
+// THẤY và CHẠM hoàn toàn vô hình với phần gom nhóm lỗi. Đo trên log thật (33112319): 955 dòng tracker,
+// 46 loại event, trong đó popup "MAX-API SPAM DETECTED" đập vào mặt user 5 lần mà không kèm một ERROR nào.
+// Log ghi lặp: nhiều event tracker xuất hiện 2 dòng giống hệt nhau. Đo trên log thật (78 cặp trùng
+// nội dung), khoảng cách chia làm hai cụm tách bạch — một cụm 0..~1.1s (ghi lặp) và một cụm từ 70s trở
+// lên (user làm lại thật sự ở phiên sau). Chọn 1000ms nằm giữa hai cụm: thà đếm dư còn hơn gộp nhầm
+// hai lần bấm thật thành một, vì "user bấm lại vì app không phản hồi" chính là thứ cần nhìn thấy.
 const JOURNEY_MERGE_WINDOW_MS = 1000;
 const JOURNEY_KINDS = ['screen', 'tap', 'saw', 'move', 'fail'];
 const JOURNEY_KIND_LABEL = {
   screen: 'Màn hình', tap: 'Chạm', saw: 'User thấy', move: 'Đổi luồng', fail: 'API fail',
 };
 
-// Tracker ghi thang chuoi "null"/"" cho truong rong; de nguyen thi nhan hien ra la chu "null".
+// Tracker ghi thẳng chuỗi "null"/"" cho trường rỗng; để nguyên thì nhãn hiện ra là chữ "null".
 function journeyValue(raw) {
   const text = raw == null ? '' : String(raw).trim();
   return text === 'null' || text === 'undefined' || text === '{}' || text === '[]' ? '' : text;
@@ -1034,16 +1062,16 @@ function journeyMs(raw) {
   return Number.isFinite(ms) && ms > 0 && ms <= MAX_PLAUSIBLE_DURATION_MS ? Math.round(ms) : 0;
 }
 
-// detail = boi canh ON DINH cua buoc (man hinh, service) — dung de gom nhom va so sanh khi gop.
-// note   = so do RIENG cua lan do (duration, dwell_time) — chi hien tren dong hanh trinh.
-// Tach hai thu nay ra vi neu tron chung thi hai lan cung mot loi chi khac 1ms duration se bi coi la
-// hai thu khac nhau, va nhan nhom se mat sach phan errorCode.
-// Bang duy nhat quyet dinh event nao vao hanh trinh. Tra null = bo qua (impression, ops_request_be,
-// trail_*, sync_* ... khong phai thao tac cua user). Co y KHONG lay roothome_component_impressed (76),
-// service_component_displayed (41), roothome_block_viewed (33): do la cai man hinh ve ra, khong phai
-// cai user lam, va so luong cua chung se nhan chim phan con lai.
-// Lay nguyen van tu AppEvent.FeatureMiniAppLoad.Stage (momo-app). Chi giu nhung stage bao hieu
-// user nhin thay mot man hinh/toast/popup — cac stage do luong khac khong vao hanh trinh.
+// detail = bối cảnh ỔN ĐỊNH của bước (màn hình, service) — dùng để gom nhóm và so sánh khi gộp.
+// note   = số đo RIÊNG của lần đó (duration, dwell_time) — chỉ hiện trên dòng hành trình.
+// Tách hai thứ này ra vì nếu trộn chung thì hai lần cùng một lỗi chỉ khác 1ms duration sẽ bị coi là
+// hai thứ khác nhau, và nhãn nhóm sẽ mất sạch phần errorCode.
+// Bảng duy nhất quyết định event nào vào hành trình. Trả null = bỏ qua (impression, ops_request_be,
+// trail_*, sync_* ... không phải thao tác của user). Cố ý KHÔNG lấy roothome_component_impressed (76),
+// service_component_displayed (41), roothome_block_viewed (33): đó là cái màn hình vẽ ra, không phải
+// cái user làm, và số lượng của chúng sẽ nhấn chìm phần còn lại.
+// Lấy nguyên văn từ AppEvent.FeatureMiniAppLoad.Stage (momo-app). Chỉ giữ những stage báo hiệu
+// user nhìn thấy một màn hình/toast/popup — các stage đo lường khác không vào hành trình.
 const MINIAPP_FAIL_STAGES = {
   scr_fail_loading_miniapp: 'màn hình lỗi tải miniapp',
   toast_fail_loading_miniapp: 'toast lỗi tải miniapp',
@@ -1053,22 +1081,22 @@ const MINIAPP_FAIL_STAGES = {
   pu_recording: 'popup đang ghi màn hình',
 };
 
-// Quy tac dat nhan: lay truong dau tien KHONG rong, xep theo "cang rieng cho buoc nay va cang giong
-// thu user nhin thay thi cang uu tien". Ba bac:
-//   1. Chu user THAT SU doc duoc tren man: title, button_name, item_title
-//   2. Ten thanh phan do dev dat: component_name, popup_name, duoi cua component_id
-//   3. Boi canh rong hon: feature_code, service_name
-// Bac 3 khong bao gio nen dung mot minh o cho khac, vi mot feature_code co hang chuc popup; nhung khi
-// hai bac tren deu rong thi no van hon chu "popup" tron — it ra con biet popup do thuoc cho nao.
-// Vi sao can: tren log that co popup ghi title=null, nhan ra dung chu "popup", nen hai popup khac han
-// nhau bi gom thanh mot hang "2x popup" ma khong con gi de phan biet.
+// Quy tắc đặt nhãn: lấy trường đầu tiên KHÔNG rỗng, xếp theo "càng riêng cho bước này và càng giống
+// thứ user nhìn thấy thì càng ưu tiên". Ba bậc:
+//   1. Chữ user THẬT SỰ đọc được trên màn: title, button_name, item_title
+//   2. Tên thành phần do dev đặt: component_name, popup_name, đuôi của component_id
+//   3. Bối cảnh rộng hơn: feature_code, service_name
+// Bậc 3 không bao giờ nên đứng một mình ở chỗ khác, vì một feature_code có hàng chục popup; nhưng khi
+// hai bậc trên đều rỗng thì nó vẫn hơn chữ "popup" trơn — ít ra còn biết popup đó thuộc chỗ nào.
+// Vì sao cần: trên log thật có popup ghi title=null, nhãn ra đúng chữ "popup", nên hai popup khác hẳn
+// nhau bị gom thành một hàng "2x popup" mà không còn gì để phân biệt.
 const JOURNEY_LABEL_MAX = 48;
 
 function pickJourneyLabel(candidates, fallback) {
   for (let i = 0; i < candidates.length; i += 1) {
     const value = journeyValue(candidates[i]);
     if (!value) continue;
-    // component_id la duong dan "<appId>/<feature>/<screen>/Popup/<ten>" — chi doan cuoi moi la ten.
+    // component_id là đường dẫn "<appId>/<feature>/<screen>/Popup/<tên>" — chỉ đoạn cuối mới là tên.
     const tail = value.indexOf('/') >= 0 ? value.slice(value.lastIndexOf('/') + 1).trim() : value;
     const name = tail || value;
     return name.length > JOURNEY_LABEL_MAX ? name.slice(0, JOURNEY_LABEL_MAX - 1) + '…' : name;
@@ -1076,18 +1104,18 @@ function pickJourneyLabel(candidates, fallback) {
   return fallback;
 }
 
-// momoClassDiscriminator la ten LOP day du cua event, duoi cua no la ten be mat that su hien ra.
-// Vi sao can: tren log that co hai man deu ghi screen_name=result nhung la hai lop khac han —
-// TransactionResultRevampScreenDisplayed va TransactionResultWidgetDisplayed — nen chung bi gom lam
-// mot hang, mat sach cai de phan biet.
+// momoClassDiscriminator là tên LỚP đầy đủ của event, đuôi của nó là tên bề mặt thật sự hiện ra.
+// Vì sao cần: trên log thật có hai màn đều ghi screen_name=result nhưng là hai lớp khác hẳn —
+// TransactionResultRevampScreenDisplayed và TransactionResultWidgetDisplayed — nên chúng bị gom làm
+// một hàng, mất sạch cái để phân biệt.
 //
-// NHUNG khong duoc dung bua: cung tren log that, mot log co 64 dong mang discriminator ma TAT CA deu
-// la "PromotionEventParams" — do la lop chua THAM SO, khong phai ten man. Lay bua thi moi man deu bi
-// dat ten "PromotionEventParams".
-// Vi vay chi nhan lop nao ket thuc bang Displayed / Interacted / Viewed: do la lop mo ta mot be mat
-// vua hien ra. Do tren 10 duoi lop khac nhau quan sat duoc o hai log: 7 cai khop deu la ten be mat
-// that, 3 cai khong khop (PromotionEventParams, CheckoutRequested, CheckoutResponse) deu khong phai.
-// CHUA XAC MINH tren dai lop rong hon — moi co hai log mang truong nay.
+// NHƯNG không được dùng bừa: cũng trên log thật, một log có 64 dòng mang discriminator mà TẤT CẢ đều
+// là "PromotionEventParams" — đó là lớp chứa THAM SỐ, không phải tên màn. Lấy bừa thì mọi màn đều bị
+// đặt tên "PromotionEventParams".
+// Vì vậy chỉ nhận lớp nào kết thúc bằng Displayed / Interacted / Viewed: đó là lớp mô tả một bề mặt
+// vừa hiện ra. Đo trên 10 đuôi lớp khác nhau quan sát được ở hai log: 7 cái khớp đều là tên bề mặt
+// thật, 3 cái không khớp (PromotionEventParams, CheckoutRequested, CheckoutResponse) đều không phải.
+// CHƯA XÁC MINH trên dải lớp rộng hơn — mới có hai log mang trường này.
 const RE_JOURNEY_SURFACE = /(Displayed|Interacted|Viewed)$/;
 
 function journeySurfaceName(params) {
@@ -1095,13 +1123,13 @@ function journeySurfaceName(params) {
   if (!full) return '';
   const tail = full.slice(full.lastIndexOf('.') + 1);
   if (!RE_JOURNEY_SURFACE.test(tail)) return '';
-  // Bo duoi mo ta hanh dong roi bo not chu "Screen" con thua: TransactionResultRevampScreenDisplayed
-  // -> TransactionResultRevamp, con TransactionResultWidgetDisplayed -> TransactionResultWidget.
+  // Bỏ đuôi mô tả hành động rồi bỏ nốt chữ "Screen" còn thừa: TransactionResultRevampScreenDisplayed
+  // -> TransactionResultRevamp, còn TransactionResultWidgetDisplayed -> TransactionResultWidget.
   return tail.replace(RE_JOURNEY_SURFACE, '').replace(/Screen$/, '');
 }
 
-// Ten man = ten man hinh + ten be mat (neu doc duoc). Hai thu nay khac cap do chi tiet nen noi bang
-// dau cham giua, khong tron lam mot.
+// Tên màn = tên màn hình + tên bề mặt (nếu đọc được). Hai thứ này khác cấp độ chi tiết nên nối bằng
+// dấu chấm giữa, không trộn làm một.
 function journeyScreenLabel(params, fallback) {
   const base = journeyValue(params.screen_name) || fallback || '';
   const surface = journeySurfaceName(params);
@@ -1134,7 +1162,7 @@ function pickJourneyStep(event, params) {
       detail: journeyParts([params.screen_name, params.service_name]) };
   }
   if (event === 'auto_button_clicked') {
-    // component_id = "<appId>/<feature>/<screen>/Button/<nhan tieng Viet dung nhu user nhin thay>".
+    // component_id = "<appId>/<feature>/<screen>/Button/<nhãn tiếng Việt đúng như user nhìn thấy>".
     const id = journeyValue(params.component_id);
     return { kind: 'tap', label: (id ? id.slice(id.lastIndexOf('/') + 1) : journeyValue(params.component_name)) || 'button',
       detail: journeyParts([params.screen_name, params.action]) };
@@ -1174,10 +1202,10 @@ function pickJourneyStep(event, params) {
         params.feature_code], '?'),
       detail: journeyParts([params.screen_name, params.feature_code]) };
   }
-  // Ten stage lay tu AppEvent.FeatureMiniAppLoad.Stage trong source app, khong phai doan tu log.
-  // Day la nhung stage ma user THAY: man loi, toast loi, popup. Chung ghi o muc INFO nhu moi event
-  // tracker khac nen phan gom nhom loi khong dem duoc.
-  // Do tren hai log thu: ca hai deu 0 lan — hai log do khong gap su co tai miniapp, khong phai sai ten.
+  // Tên stage lấy từ AppEvent.FeatureMiniAppLoad.Stage trong source app, không phải đoán từ log.
+  // Đây là những stage mà user THẤY: màn lỗi, toast lỗi, popup. Chúng ghi ở mức INFO như mọi event
+  // tracker khác nên phần gom nhóm lỗi không đếm được.
+  // Đo trên hai log thử: cả hai đều 0 lần — hai log đó không gặp sự cố tải miniapp, không phải sai tên.
   if (event === 'feature_miniapp_load') {
     const stage = journeyValue(params.stage);
     const seen = MINIAPP_FAIL_STAGES[stage];
@@ -1190,14 +1218,14 @@ function pickJourneyStep(event, params) {
     return { kind: 'saw', label: 'user chụp màn hình',
       detail: journeyParts([params.screen_name, params.service_name]) };
   }
-  // ops_receive_be la ket qua call BE do chinh tracker ghi, co san status/error_code/duration.
-  // Chi lay ban fail: 45/307 tren log that, va tab HTTP khong thay het so nay vi no doc dong [Method:].
+  // ops_receive_be là kết quả call BE do chính tracker ghi, có sẵn status/error_code/duration.
+  // Chỉ lấy bản fail: 45/307 trên log thật, và tab HTTP không thấy hết số này vì nó đọc dòng [Method:].
   if (event === 'ops_receive_be') {
     if (journeyValue(params.status) !== 'fail') return null;
     const code = journeyValue(params.error_code);
     const api = journeyValue(params.api) || journeyValue(params.api_path) || 'API';
-    // errorCode vao NHAN chu khong vao detail: cung mot api fail voi hai ma khac nhau la hai chuyen
-    // khac nhau, gom chung mot dong se giau mat ma loi.
+    // errorCode vào NHÃN chứ không vào detail: cùng một api fail với hai mã khác nhau là hai chuyện
+    // khác nhau, gom chung một dòng sẽ giấu mất mã lỗi.
     return { kind: 'fail', label: code ? api + ' · ' + code : api,
       detail: journeyParts([params.error_message, params.screen_name]),
       note: journeyMs(params.duration) ? formatDuration(journeyMs(params.duration)) : '' };
@@ -1215,16 +1243,16 @@ function groupJourneySteps(steps, kind) {
         firstTs: step.ts, lastTs: step.ts };
       map.set(step.label, row);
     }
-    // Dem SO THAO TAC (so buoc da gop), khong phai so dong log — de con so o day khop voi the thong ke
-    // dau tab. So dong tho van con nguyen trong row.indices de duyet tung dong.
+    // Đếm SỐ THAO TÁC (số bước đã gộp), không phải số dòng log — để con số ở đây khớp với thẻ thống kê
+    // đầu tab. Số dòng thô vẫn còn nguyên trong row.indices để duyệt từng dòng.
     row.count += 1;
-    // ms la TONG cua moi lan vao man do; maxMs la lan lau nhat. Chi hien tong ma de canh "2x" thi
-    // nguoi doc de tuong 2 lan moi lan bang tung do.
+    // ms là TỔNG của mọi lần vào màn đó; maxMs là lần lâu nhất. Chỉ hiện tổng mà để cạnh "2x" thì
+    // người đọc dễ tưởng 2 lần mỗi lần bằng từng đó.
     row.ms += step.ms;
     if (step.ms > row.maxMs) row.maxMs = step.ms;
     step.indices.forEach((domIndex) => row.indices.push(domIndex));
-    // Nhieu buoc cung nhan nhung khac boi canh (nut "transfer" o bill_detail va o detail_input):
-    // giu detail cua buoc dau cho ca nhom la noi sai. Chi giu khi moi buoc deu giong nhau.
+    // Nhiều bước cùng nhãn nhưng khác bối cảnh (nút "transfer" ở bill_detail và ở detail_input):
+    // giữ detail của bước đầu cho cả nhóm là nói sai. Chỉ giữ khi mọi bước đều giống nhau.
     if (row.detail !== step.detail) row.detail = '';
     if (step.ts && (!row.firstTs || step.ts < row.firstTs)) row.firstTs = step.ts;
     if (step.lastTs && (!row.lastTs || step.lastTs > row.lastTs)) row.lastTs = step.lastTs;
@@ -1232,15 +1260,15 @@ function groupJourneySteps(steps, kind) {
   return Array.from(map.values());
 }
 
-// Gop cac buoc LIEN TIEP y het nhau va sat nhau ve thoi gian thanh mot buoc mang count.
-// Khong xoa dong nao: indices giu du ca N dong de van nhay duoc toi tung dong trong bang log.
+// Gộp các bước LIÊN TIẾP y hệt nhau và sát nhau về thời gian thành một bước mang count.
+// Không xoá dòng nào: indices giữ đủ cả N dòng để vẫn nhảy được tới từng dòng trong bảng log.
 function mergeAdjacentJourneySteps(steps) {
   const merged = [];
   steps.forEach((step) => {
     const last = merged[merged.length - 1];
-    // Buoc 'fail' KHONG gop: moi call BE da co trace_id rieng va da khu trung chinh xac theo do.
-    // Hai call that su khac nhau cach nhau vai tram ms la chuyen binh thuong — gop thi so o day
-    // se lech voi so call fail dem duoc tu trace_id.
+    // Bước 'fail' KHÔNG gộp: mỗi call BE đã có trace_id riêng và đã khử trùng chính xác theo đó.
+    // Hai call thật sự khác nhau cách nhau vài trăm ms là chuyện bình thường — gộp thì số ở đây
+    // sẽ lệch với số call fail đếm được từ trace_id.
     if (step.kind !== 'fail' &&
       last && last.kind === step.kind && last.label === step.label && last.detail === step.detail &&
       step.ts && last.lastTs && step.ts - last.lastTs <= JOURNEY_MERGE_WINDOW_MS) {
@@ -1249,8 +1277,8 @@ function mergeAdjacentJourneySteps(steps) {
       last.indices.push(step.domIndex);
       return;
     }
-    // PHAI mang theo session: thieu no thi guard "khong do vat qua hai phien app" o duoi so
-    // undefined === undefined, tuc luon dung, tuc guard do chua bao gio chay.
+    // PHẢI mang theo session: thiếu nó thì guard "không đo vắt qua hai phiên app" ở dưới so
+    // undefined === undefined, tức luôn đúng, tức guard đó chưa bao giờ chạy.
     merged.push({ kind: step.kind, label: step.label, detail: step.detail, note: step.note,
       event: step.event, ts: step.ts, lastTs: step.ts, domIndex: step.domIndex, session: step.session,
       indices: [step.domIndex], count: 1, ms: 0 });
@@ -1258,9 +1286,9 @@ function mergeAdjacentJourneySteps(steps) {
   return merged;
 }
 
-// Thoi gian TAI mot man, khac han "o lau tren man" (dwell): day la so co san trong log
-// (auto_screen_displayed.duration khi state=load, va auto_load_progress_tracked.duration),
-// khong phai so tinh ra. Tab Cham von gom moi "duration=" vao mot ro ma khong gan voi man nao.
+// Thời gian TẢI một màn, khác hẳn "ở lâu trên màn" (dwell): đây là số có sẵn trong log
+// (auto_screen_displayed.duration khi state=load, và auto_load_progress_tracked.duration),
+// không phải số tính ra. Tab Chậm vốn gom mọi "duration=" vào một rổ mà không gắn với màn nào.
 function buildScreenLoads(entries) {
   const map = new Map();
   entries.forEach((entry) => {
@@ -1275,25 +1303,24 @@ function buildScreenLoads(entries) {
     if (!key) return;
     let row = map.get(key);
     if (!row) {
-      row = { key, count: 0, worstMs: 0, totalMs: 0, indices: [], sources: new Set() };
+      row = { key, count: 0, worstMs: 0, totalMs: 0, indices: [] };
       map.set(key, row);
     }
     row.count += 1;
     row.totalMs += ms;
     if (ms > row.worstMs) row.worstMs = ms;
     row.indices.push(entry.domIndex);
-    row.sources.add(entry.event);
   });
+  // Đã bỏ trường `sources` (một Set mỗi hàng, rồi đổi thành mảng): không renderer nào đọc.
   return Array.from(map.values())
     .map((row) => ({ key: row.key, count: row.count, worstMs: row.worstMs,
-      avgMs: Math.round(row.totalMs / row.count), indices: row.indices,
-      sources: Array.from(row.sources) }))
+      avgMs: Math.round(row.totalMs / row.count), indices: row.indices }))
     .sort((a, b) => b.worstMs - a.worstMs);
 }
 
-// Thoi gian "o tren man" khong duoc tinh ca luc app nam duoi nen. Do that: mot man bao 7m08s trong khi
-// 3m52s trong so do la luc user roi han app — 88% con so la thu khong ai nhin. Tool da tinh san cac
-// khoang do cho the thong ke o Tong quan, chi la chua tru o day.
+// Thời gian "ở trên màn" không được tính cả lúc app nằm dưới nền. Đo thật: một màn báo 7m08s trong khi
+// 3m52s trong số đó là lúc user rời hẳn app — 88% con số là thứ không ai nhìn. Tool đã tính sẵn các
+// khoảng đó cho thẻ thống kê ở Tổng quan, chỉ là chưa trừ ở đây.
 function subtractBackground(fromTs, toTs, backgrounds) {
   let overlap = 0;
   backgrounds.forEach((gap) => {
@@ -1314,10 +1341,10 @@ function buildJourney(entries, gaps) {
   entries.forEach((entry) => {
     if (!entry.event || !entry.eventParams) return;
     if (entry.event === 'ops_receive_be') {
-      // Mot call BE duoc ghi thanh 2 dong ops_receive_be giong het nhau. Do tren log that: 307 dong
-      // nhung chi 166 trace_id (139 trace xuat hien dung 2 lan, 26 mot lan, 1 ba lan) — trong khi
-      // ops_request_be la 166 dong / 166 trace_id, tuc 166 moi la so call that.
-      // trace_id la ID cua chinh call do nen khu trung theo no la chac chan, khong phai phong doan.
+      // Một call BE được ghi thành 2 dòng ops_receive_be giống hệt nhau. Đo trên log thật: 307 dòng
+      // nhưng chỉ 166 trace_id (139 trace xuất hiện đúng 2 lần, 26 một lần, 1 ba lần) — trong khi
+      // ops_request_be là 166 dòng / 166 trace_id, tức 166 mới là số call thật.
+      // trace_id là ID của chính call đó nên khử trùng theo nó là chắc chắn, không phải phỏng đoán.
       const traceId = journeyValue(entry.eventParams.trace_id);
       if (traceId && seenTraceIds.has(traceId)) return;
       if (traceId) seenTraceIds.add(traceId);
@@ -1330,23 +1357,23 @@ function buildJourney(entries, gaps) {
       event: entry.event, ts: entry.ts, domIndex: entry.domIndex, session: entry.session });
   });
 
-  // Cung ly do nhu tab Timeline: log co dong timestamp lui ve truoc, thu tu dong khong phai thu tu thoi gian.
+  // Cùng lý do như tab Timeline: log có dòng timestamp lùi về trước, thứ tự dòng không phải thứ tự thời gian.
   raw.sort((a, b) => (a.ts || 0) - (b.ts || 0));
   const steps = mergeAdjacentJourneySteps(raw);
   steps.forEach((step) => {
     counts[step.kind] += 1;
   });
 
-  // ms cua mot buoc "screen" = khoang cach toi buoc screen/move ke tiep. Day la SO TINH RA, khong phai
-  // truong nao trong log — cac event no lien tuc trong cung mot lan chuyen man se ra ~0ms, chi buoc cuoi
-  // cua chum moi mang con so that. Truong dwell_time co san cua roothome nam rieng trong detail.
+  // ms của một bước "screen" = khoảng cách tới bước screen/move kế tiếp. Đây là SỐ TÍNH RA, không phải
+  // trường nào trong log — các event nổ liên tục trong cùng một lần chuyển màn sẽ ra ~0ms, chỉ bước cuối
+  // của chùm mới mang con số thật. Trường dwell_time có sẵn của roothome nằm riêng trong detail.
   //
-  // Hai cho phai chan, neu khong con so ra vo nghia (da gap that: mot man bao "11h24m" trong khi hai
-  // dong log cua no cach nhau 2 giay):
-  //   - buoc man hinh cuoi cua MOT PHIEN khong duoc do sang buoc dau cua phien sau: giua hai phien app
-  //     da bi tat, khong ai "o tren man" ca.
-  //   - khoang cach qua MAX_PLAUSIBLE_DURATION_MS thi gan nhu chac chan la app bi day xuong nen chu
-  //     khong phai nguoi dung ngoi nhin. Bo han (0 = khong biet) chu khong bao mot con so sai.
+  // Hai chỗ phải chặn, nếu không con số ra vô nghĩa (đã gặp thật: một màn báo "11h24m" trong khi hai
+  // dòng log của nó cách nhau 2 giây):
+  //   - bước màn hình cuối của MỘT PHIÊN không được đo sang bước đầu của phiên sau: giữa hai phiên app
+  //     đã bị tắt, không ai "ở trên màn" cả.
+  //   - khoảng cách quá MAX_PLAUSIBLE_DURATION_MS thì gần như chắc chắn là app bị đẩy xuống nền chứ
+  //     không phải người dùng ngồi nhìn. Bỏ hẳn (0 = không biết) chứ không báo một con số sai.
   const backgrounds = (gaps || []).filter((gap) => gap.cause === 'background');
   let boundaryTs = steps.length ? steps[steps.length - 1].ts : null;
   let boundarySession = steps.length ? steps[steps.length - 1].session : null;
@@ -1375,35 +1402,27 @@ function buildJourney(entries, gaps) {
     screenLoads: buildScreenLoads(entries),
   };
 }
-// AI-GENERATED END
-/*
-File: src/02d-trace.js
-Created At: 2026-09-08 16:00:00 +07:00
-Created By: AI
-AI Agent: Claude Code
-Model: claude-opus-5
-*/
 // @ts-check
-// AI-GENERATED START — loi doc tu Grafana trace, va nhan dien nhieu cua chinh lop do luong
-// Tach ra tu src/02-insights.js (946 dong). Cac file src/*.js duoc build.sh noi lai theo thu tu
-// ten file va boc trong MOT IIFE nen van dung chung scope — tach chi de doc.
+// lỗi đọc từ Grafana trace, và nhận diện nhiễu của chính lớp đo lường
+// Tách ra từ src/02-insights.js (946 dòng). Các file src/*.js được build.sh nối lại theo thứ tự
+// tên file và bọc trong MỘT IIFE nên vẫn dùng chung scope — tách chỉ để đọc.
 
-/* ------------------------------------------- nhieu tu chinh he thong do luong */
+/* ------------------------------------------- nhiễu từ chính hệ thống đo lường */
 
-// Do tren 50 feedback PRODUCTION that (25 iOS, 25 Android, ngay 2026-09-10): 2488 dong ERROR, trong do
-// 1267 dong (51%) khong phai loi user gap ma la loi cua chinh lop do luong. 24/49 log co qua nua so
-// dong ERROR la loai nay. Chung deu ghi bang logger.e truc tiep nen KHONG bi cat boi co Debug Tool —
-// tuc chung co mat tren may user that, khac han cac dong "@@ grafana >>" khac.
+// Đo trên 50 feedback PRODUCTION thật (25 iOS, 25 Android, ngày 2026-09-10): 2488 dòng ERROR, trong đó
+// 1267 dòng (51%) không phải lỗi user gặp mà là lỗi của chính lớp đo lường. 24/49 log có quá nửa số
+// dòng ERROR là loại này. Chúng đều ghi bằng logger.e trực tiếp nên KHÔNG bị cắt bởi cờ Debug Tool —
+// tức chúng có mặt trên máy user thật, khác hẳn các dòng "@@ grafana >>" khác.
 //
-// Khong tu dong tat tieng: do la quyet dinh cua nguoi doc. Chi tach ra mot khoi rieng de danh sach
-// van de con lai la nhung thu dang doc.
+// Không tự động tắt tiếng: đó là quyết định của người đọc. Chỉ tách ra một khối riêng để danh sách
+// vấn đề còn lại là những thứ đáng đọc.
 const TELEMETRY_NOISE_PATTERNS = [
-  // withTraceId() lam buffer.remove() nen traceId chi dung duoc mot lan; goi stop lan hai la mat.
+  // withTraceId() làm buffer.remove() nên traceId chỉ dùng được một lần; gọi stop lần hai là mất.
   { re: /GrafanaTrace\.\w+:: no traceId/, label: 'GrafanaTrace mất traceId' },
-  // resolveFormatter() tra null khi Koin scope da dong.
+  // resolveFormatter() trả null khi Koin scope đã đóng.
   { re: /GrafanaTrace\.\w+ PaymentSession is null/, label: 'GrafanaTrace không có PaymentSession' },
   { re: /GrafanaTrace\.exceptionHandler/, label: 'GrafanaTrace nuốt exception' },
-  // Hang doi gui trace cua chinh Grafana bi loi.
+  // Hàng đợi gửi trace của chính Grafana bị lỗi.
   { re: /grafana >> DefaultRequestQueue >> handleError/, label: 'Hàng đợi gửi trace Grafana lỗi' },
 ];
 
@@ -1414,21 +1433,21 @@ function telemetryNoiseLabel(text) {
   return '';
 }
 
-/* -------------------------------------------------- loi doc tu Grafana trace */
+/* -------------------------------------------------- lỗi đọc từ Grafana trace */
 
-// Grafana ghi o muc INFO nen khong dong nao lot vao buildIssueGroups, trong khi traceFail mang san
-// flow + step + errorCode + errorMessage — tuc mo ta loi RO HON bat ky dong ERROR nao trong log.
+// Grafana ghi ở mức INFO nên không dòng nào lọt vào buildIssueGroups, trong khi traceFail mang sẵn
+// flow + step + errorCode + errorMessage — tức mô tả lỗi RÕ HƠN bất kỳ dòng ERROR nào trong log.
 //
-// Gom theo errorMessage chu khong theo step: trong GrafanaTracker.generateParams, voi miniapp thi
-// `flow` bi ghi de bang appId va `step` bi doi thanh "flow.step", nen MOT su co ha tang hien ra
-// thanh hang chuc dong khac nhau. Do tren mot log that: cung mot loi "500 - B07 No version found
-// from remote" xuat hien o 17 miniapp khac nhau. Gom theo errorMessage thi 17 dong do ve mot hang,
-// kem so app bi anh huong — nhin la biet ngay ha tang chet chu khong phai bug cua tinh nang.
+// Gom theo errorMessage chứ không theo step: trong GrafanaTracker.generateParams, với miniapp thì
+// `flow` bị ghi đè bằng appId và `step` bị đổi thành "flow.step", nên MỘT sự cố hạ tầng hiện ra
+// thành hàng chục dòng khác nhau. Đo trên một log thật: cùng một lỗi "500 - B07 No version found
+// from remote" xuất hiện ở 17 miniapp khác nhau. Gom theo errorMessage thì 17 dòng đó về một hàng,
+// kèm số app bị ảnh hưởng — nhìn là biết ngay hạ tầng chết chứ không phải bug của tính năng.
 const TRACE_VERBS = ['startTrace', 'traceSuccess', 'traceFail', 'countTrace', 'durationStopTrace',
   'durationTrace', 'errorTrace'];
 
-// Hau to _start/_success/_fail do generateParams tu gan, va tien to "<flow>." cung do no gan khi
-// appId khong phai platform. Bo ca hai de con lai ten buoc that.
+// Hậu tố _start/_success/_fail do generateParams tự gắn, và tiền tố "<flow>." cũng do nó gắn khi
+// appId không phải platform. Bỏ cả hai để còn lại tên bước thật.
 function traceStepRoot(step) {
   const text = journeyValue(step).replace(/_(start|success|fail|duration)$/i, '');
   const dot = text.lastIndexOf('.');
@@ -1453,10 +1472,10 @@ function buildTraceIssues(entries) {
     const message = journeyValue(params.errorMessage);
     const code = journeyValue(params.errorCode).replace(/\.0$/, '');
     const step = traceStepRoot(params.step);
-    // Co errorMessage thi gom theo no — do moi la thu chung giua cac app cung dinh mot su co.
-    // Khong co thi KHONG duoc gom theo moi errorCode: tren mot log that, "code 200" om chung
+    // Có errorMessage thì gom theo nó — đó mới là thứ chung giữa các app cùng dính một sự cố.
+    // Không có thì KHÔNG được gom theo mỗi errorCode: trên một log thật, "code 200" ôm chung
     // TransactionResultV3_call_api_V1_REWARDS_PREDICT va TabBarContainer_call_api_RIGVER_APPVERSION
-    // — hai chuyen khac han nhau. Luc do lay ten buoc lam khoa.
+    // — hai chuyện khác hẳn nhau. Lúc đó lấy tên bước làm khoá.
     const key = message || (step ? step + (code ? ' · errorCode ' + code : '') : 'errorCode ' + code);
 
     let row = failMap.get(key);
@@ -1483,30 +1502,22 @@ function buildTraceIssues(entries) {
       apps: Array.from(row.apps) }))
     .sort((a, b) => b.apps.length - a.apps.length || b.count - a.count);
 
-  // Phan biet hai chuyen khac han nhau:
-  // - gated: cac dong "@@ grafana >>" di qua GrafanaTracker.log(), bi cat boi co Debug Tool.
-  //   Do tren 50 feedback production that: chi 2/50 log (4%) co startTrace/traceFail.
-  // - available: co bat ky dong trace nao khong. Mot so dong ("generateOffsetBase", handleError)
-  //   ghi thang bang logger nen KHONG bi cat — 68% log production co chung. Neu chi nhin
-  //   available thi se tuong log nao cung co du lieu trace, trong khi thuc te gan nhu khong log nao co.
+  // Phân biệt hai chuyện khác hẳn nhau:
+  // - gated: các dòng "@@ grafana >>" đi qua GrafanaTracker.log(), bị cắt bởi cờ Debug Tool.
+  //   Đo trên 50 feedback production thật: chỉ 2/50 log (4%) có startTrace/traceFail.
+  // - available: có bất kỳ dòng trace nào không. Một số dòng ("generateOffsetBase", handleError)
+  //   ghi thẳng bằng logger nên KHÔNG bị cắt — 68% log production có chúng. Nếu chỉ nhìn
+  //   available thì sẽ tưởng log nào cũng có dữ liệu trace, trong khi thực tế gần như không log nào có.
   return { available: lineCount > 0, hasGated: counts.startTrace + counts.traceSuccess + counts.traceFail > 0,
     lineCount, counts, fails };
 }
 
-// Moi thu phu thuoc "dang nhin nhung dong nao". Goi mot lan cho ca file luc quet,
-// va goi lai tren tap da loc moi khi bo loc doi — do duoc 2.5ms cho 4085 dong, 0.4ms cho tap ~850 dong.
-// AI-GENERATED END
-/*
-File: src/02e-derive.js
-Created At: 2026-09-08 16:00:00 +07:00
-Created By: AI
-AI Agent: Claude Code
-Model: claude-opus-5
-*/
+// Mọi thứ phụ thuộc "đang nhìn những dòng nào". Gọi một lần cho cả file lúc quét,
+// và gọi lại trên tập đã lọc mỗi khi bộ lọc đổi — đo được 2.5ms cho 4085 dòng, 0.4ms cho tập ~850 dòng.
 // @ts-check
-// AI-GENERATED START — gom moi thong ke phu thuoc "dang nhin nhung dong nao" vao mot cho
-// Tach ra tu src/02-insights.js (946 dong). Cac file src/*.js duoc build.sh noi lai theo thu tu
-// ten file va boc trong MOT IIFE nen van dung chung scope — tach chi de doc.
+// gom mọi thống kê phụ thuộc "đang nhìn những dòng nào" vào một chỗ
+// Tách ra từ src/02-insights.js (946 dòng). Các file src/*.js được build.sh nối lại theo thứ tự
+// tên file và bọc trong MỘT IIFE nên vẫn dùng chung scope — tách chỉ để đọc.
 
 function deriveStats(entries, gaps) {
   const levels = {};
@@ -1525,8 +1536,8 @@ function deriveStats(entries, gaps) {
     badHttpCalls: httpCalls.filter(isBadHttpCall),
     durations: extractDurations(entries),
     modules: countBy(entries, (entry) => entry.module),
-    tags: countBy(entries, (entry) => entry.tag),
-    flows: countBy(entries, (entry) => entry.flow),
+    // Đã bỏ `tags` và `flows`: hai lượt countBy trên toàn bộ dòng, chạy lại mỗi lần đổi bộ lọc, mà
+    // không renderer nào đọc. entry.tag / entry.flow vẫn còn vì bộ lọc nội dung đọc chúng.
     events: countBy(entries, (entry) => entry.event),
     journey: buildJourney(entries, gaps),
     traceIssues: buildTraceIssues(entries),
@@ -1536,29 +1547,21 @@ function deriveStats(entries, gaps) {
 }
 
 function attachInsights(data) {
-  // Correlation KHONG scope theo bo loc: mot cmdId la mot chuoi request, xem chuoi thi phai xem tron ven
-  // ke ca nhung dong dang bi bo loc giau di.
+  // Correlation KHÔNG scope theo bộ lọc: một cmdId là một chuỗi request, xem chuỗi thì phải xem trọn vẹn
+  // kể cả những dòng đang bị bộ lọc giấu đi.
   data.correlations = buildCorrelations(data.entries);
   data.correlationValueSet = new Set(data.correlations.map((bucket) => bucket.value));
   data.sessions = buildSessions(data.entries);
   data.feedback = readFeedbackContext();
   return data;
 }
-// AI-GENERATED END
-/*
-File: src/02f-theme.js
-Created At: 2026-09-08 16:00:00 +07:00
-Created By: AI
-AI Agent: Claude Code
-Model: claude-opus-5
-*/
 // @ts-check
-// AI-GENERATED START — CSS cua panel Log Lens
+// CSS của panel Log Lens
 //
-// Ve do uu tien (specificity): trang admin dung antd nen phai reset, nhung reset KHONG duoc manh hon
-// cac rule .fll-* cua minh. Vi vay reset dung ":where(#fll-root) <tag>" = (0,0,1): du de thang rule
-// element cua trang, nhung van thua moi rule class (0,1,0) ben duoi. Neu viet "#fll-root *" (1,0,1)
-// thi padding:0 se de chet toan bo padding cua cac the -> giao dien dinh sat mep.
+// Về độ ưu tiên (specificity): trang admin dùng antd nên phải reset, nhưng reset KHÔNG được mạnh hơn
+// các rule .fll-* của mình. Vì vậy reset dùng ":where(#fll-root) <tag>" = (0,0,1): đủ để thắng rule
+// element của trang, nhưng vẫn thua mọi rule class (0,1,0) bên dưới. Nếu viết "#fll-root *" (1,0,1)
+// thì padding:0 sẽ đè chết toàn bộ padding của các thẻ -> giao diện dính sát mép.
 
 const PANEL_CSS = [
   ':where(#fll-root) *,:where(#fll-root) *::before,:where(#fll-root) *::after{box-sizing:border-box}',
@@ -1568,33 +1571,33 @@ const PANEL_CSS = [
   'background:none;color:inherit;font:inherit;line-height:1.45;letter-spacing:normal;text-transform:none;',
   'text-align:left;vertical-align:baseline;box-shadow:none;text-shadow:none;min-width:0;height:auto}',
   '#fll-root button,#fll-root input{outline:0;-webkit-appearance:none;appearance:none}',
-  /* Thuoc tinh hidden mac dinh la display:none cua trinh duyet, nhung MOI rule .fll-* co display deu
-     de len no (class thang selector thuoc tinh cua UA). Truoc day chi khai rieng cho .fll-bar va
-     .fll-ft nen o tim trong tung muc dat node.hidden=true ma hang van hien nguyen — .fll-rk,
-     .fll-call, .fll-slow, .fll-chip deu la display:flex/inline-flex. Khai mot lan o day cho ca panel. */
+  /* Thuộc tính hidden mặc định là display:none của trình duyệt, nhưng MỌI rule .fll-* có display đều
+     đè lên nó (class thắng selector thuộc tính của UA). Trước đây chỉ khai riêng cho .fll-bar và
+     .fll-ft nên ô tìm trong từng mục đặt node.hidden=true mà hàng vẫn hiện nguyên — .fll-rk,
+     .fll-call, .fll-slow, .fll-chip đều là display:flex/inline-flex. Khai một lần ở đây cho cả panel. */
   '#fll-root [hidden]{display:none!important}',
 
   '#fll-root{position:fixed;z-index:2147483000;top:0;left:0;width:0;height:0;',
-  'font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;font-size:13px;font-weight:400;',
+  'font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;font-size:14.5px;font-weight:400;',
   '--bg:#16141d;--bg2:#1e1b27;--bg3:#2a2436;--line:rgba(255,255,255,.09);--txt:#ece9f5;--mut:#9b93ad;',
   '--acc:#ff2e88;--err:#ff5f6d;--warn:#ffb648;--info:#58c4ff;--dbg:#7d8590;--ok:#3ddc97;',
   '--mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,monospace;',
-  /* Padding cua .fll-body: .fll-sec phai biet dung hai so nay de dinh sat mep va tran het be ngang.
-     Moi cho dung deu kem gia tri du phong: bien khai o #fll-root, neu panel bi dung ngoai root do
-     thi var() khong giai duoc va CA declaration hong — padding se sap ve 0 chu khong quay ve mac dinh. */
+  /* Padding của .fll-body: .fll-sec phải biết đúng hai số này để dính sát mép và tràn hết bề ngang.
+     Mọi chỗ dùng đều kèm giá trị dự phòng: biến khai ở #fll-root, nếu panel bị dùng ngoài root đó
+     thì var() không giải được và CẢ declaration hỏng — padding sẽ sập về 0 chứ không quay về mặc định. */
   '--pad-y:14px;--pad-x:16px}',
 
   /* ---------- khung panel ---------- */
-  /* Kich thuoc bi chan bang JS (clampValue) chu khong bang max-width, de keo goc khong bi ket o 880px. */
+  /* Kích thước bị chặn bằng JS (clampValue) chứ không bằng max-width, để kéo góc không bị kẹt ở 880px. */
   '.fll-panel{position:fixed;top:14px;right:14px;bottom:14px;width:480px;min-width:360px;max-width:none;',
   'display:flex;flex-direction:column;background:var(--bg);color:var(--txt);border:1px solid var(--line);',
   'border-radius:16px;box-shadow:0 24px 70px rgba(0,0,0,.55),0 2px 8px rgba(0,0,0,.35);overflow:hidden;',
   'animation:fll-in .18s cubic-bezier(.2,.9,.3,1)}',
   '@keyframes fll-in{from{opacity:0;transform:translateX(16px) scale(.99)}to{opacity:1;transform:none}}',
 
-  /* ---------- hai tay nam thay doi kich thuoc ---------- */
-  /* Trong luc keo: bo bong mo ban kinh 70px (thu tot nhat de ve lai moi khung hinh),
-     bao truoc cho trinh duyet chuan bi lop rieng, va tat hover ben trong cho khoi tinh vo ich. */
+  /* ---------- hai tay nắm thay đổi kích thước ---------- */
+  /* Trong lúc kéo: bỏ bóng mờ bán kính 70px (thứ tốn nhất để vẽ lại mỗi khung hình),
+     báo trước cho trình duyệt chuẩn bị lớp riêng, và tắt hover bên trong cho khỏi tính vô ích. */
   '.fll-panel.fll-dragging{box-shadow:0 6px 20px rgba(0,0,0,.45);will-change:transform}',
   '.fll-panel.fll-dragging .fll-body,.fll-panel.fll-dragging .fll-map{pointer-events:none}',
   '.fll-grip{position:absolute;left:0;top:0;bottom:0;width:7px;cursor:ew-resize;z-index:5}',
@@ -1612,46 +1615,46 @@ const PANEL_CSS = [
   '.fll-hd:active{cursor:grabbing}',
   '.fll-dot{width:9px;height:9px;border-radius:50%;background:var(--acc);box-shadow:0 0 12px var(--acc);',
   'flex:0 0 auto}',
-  '.fll-tt{font-size:13.5px;font-weight:650;letter-spacing:.2px}',
-  '.fll-sub{font-size:11px;color:var(--mut);margin-top:2px}',
+  '.fll-tt{font-size:15px;font-weight:650;letter-spacing:.2px}',
+  '.fll-sub{font-size:12.5px;color:var(--mut);margin-top:2px}',
   '.fll-hd-sp{flex:1}',
   '.fll-ico{width:28px;height:28px;border:1px solid transparent;border-radius:8px;color:var(--mut);',
-  'cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center;transition:.14s;',
+  'cursor:pointer;font-size:15.5px;display:flex;align-items:center;justify-content:center;transition:.14s;',
   'flex:0 0 auto}',
   '.fll-ico:hover{background:var(--bg3);color:var(--txt);border-color:var(--line)}',
 
-  /* ---------- tabs ---------- */
-  /* Do dem tren panel 480px: voi gap 3px + padding ngang 7px, bay tab can 507px trong khi cho chi co
-     478px — tab cuoi ("Diễn biến") bi cat mat chu ma khong co dau hieu gi la con cuon duoc.
-     Gap 2px + padding 5px lai con 473px. overflow-x van giu cho truong hop keo panel hep hon. */
+  /* ---------- thanh tab ---------- */
+  /* Đo đếm trên panel 480px: với gap 3px + padding ngang 7px, bảy tab cần 507px trong khi chỗ chỉ có
+     478px — tab cuối ("Diễn biến") bị cắt mất chữ mà không có dấu hiệu gì là còn cuộn được.
+     Gap 2px + padding 5px lại còn 473px. overflow-x vẫn giữ cho trường hợp kéo panel hẹp hơn. */
   '.fll-tabs{display:flex;gap:2px;padding:10px 12px 0;flex:0 0 auto;overflow-x:auto;scrollbar-width:none}',
   '.fll-tabs::-webkit-scrollbar{display:none}',
-  '.fll-tab{flex:1 0 auto;padding:8px 5px 10px;border-bottom:2px solid transparent;color:var(--mut);font-size:11px;',
+  '.fll-tab{flex:1 0 auto;padding:8px 5px 10px;border-bottom:2px solid transparent;color:var(--mut);font-size:12.5px;',
   'font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;',
   'transition:.14s;white-space:nowrap}',
   '.fll-tab:hover{color:var(--txt)}',
   '.fll-tab.on{color:var(--txt);border-bottom-color:var(--acc)}',
-  '.fll-bdg{font-size:9.5px;font-weight:700;padding:1px 6px;border-radius:20px;background:var(--bg3);',
+  '.fll-bdg{font-size:10.5px;font-weight:700;padding:1px 6px;border-radius:20px;background:var(--bg3);',
   'color:var(--mut);line-height:1.6}',
   '.fll-tab.on .fll-bdg{background:var(--acc);color:#fff}',
   '.fll-bdg.err{background:rgba(255,95,109,.18);color:var(--err)}',
   '.fll-tab.on .fll-bdg.err{background:var(--err);color:#fff}',
 
-  /* ---------- thanh bo loc thuong tru ---------- */
+  /* ---------- thanh bộ lọc thường trú ---------- */
   '.fll-bar{display:flex;flex-wrap:wrap;align-items:center;gap:7px;margin:10px 16px 0;padding:8px 11px;',
   'border:1px solid rgba(255,46,136,.3);background:rgba(255,46,136,.05);border-radius:10px;flex:0 0 auto}',
   '.fll-bar[hidden]{display:none}',
-  '.fll-bar-t{font-size:10px;font-weight:700;color:var(--acc);letter-spacing:.5px;text-transform:uppercase}',
-  '.fll-bar-n{font-size:10.5px;color:var(--mut);margin-left:auto;font-variant-numeric:tabular-nums}',
+  '.fll-bar-t{font-size:11px;font-weight:700;color:var(--acc);letter-spacing:.5px;text-transform:uppercase}',
+  '.fll-bar-n{font-size:12px;color:var(--mut);margin-left:auto;font-variant-numeric:tabular-nums}',
   '.fll-fchips{display:flex;flex-wrap:wrap;gap:5px;width:100%}',
   '.fll-fchip{display:inline-flex;align-items:center;gap:6px;padding:3px 5px 3px 10px;border-radius:20px;',
-  'font-size:10.5px;background:var(--bg);border:1px solid var(--line);color:var(--txt);max-width:100%}',
+  'font-size:12px;background:var(--bg);border:1px solid var(--line);color:var(--txt);max-width:100%}',
   '.fll-fchip b{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:170px}',
   '.fll-fchip button{width:16px;height:16px;border-radius:50%;background:var(--bg3);color:var(--mut);',
-  'font-size:10px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex:0 0 auto;',
+  'font-size:11px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex:0 0 auto;',
   'transition:.14s}',
   '.fll-fchip button:hover{background:var(--err);color:#fff}',
-  /* Chip mau bo loc: nua trai bam de ap, nua phai bam de xoa. */
+  /* Chip mẫu bộ lọc: nửa trái bấm để áp, nửa phải bấm để xoá. */
   '.fll-tpl{cursor:default}',
   '.fll-tpl b{cursor:pointer;font-weight:600;max-width:190px;overflow:hidden;text-overflow:ellipsis;',
   'white-space:nowrap}',
@@ -1660,13 +1663,13 @@ const PANEL_CSS = [
   '.fll-in:disabled{opacity:.5;cursor:not-allowed}',
   '.fll-btn:disabled{opacity:.5;cursor:not-allowed}',
   '.fll-btn:disabled:hover{border-color:var(--line);background:var(--bg2)}',
-  '.fll-fclear{padding:3px 11px;border-radius:20px;font-size:10.5px;font-weight:650;background:var(--acc);',
+  '.fll-fclear{padding:3px 11px;border-radius:20px;font-size:12px;font-weight:650;background:var(--acc);',
   'color:#fff;cursor:pointer;transition:.14s}',
   '.fll-fclear:hover{filter:brightness(1.14)}',
   '.fll-bdg.act{background:rgba(255,46,136,.22);color:var(--acc)}',
   '.fll-tab.on .fll-bdg.act{background:var(--acc);color:#fff}',
 
-  /* ---------- minimap mat do log theo thoi gian ---------- */
+  /* ---------- minimap mật độ log theo thời gian ---------- */
   '.fll-map{position:relative;height:36px;margin:12px 16px 0;padding:0 2px;border:1px solid var(--line);',
   'border-radius:8px;background:linear-gradient(180deg,#120f19,#191522);display:flex;align-items:flex-end;',
   'overflow:hidden;cursor:crosshair;flex:0 0 auto}',
@@ -1675,7 +1678,7 @@ const PANEL_CSS = [
   '.fll-shade{position:absolute;top:0;bottom:0;width:0;background:rgba(14,11,20,.74);pointer-events:none}',
   '.fll-shade-l{left:0}',
   '.fll-shade-r{right:0}',
-  /* Khi co khoang dang chon thi ve vach mep de biet cho nao nam duoc de co gian. */
+  /* Khi có khoảng đang chọn thì vẽ vạch mép để biết chỗ nào nắm được để co giãn. */
   '.fll-map-ranged .fll-shade-l{border-right:2px solid var(--acc);box-shadow:2px 0 8px rgba(255,46,136,.4)}',
   '.fll-map-ranged .fll-shade-r{border-left:2px solid var(--acc);box-shadow:-2px 0 8px rgba(255,46,136,.4)}',
   '.fll-maptext{font-variant-numeric:tabular-nums;opacity:.75}',
@@ -1683,139 +1686,139 @@ const PANEL_CSS = [
   '.fll-maptext.aiming{opacity:1;color:#fff;font-weight:700;font-variant-numeric:tabular-nums}',
   '.fll-cursor{position:absolute;top:0;bottom:0;width:2px;background:var(--acc);pointer-events:none;',
   'box-shadow:0 0 10px var(--acc);opacity:0;transition:.12s}',
-  /* Tooltip tu ve. position:fixed va nam trong #fll-root (khong phai .fll-panel, panel co
-     overflow:hidden se cat mat no). z-index tren ca tam truot lan lop mui ten. */
+  /* Tooltip tự vẽ. position:fixed và nằm trong #fll-root (không phải .fll-panel, panel có
+     overflow:hidden sẽ cắt mất nó). z-index trên cả tấm trượt lẫn lớp mũi tên. */
   '.fll-tip{position:fixed;z-index:2147483001;max-width:300px;padding:7px 10px;border-radius:8px;',
-  'background:#0d0b12;border:1px solid var(--line);color:var(--txt);font-size:10.5px;line-height:1.5;',
+  'background:#0d0b12;border:1px solid var(--line);color:var(--txt);font-size:12px;line-height:1.5;',
   'box-shadow:0 8px 26px rgba(0,0,0,.6);pointer-events:none;white-space:normal;word-break:break-word;',
   'font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}',
 
-  /* Nut phong to nam ngay trong dong nhan duoi minimap — cho duy nhat vua lien quan vua khong an
-     mat cho cua chinh minimap. */
+  /* Nút phóng to nằm ngay trong dòng nhãn dưới minimap — chỗ duy nhất vừa liên quan vừa không ăn
+     mất chỗ của chính minimap. */
   '.fll-maprow{display:inline-flex;align-items:center;gap:5px;flex:0 0 auto}',
-  '.fll-mapzoom{font-size:9px;font-weight:700;padding:1px 7px;border-radius:20px;cursor:pointer;',
+  '.fll-mapzoom{font-size:10px;font-weight:700;padding:1px 7px;border-radius:20px;cursor:pointer;',
   'background:var(--bg3);color:var(--txt);border:1px solid var(--line)!important;white-space:nowrap}',
   '.fll-mapzoom:hover{border-color:var(--acc)!important;color:var(--acc)}',
   '.fll-mapzoom.on{background:var(--acc);color:#fff;border-color:var(--acc)!important}',
   '.fll-map-zoomed{border-color:var(--acc)}',
-  '.fll-maplbl{display:flex;justify-content:space-between;gap:8px;margin:5px 17px 0;font-size:9.5px;',
+  '.fll-maplbl{display:flex;justify-content:space-between;gap:8px;margin:5px 17px 0;font-size:10.5px;',
   'color:var(--mut);font-variant-numeric:tabular-nums;flex:0 0 auto}',
 
-  /* ---------- body ---------- */
+  /* ---------- thân panel ---------- */
   '.fll-body{flex:1;overflow-y:auto;overflow-x:hidden;padding:var(--pad-y,14px) var(--pad-x,16px) 18px}',
   '.fll-body::-webkit-scrollbar{width:10px}',
   '.fll-body::-webkit-scrollbar-thumb{background:#3a3348;border-radius:10px;border:3px solid var(--bg)}',
   '.fll-body::-webkit-scrollbar-thumb:hover{background:#4c4360}',
 
-  /* ---------- stat cards ---------- */
+  /* ---------- thẻ thống kê ---------- */
   '.fll-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin-bottom:14px}',
   '.fll-stat{background:var(--bg2);border:1px solid var(--line);border-radius:11px;padding:12px 13px;',
   'cursor:pointer;transition:.14s}',
   '.fll-stat:hover{border-color:var(--acc);transform:translateY(-1px)}',
-  '.fll-stat b{display:block;font-size:21px;font-weight:700;font-variant-numeric:tabular-nums;',
+  '.fll-stat b{display:block;font-size:23.5px;font-weight:700;font-variant-numeric:tabular-nums;',
   'letter-spacing:-.5px;line-height:1.15}',
-  '.fll-stat b em{font-style:normal;font-size:12px;font-weight:600;color:var(--mut);letter-spacing:0}',
-  '.fll-stat span{display:block;font-size:10.5px;color:var(--mut);margin-top:4px}',
+  '.fll-stat b em{font-style:normal;font-size:13.5px;font-weight:600;color:var(--mut);letter-spacing:0}',
+  '.fll-stat span{display:block;font-size:12px;color:var(--mut);margin-top:4px}',
 
-  /* ---------- khoi lay net theo feedback ----------
-     Co y KHONG to hong: thanh bo loc phia tren da la mau accent roi. De ba khoi hong chong nhau
-     thi accent mat het y nghia, khong con gi noi bat hon gi. */
+  /* ---------- khối lấy nét theo feedback ----------
+     Cố ý KHÔNG tô hồng: thanh bộ lọc phía trên đã là màu accent rồi. Để ba khối hồng chồng nhau
+     thì accent mất hết ý nghĩa, không còn gì nổi bật hơn gì. */
   '.fll-focus{border:1px solid var(--line);background:var(--bg2);border-radius:12px;padding:12px 13px;',
   'margin-bottom:14px}',
-  '.fll-focus-t{font-size:12.5px;line-height:1.5}',
+  '.fll-focus-t{font-size:14px;line-height:1.5}',
   '.fll-focus-t b{font-weight:700;color:var(--acc)}',
-  '.fll-focus-d{font-size:10.5px;color:var(--mut);margin-top:4px;font-family:var(--mono);',
+  '.fll-focus-d{font-size:12px;color:var(--mut);margin-top:4px;font-family:var(--mono);',
   'overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
-  '.fll-focus-hint{font-size:10.5px;color:var(--mut);margin:11px 0 7px}',
+  '.fll-focus-hint{font-size:12px;color:var(--mut);margin:11px 0 7px}',
 
-  /* ---------- bang thoi luong ---------- */
+  /* ---------- bảng thời lượng ---------- */
   '.fll-slow{position:relative;display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:8px;',
   'background:var(--bg2);border:1px solid transparent;margin-bottom:4px;cursor:pointer;overflow:hidden;',
   'transition:.14s}',
   '.fll-slow:hover{border-color:var(--acc)}',
   '.fll-slow u{position:absolute;left:0;top:0;bottom:0;text-decoration:none}',
-  '.fll-slow-ms{position:relative;font-size:11.5px;font-weight:750;font-variant-numeric:tabular-nums;',
+  '.fll-slow-ms{position:relative;font-size:13px;font-weight:750;font-variant-numeric:tabular-nums;',
   'flex:0 0 auto;width:52px;text-align:right}',
-  '.fll-slow-txt{position:relative;flex:1;min-width:0;font-family:var(--mono);font-size:10.5px;color:#cfc8dd;',
+  '.fll-slow-txt{position:relative;flex:1;min-width:0;font-family:var(--mono);font-size:12px;color:#cfc8dd;',
   'overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
 
-  /* ---------- bang cau hinh ---------- */
-  /* Hang co the chua mot khoi JSON dai; .fll-cfg-v gioi han 3 dong roi cat, con ban day du thi
-     xem qua nut JSON. Khong dung white-space:nowrap nhu cac bang khac vi gia tri cau hinh doc
-     theo chieu ngang thi mat nghia. */
+  /* ---------- bảng cấu hình ---------- */
+  /* Hàng có thể chứa một khối JSON dài; .fll-cfg-v giới hạn 3 dòng rồi cắt, còn bản đầy đủ thì
+     xem qua nút JSON. Không dùng white-space:nowrap như các bảng khác vì giá trị cấu hình đọc
+     theo chiều ngang thì mất nghĩa. */
   '.fll-cfg{position:relative;padding:9px 12px 9px;margin-bottom:5px;border-radius:9px;',
   'background:var(--bg2);border:1px solid var(--line);transition:.14s}',
   '.fll-cfg.chg{border-left:2px solid var(--warn)}',
-  '.fll-cfg-hd{display:flex;align-items:center;gap:7px;flex-wrap:wrap;font-size:11.5px;font-weight:600}',
+  '.fll-cfg-hd{display:flex;align-items:center;gap:7px;flex-wrap:wrap;font-size:13px;font-weight:600}',
   '.fll-cfg-hd b{font-weight:700;word-break:break-word}',
-  '.fll-cfg-hd em{margin-left:auto;font-style:normal;font-size:10px;color:var(--mut);',
+  '.fll-cfg-hd em{margin-left:auto;font-style:normal;font-size:11px;color:var(--mut);',
   'font-variant-numeric:tabular-nums;flex:0 0 auto}',
-  '.fll-cfg-chg{font-style:normal;font-size:9.5px;font-weight:700;padding:1px 6px;border-radius:20px;',
+  '.fll-cfg-chg{font-style:normal;font-size:10.5px;font-weight:700;padding:1px 6px;border-radius:20px;',
   'background:rgba(255,182,72,.18);color:var(--warn)}',
-  '.fll-cfg-note{font-style:normal;font-size:9.5px;font-weight:600;padding:1px 6px;border-radius:20px;',
+  '.fll-cfg-note{font-style:normal;font-size:10.5px;font-weight:600;padding:1px 6px;border-radius:20px;',
   'background:var(--bg3);color:var(--mut)}',
   '.fll-cfg-val{margin-top:6px;padding:6px 9px;border-radius:7px;background:var(--bg);',
   'border:1px solid transparent;cursor:pointer;transition:.14s}',
   '.fll-cfg-val:hover{border-color:var(--acc)}',
   '.fll-cfg-val.last{background:var(--bg3)}',
-  '.fll-cfg-vm{font-size:9.5px;color:var(--mut);font-variant-numeric:tabular-nums}',
-  '.fll-cfg-v{margin-top:3px;font-family:var(--mono);font-size:10.5px;line-height:1.5;color:#cfc8dd;',
+  '.fll-cfg-vm{font-size:10.5px;color:var(--mut);font-variant-numeric:tabular-nums}',
+  '.fll-cfg-v{margin-top:3px;font-family:var(--mono);font-size:12px;line-height:1.5;color:#cfc8dd;',
   'word-break:break-all;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}',
-  '.fll-cfg-js{margin-top:6px;padding:4px 10px;font-size:10px}',
+  '.fll-cfg-js{margin-top:6px;padding:4px 10px;font-size:11px}',
 
-  /* ---------- mui ten tu muc dang di chuot len minimap ---------- */
-  /* Mot lop SVG phu len ca panel. pointer-events:none de khong chan chuot; z-index cao hon .fll-sheet
-     (8) vi duong ke phai di TU trong tam truot RA den minimap nam ngoai no. */
-  /* Mui ten tung to accent — cung ho hong voi cot ERROR cua minimap (#ff5f6d) va voi chinh
-     .fll-cursor (vach vi tri cuon, cung accent), nen dat len minimap la chim nghim. Nay to TRANG kem
-     vien mau nen panel: tren cot hong, cot vang hay cho trong deu noi, va khong lan voi vach cuon. */
+  /* ---------- mũi tên từ mục đang di chuột lên minimap ---------- */
+  /* Một lớp SVG phủ lên cả panel. pointer-events:none để không chặn chuột; z-index cao hơn .fll-sheet
+     (8) vì đường kẻ phải đi TỪ trong tấm trượt RA đến minimap nằm ngoài nó. */
+  /* Mũi tên từng tô accent — cùng hệ hồng với cột ERROR của minimap (#ff5f6d) và với chính
+     .fll-cursor (vạch vị trí cuộn, cũng accent), nên đặt lên minimap là chìm nghỉm. Nay tô TRẮNG kèm
+     viền màu nền panel: trên cột hồng, cột vàng hay chỗ trống đều nổi, và không lẫn với vạch cuộn. */
   '.fll-aim{position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;z-index:9;',
   'opacity:0;transition:opacity .12s}',
   '.fll-aim.on{opacity:1}',
-  /* Duong ke van de accent: no chay tren cac the toi trong than panel, o do accent doc tot ma khong
-     de len chu nhieu nhu net trang. Chi cai DAU MUI TEN va vach tren minimap moi doi sang trang. */
+  /* Đường kẻ vẫn để accent: nó chạy trên các thẻ tối trong thân panel, ở đó accent đọc tốt mà không
+     đè lên chữ nhiều như nét trắng. Chỉ cái ĐẦU MŨI TÊN và vạch trên minimap mới đổi sang trắng. */
   '.fll-aim-line{fill:none;stroke:var(--acc);stroke-width:1.6;stroke-dasharray:4 3;opacity:.9}',
   '.fll-aim-head{fill:#fff;stroke:var(--bg);stroke-width:1;paint-order:stroke}',
   '.fll-aim-ticks rect{fill:#fff;stroke:var(--bg);stroke-width:1;paint-order:stroke;opacity:.75}',
   '.fll-aim-ticks rect.fll-aim-first{opacity:1}',
   '.fll-aimed{outline:1px solid var(--acc);outline-offset:1px;border-radius:8px}',
 
-  /* ---------- nut nho trong hang, va nut tat tieng ---------- */
-  '.fll-ico.fll-mini{width:24px;height:24px;font-size:10px;border-radius:6px;background:var(--bg3);flex:0 0 auto}',
-  '.fll-ico.fll-mute{width:22px;height:22px;font-size:11px;opacity:.4;flex:0 0 auto;margin-left:2px}',
+  /* ---------- nút nhỏ trong hàng, và nút tắt tiếng ---------- */
+  '.fll-ico.fll-mini{width:24px;height:24px;font-size:11px;border-radius:6px;background:var(--bg3);flex:0 0 auto}',
+  '.fll-ico.fll-mute{width:22px;height:22px;font-size:12.5px;opacity:.4;flex:0 0 auto;margin-left:2px}',
   '.fll-grp:hover .fll-ico.fll-mute{opacity:.9}',
   '.fll-grp.muted{opacity:.42}',
   '.fll-grp.muted:hover{opacity:.8}',
 
-  /* ---------- tam truot chi tiet ---------- */
+  /* ---------- tấm trượt chi tiết ---------- */
   '.fll-sheet{position:absolute;left:0;right:0;bottom:0;top:52px;background:var(--bg);display:flex;',
   'flex-direction:column;z-index:8;animation:fll-up .16s cubic-bezier(.2,.9,.3,1)}',
   '@keyframes fll-up{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}',
   '.fll-sheet-hd{display:flex;align-items:center;gap:10px;padding:13px 16px;border-bottom:1px solid var(--line);',
   'background:linear-gradient(180deg,#241f31,#1a1723);flex:0 0 auto}',
-  '.fll-sheet-tt{font-size:12.5px;font-weight:650;word-break:break-all}',
-  '.fll-sheet-sub{font-size:10.5px;color:var(--mut);margin-top:2px}',
+  '.fll-sheet-tt{font-size:14px;font-weight:650;word-break:break-all}',
+  '.fll-sheet-sub{font-size:12px;color:var(--mut);margin-top:2px}',
   '.fll-sheet-body{flex:1;overflow:auto;padding:14px 16px 18px}',
   '.fll-sheet-body::-webkit-scrollbar{width:10px;height:10px}',
   '.fll-sheet-body::-webkit-scrollbar-thumb{background:#3a3348;border-radius:10px;border:3px solid var(--bg)}',
-  '.fll-code{font-family:var(--mono);font-size:11px;line-height:1.55;color:#cfc8dd;background:var(--bg2);',
+  '.fll-code{font-family:var(--mono);font-size:12.5px;line-height:1.55;color:#cfc8dd;background:var(--bg2);',
   'border:1px solid var(--line);border-radius:9px;padding:12px 14px;white-space:pre;overflow-x:auto;',
   'display:block;tab-size:2}',
   '.fll-code.fll-wrap{white-space:pre-wrap;overflow-wrap:anywhere}',
 
-  /* ---------- tung truong trong payload ---------- */
-  /* Mot dong HTTP co the co 5 truong (--encrypted / --body / --header / --exception ...),
-     nen moi truong la mot khoi rieng co nhan trang thai parse va nut copy rieng. */
-  /* To mau JSON: mau khoa/chuoi/so tach nhau du de luot mat tim field, khong ruc den muc nhuc mat. */
+  /* ---------- từng trường trong payload ---------- */
+  /* Một dòng HTTP có thể có 5 trường (--encrypted / --body / --header / --exception ...),
+     nên mỗi trường là một khối riêng có nhãn trạng thái parse và nút copy riêng. */
+  /* Tô màu JSON: màu khoá/chuỗi/số tách nhau đủ để lướt mắt tìm field, không rực đến mức nhức mắt. */
   '.fll-code i{font-style:normal}',
   '.fll-jk{color:#7fd0ff}',
   '.fll-js{color:#a9e6b8}',
   '.fll-jn{color:var(--warn)}',
   '.fll-jb{color:#c79bff}',
-  /* Thanh doi Request / Response: dung lai dang tab cua panel de nhat quan, size nam trong badge. */
-  /* Thanh cong cu cua tam truot dinh lai khi cuon: payload JSON dai toi 10KB, cuon giua chung van
-     phai bam duoc "Toi dong" va doi Request/Response. Cung ba dieu kien nhu .fll-sec — nen duc,
-     tran het be ngang bang margin ngang am, va top am dung bang padding cua vung cuon. */
+  /* Thanh đổi Request / Response: dùng lại dạng tab của panel cho nhất quán, size nằm trong badge. */
+  /* Thanh công cụ của tấm trượt dính lại khi cuộn: payload JSON dài tới 10KB, cuộn giữa chừng vẫn
+     phải bấm được "Tới dòng" và đổi Request/Response. Cùng ba điều kiện như .fll-sec — nền đục,
+     tràn hết bề ngang bằng margin ngang âm, và top âm đúng bằng padding của vùng cuộn. */
   '.fll-paytop{position:sticky;top:calc(var(--pad-y,14px) * -1);z-index:4;background:var(--bg);',
   'margin:calc(var(--pad-y,14px) * -1) calc(var(--pad-x,16px) * -1) 12px;',
   'padding:var(--pad-y,14px) var(--pad-x,16px) 8px;border-bottom:1px solid var(--line)}',
@@ -1828,108 +1831,110 @@ const PANEL_CSS = [
   '.fll-pay{margin-bottom:14px}',
   '.fll-pay:last-child{margin-bottom:0}',
   '.fll-pay-hd{display:flex;align-items:center;gap:8px;margin-bottom:7px;min-height:24px;flex-wrap:wrap}',
-  '.fll-pay-hd b{font-family:var(--mono);font-size:11px;font-weight:700;color:#e8e2f2}',
-  '.fll-pay-v{font-family:var(--mono);font-size:11px;color:var(--mut);word-break:break-all}',
-  '.fll-pay-tag{font-size:9.5px;font-weight:700;letter-spacing:.3px;padding:3px 7px;border-radius:6px;',
+  '.fll-pay-hd b{font-family:var(--mono);font-size:12.5px;font-weight:700;color:#e8e2f2}',
+  '.fll-pay-v{font-family:var(--mono);font-size:12.5px;color:var(--mut);word-break:break-all}',
+  '.fll-pay-tag{font-size:10.5px;font-weight:700;letter-spacing:.3px;padding:3px 7px;border-radius:6px;',
   'background:rgba(61,220,151,.11);color:var(--ok);border:1px solid rgba(61,220,151,.24)}',
   '.fll-pay-tag.warn{background:rgba(255,182,72,.11);color:var(--warn);border-color:rgba(255,182,72,.28)}',
-  '.fll-btn.fll-mini{padding:5px 10px;font-size:10.5px;border-radius:7px}',
+  '.fll-btn.fll-mini{padding:5px 10px;font-size:12px;border-radius:7px}',
 
-  /* ---------- tieu de section ---------- */
-  /* Dinh lai o mep tren khi cuon. Tab Loc co 8 muc, tab Dien bien ve 80 moc mot lo — cuon mot lat la
-     khong con biet dang doc muc nao; sticky giu cai nhan do luon nam trong tam mat.
-     Ba dieu kien de sticky khong vo:
-     - Nen phai DUC va TRAN HET CHIEU RONG, neu khong noi dung se troi qua ngay ben duoi chu. Keo bang
-       margin ngang am 16px (dung bang padding cua .fll-body) roi padding bu lai.
-     - top phai la AM dung bang padding-top cua .fll-body. Do that trong Chrome tren trang test dung chinh
-       bo CSS nay: voi top:0 tieu de dinh cach mep tren 13.9px (dung bang padding-top 14px) va noi dung
-       van troi qua ben tren no — tuc offset tinh tu CONTENT box chu khong phai padding box. Voi
-       top:calc(var(--pad-y) * -1) thi ho con 0px, va KHONG bi overflow cat: no chi nho dung toi mep
-       padding box, la dung cho overflow bat dau clip.
-     - z-index:3 du de de len noi dung, van nam duoi .fll-sheet (z-index:8) nen tam truot khong bi dam xuyen.
-     Mau chu tung la #7f7793: chi 4.31:1 tren nen panel, duoi nguong WCAG AA 4.5:1, lai o co 10px in hoa
-     nen doc duoc ma khong "nhay ra" duoc. Nay #d5cfe2 tren dai nen dam nhat van dat 10.53:1.
-     Dai nen dung dung gradient cua .fll-sheet-hd cho thong nhat voi phan con lai cua panel. */
+  /* ---------- tiêu đề mục ---------- */
+  /* Dính lại ở mép trên khi cuộn. Tab Lọc có 8 mục, tab Diễn biến vẽ 80 mốc một lô — cuộn một lát là
+     không còn biết đang đọc mục nào; sticky giữ cái nhãn đó luôn nằm trong tầm mắt.
+     Ba điều kiện để sticky không vỡ:
+     - Nền phải ĐỤC và TRÀN HẾT CHIỀU RỘNG, nếu không nội dung sẽ trôi qua ngay bên dưới chữ. Kéo bằng
+       margin ngang âm 16px (đúng bằng padding của .fll-body) rồi padding bù lại.
+     - top phải là ÂM đúng bằng padding-top của .fll-body. Đo thật trong Chrome trên trang test dùng chính
+       bộ CSS này: với top:0 tiêu đề dính cách mép trên 13.9px (đúng bằng padding-top 14px) và nội dung
+       vẫn trôi qua bên trên nó — tức offset tính từ CONTENT box chứ không phải padding box. Với
+       top:calc(var(--pad-y) * -1) thì hở còn 0px, và KHÔNG bị overflow cắt: nó chỉ nhô đúng tới mép
+       padding box, là đúng chỗ overflow bắt đầu clip.
+     - z-index:3 đủ để đè lên nội dung, vẫn nằm dưới .fll-sheet (z-index:8) nên tấm trượt không bị đâm xuyên.
+     Màu chữ từng là #7f7793: chỉ 4.31:1 trên nền panel, dưới ngưỡng WCAG AA 4.5:1, lại ở cỡ 10px in hoa
+     nên đọc được mà không "nhảy ra" được. Nay #d5cfe2 trên dải nền đậm nhất vẫn đạt 10.53:1.
+     Dải nền dùng đúng gradient của .fll-sheet-hd cho thống nhất với phần còn lại của panel. */
   '.fll-sec{position:sticky;top:calc(var(--pad-y,14px) * -1);z-index:3;',
   'margin:22px calc(var(--pad-x,16px) * -1) 10px;padding:10px var(--pad-x,16px) 9px;',
   'background:linear-gradient(180deg,#241f31,#1a1723);border-bottom:1px solid var(--line);',
-  'font-size:11px;font-weight:700;letter-spacing:.9px;text-transform:uppercase;',
+  'font-size:12.5px;font-weight:700;letter-spacing:.9px;text-transform:uppercase;',
   'color:#d5cfe2;display:flex;align-items:center;gap:8px}',
   '.fll-sec:before{content:"";width:3px;height:13px;border-radius:2px;background:var(--acc);flex:0 0 auto}',
   '.fll-sec:first-child{margin-top:0}',
 
-  /* ---------- muc dong/mo duoc ---------- */
-  /* Khoi .fll-secw do collapsifySections() dung sau khi ve, khong renderer nao sinh ra no.
-     Le tren 22px chuyen tu .fll-sec sang khoi bao ngoai: sau khi boc, .fll-sec luon la con dau tien
-     cua khoi nen ".fll-sec:first-child{margin-top:0}" se an het le cua MOI muc. Hai rule duoi day
-     cung do dac hieu (0,2,0) voi rule do nhung viet sau nen thang. */
+  /* ---------- mục đóng/mở được ---------- */
+  /* Khối .fll-secw do collapsifySections() dựng sau khi vẽ, không renderer nào sinh ra nó.
+     Lề trên 22px chuyển từ .fll-sec sang khối bao ngoài: sau khi bọc, .fll-sec luôn là con đầu tiên
+     của khối nên ".fll-sec:first-child{margin-top:0}" sẽ ăn hết lề của MỌI mục. Hai rule dưới đây
+     cùng độ đặc hiệu (0,2,0) với rule đó nhưng viết sau nên thắng. */
   '.fll-secw{margin-top:22px}',
   '.fll-secw:first-child{margin-top:0}',
-  /* Muc dang thu lai thi khong con noi dung de tach khoi muc truoc, 22px chi lam danh sach tieu de
-     dai ra vo ich — tab Tong quan co chin muc. */
+  /* Mục đang thu lại thì không còn nội dung để tách khỏi mục trước, 22px chỉ làm danh sách tiêu đề
+     dài ra vô ích — tab Tổng quan có chín mục. */
   '.fll-secw:not(.open) + .fll-secw:not(.open){margin-top:8px}',
   '.fll-secw > .fll-sec{margin-top:0;cursor:pointer;user-select:none;transition:.14s}',
   '.fll-secw > .fll-sec:hover{color:#fff;background:linear-gradient(180deg,#2d2740,#211c2e)}',
   '.fll-secb{display:none}',
-  '.fll-secq{margin-bottom:8px;font-size:10.5px;padding:6px 10px}',
+  '.fll-secq{margin-bottom:8px;font-size:12px;padding:6px 10px}',
+  /* Nút "Hiện thêm" của một mục: capSectionRows() cắt bớt hàng thừa sau khi vẽ, nút này bung phần còn lại. */
+  '.fll-secmore{width:100%;margin-top:8px}',
   '.fll-secq-note{margin:-4px 0 8px}',
   '.fll-secw.open > .fll-secb{display:block}',
-  /* Muc dang dong thi thanh tieu de khong can dinh lai: khong co gi troi qua duoi no ca. */
+  /* Mục đang đóng thì thanh tiêu đề không cần dính lại: không có gì trôi qua dưới nó cả. */
   '.fll-secw:not(.open) > .fll-sec{position:relative;top:0}',
-  /* Badge la thu DUY NHAT nhin thay khi muc dang thu lai, nen no phai doc duoc ngay: day sang phai
-     bang margin-left:auto, va cat bot neu qua dai (chuoi dang tim co the dai bao nhieu cung duoc). */
+  /* Badge là thứ DUY NHẤT nhìn thấy khi mục đang thu lại, nên nó phải đọc được ngay: đẩy sang phải
+     bằng margin-left:auto, và cắt bớt nếu quá dài (chuỗi đang tìm có thể dài bao nhiêu cũng được). */
   '.fll-secbdg{margin-left:auto;flex:0 1 auto;max-width:52%;overflow:hidden;text-overflow:ellipsis;',
-  'white-space:nowrap;font-style:normal;font-size:9.5px;font-weight:700;letter-spacing:.2px;',
+  'white-space:nowrap;font-style:normal;font-size:10.5px;font-weight:700;letter-spacing:.2px;',
   'text-transform:none;padding:2px 7px;border-radius:20px;background:var(--bg3);color:var(--mut)}',
   '.fll-secbdg.err{background:rgba(255,95,109,.18);color:var(--err)}',
   '.fll-secbdg.warn{background:rgba(255,182,72,.18);color:var(--warn)}',
   '.fll-secbdg.ok{background:rgba(61,220,151,.16);color:var(--ok)}',
   '.fll-secbdg.act{background:var(--acc);color:#fff}',
-  '.fll-caret{flex:0 0 auto;font-size:9px;color:var(--mut);transition:transform .15s,color .15s;',
+  '.fll-caret{flex:0 0 auto;font-size:10px;color:var(--mut);transition:transform .15s,color .15s;',
   'display:inline-block;width:9px;text-align:center}',
   '.fll-secw.open > .fll-sec .fll-caret{transform:rotate(90deg);color:var(--acc)}',
-  '.fll-note{display:flex;gap:10px;padding:12px 13px;border-radius:11px;font-size:11.5px;line-height:1.55;',
+  '.fll-note{display:flex;gap:10px;padding:12px 13px;border-radius:11px;font-size:13px;line-height:1.55;',
   'background:rgba(255,182,72,.09);border:1px solid rgba(255,182,72,.28);color:#ffd79a;margin-bottom:6px}',
   '.fll-note b{color:#fff;font-weight:650}',
   '.fll-note.ok{background:rgba(61,220,151,.09);border-color:rgba(61,220,151,.28);color:#a9f0cf}',
 
-  /* ---------- thanh ty le muc do ---------- */
+  /* ---------- thanh tỷ lệ mức độ ---------- */
   '.fll-lvbar{display:flex;height:10px;border-radius:5px;overflow:hidden;margin-bottom:10px;background:var(--bg3)}',
   '.fll-lvbar i{display:block;transition:.2s}',
   '.fll-lvkey{display:flex;flex-wrap:wrap;gap:6px}',
-  '.fll-chip{display:inline-flex;align-items:center;gap:6px;padding:5px 11px;border-radius:20px;font-size:10.5px;',
+  '.fll-chip{display:inline-flex;align-items:center;gap:6px;padding:5px 11px;border-radius:20px;font-size:12px;',
   'font-weight:600;background:var(--bg2);border:1px solid var(--line);color:var(--mut);cursor:pointer;',
   'transition:.14s}',
   '.fll-chip:hover{border-color:var(--acc);color:var(--txt)}',
   '.fll-chip.on{background:var(--acc);border-color:var(--acc);color:#fff}',
-  /* Chip khong con dong nao khop trong ngu canh hien tai: van bam duoc nhung khong doi nhin. */
+  /* Chip không còn dòng nào khớp trong ngữ cảnh hiện tại: vẫn bấm được nhưng không đòi nhìn. */
   '.fll-chip.dim{opacity:.42}',
   '.fll-chip.dim:hover{opacity:1}',
   '.fll-chip em{font-style:normal;opacity:.75;font-variant-numeric:tabular-nums}',
   '.fll-sw{width:8px;height:8px;border-radius:2px;flex:0 0 auto}',
 
-  /* ---------- bang xep hang co thanh ngang ---------- */
+  /* ---------- bảng xếp hạng có thanh ngang ---------- */
   '.fll-rank{display:flex;flex-direction:column;gap:4px}',
   '.fll-rk{position:relative;display:flex;align-items:center;gap:10px;padding:7px 12px;border-radius:8px;',
   'background:var(--bg2);border:1px solid transparent;cursor:pointer;overflow:hidden;transition:.14s}',
   '.fll-rk:hover{border-color:var(--acc)}',
   '.fll-rk u{position:absolute;left:0;top:0;bottom:0;background:rgba(255,46,136,.16);text-decoration:none}',
-  '.fll-rk span{position:relative;flex:1;font-size:11.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
-  '.fll-rk b{position:relative;font-size:11px;color:var(--mut);font-variant-numeric:tabular-nums}',
+  '.fll-rk span{position:relative;flex:1;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
+  '.fll-rk b{position:relative;font-size:12.5px;color:var(--mut);font-variant-numeric:tabular-nums}',
 
-  /* ---------- the nhom van de ---------- */
+  /* ---------- thẻ nhóm vấn đề ---------- */
   '.fll-grp{border:1px solid var(--line);border-left:3px solid var(--warn);border-radius:11px;',
   'background:var(--bg2);padding:12px 14px;margin-bottom:8px;cursor:pointer;transition:.14s}',
   '.fll-grp:hover{border-color:var(--acc);border-left-color:var(--acc);background:var(--bg3)}',
   '.fll-grp.err{border-left-color:var(--err)}',
   '.fll-grp-top{display:flex;align-items:center;gap:8px;margin-bottom:8px}',
-  '.fll-cnt{font-size:11px;font-weight:800;padding:2px 9px;border-radius:20px;background:rgba(255,182,72,.16);',
+  '.fll-cnt{font-size:12.5px;font-weight:800;padding:2px 9px;border-radius:20px;background:rgba(255,182,72,.16);',
   'color:var(--warn);font-variant-numeric:tabular-nums;flex:0 0 auto}',
   '.fll-grp.err .fll-cnt{background:rgba(255,95,109,.16);color:var(--err)}',
-  '.fll-mod{font-size:10px;font-weight:650;color:var(--info);background:rgba(88,196,255,.12);padding:2px 8px;',
+  '.fll-mod{font-size:11px;font-weight:650;color:var(--info);background:rgba(88,196,255,.12);padding:2px 8px;',
   'border-radius:6px;flex:0 1 auto;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
-  '.fll-when{margin-left:auto;font-size:10px;color:var(--mut);font-variant-numeric:tabular-nums;flex:0 0 auto}',
-  '.fll-msg{font-family:var(--mono);font-size:11px;line-height:1.55;color:#cfc8dd;word-break:break-word;',
+  '.fll-when{margin-left:auto;font-size:11px;color:var(--mut);font-variant-numeric:tabular-nums;flex:0 0 auto}',
+  '.fll-msg{font-family:var(--mono);font-size:12.5px;line-height:1.55;color:#cfc8dd;word-break:break-word;',
   'display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}',
   '.fll-spark{display:flex;align-items:flex-end;gap:1px;height:15px;margin-top:9px}',
   '.fll-spark i{flex:1;min-width:1px;background:var(--bg3);border-radius:1px}',
@@ -1938,89 +1943,89 @@ const PANEL_CSS = [
   '.fll-call{display:flex;align-items:center;gap:9px;padding:9px 12px;border-radius:8px;background:var(--bg2);',
   'border:1px solid transparent;margin-bottom:5px;cursor:pointer;transition:.14s}',
   '.fll-call:hover{border-color:var(--acc)}',
-  '.fll-verb{font-size:9px;font-weight:800;letter-spacing:.4px;padding:3px 6px;border-radius:5px;',
+  '.fll-verb{font-size:10px;font-weight:800;letter-spacing:.4px;padding:3px 6px;border-radius:5px;',
   'background:var(--bg3);color:var(--mut);flex:0 0 auto;width:50px;text-align:center}',
-  '.fll-st{font-size:10px;font-weight:700;padding:3px 7px;border-radius:5px;flex:0 0 auto;',
+  '.fll-st{font-size:11px;font-weight:700;padding:3px 7px;border-radius:5px;flex:0 0 auto;',
   'background:rgba(61,220,151,.14);color:var(--ok);font-variant-numeric:tabular-nums}',
   '.fll-st.bad{background:rgba(255,95,109,.16);color:var(--err)}',
   '.fll-st.wait{background:rgba(255,182,72,.16);color:var(--warn)}',
-  '.fll-path{flex:1;min-width:0;font-family:var(--mono);font-size:11px;overflow:hidden;text-overflow:ellipsis;',
+  '.fll-path{flex:1;min-width:0;font-family:var(--mono);font-size:12.5px;overflow:hidden;text-overflow:ellipsis;',
   'white-space:nowrap;direction:rtl}',
-  '.fll-dur{font-size:10px;color:var(--mut);font-variant-numeric:tabular-nums;flex:0 0 auto}',
+  '.fll-dur{font-size:11px;color:var(--mut);font-variant-numeric:tabular-nums;flex:0 0 auto}',
 
-  /* ---------- timeline ---------- */
+  /* ---------- đường thời gian ---------- */
   '.fll-tl{position:relative;padding-left:26px}',
   '.fll-tl:before{content:"";position:absolute;left:9px;top:8px;bottom:8px;width:1px;background:var(--line)}',
   '.fll-ev{position:relative;padding:9px 12px;margin-bottom:6px;border-radius:9px;background:var(--bg2);',
   'cursor:pointer;border:1px solid transparent;transition:.14s}',
   '.fll-ev:hover{border-color:var(--acc)}',
-  /* Cham tron mau o le trai da bo: mau khong tu noi ra nghia, nguoi doc phai nho "hong la cham, xanh
-     la man hinh" — khong ai nho. Nay bieu tuong nam trong the, kem title va mot hang chu giai o tren. */
+  /* Chấm tròn màu ở lề trái đã bỏ: màu không tự nói ra nghĩa, người đọc phải nhớ "hồng là chạm, xanh
+     là màn hình" — không ai nhớ. Nay biểu tượng nằm trong thẻ, kèm title và một hàng chú giải ở trên. */
   '.fll-ev:before{content:"";position:absolute;left:-18px;top:17px;width:5px;height:5px;border-radius:50%;',
   'background:var(--line)}',
-  /* Bieu tuong nam THANG TREN duong thoi gian chu khong trong the: nhin doc mot cot la quet duoc ca
-     chuoi su kien. Van la mot the that (khong phai :before) nen mang duoc title = ten loai moc.
-     Nen duc de no de len net ke cua duong thoi gian chay ben duoi. */
-  '.fll-ev-ic{position:absolute;left:-26px;top:7px;width:19px;height:19px;text-align:center;',
-  'font-size:14px;line-height:19px;border-radius:50%;background:var(--bg);',
+  /* Biểu tượng nằm THẲNG TRÊN đường thời gian chứ không trong thẻ: nhìn dọc một cột là quét được cả
+     chuỗi sự kiện. Vẫn là một thẻ thật (không phải :before) nên mang được title = tên loại mốc.
+     Nền đục để nó đè lên nét kẻ của đường thời gian chạy bên dưới. */
+  '.fll-ev-ic{position:absolute;left:-28px;top:6px;width:21px;height:21px;text-align:center;',
+  'font-size:15.5px;line-height:21px;border-radius:50%;background:var(--bg);',
   'font-family:"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif}',
-  '.fll-chip-ic{font-style:normal;font-size:13px;line-height:1;',
+  '.fll-chip-ic{font-style:normal;font-size:14.5px;line-height:1;',
   'font-family:"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif}',
-  '.fll-ev-t{display:flex;align-items:center;gap:9px;font-size:11.5px;font-weight:600}',
-  '.fll-ev-t em{margin-left:auto;font-style:normal;font-size:10px;color:var(--mut);font-variant-numeric:tabular-nums}',
-  '.fll-ev-d{font-size:10.5px;color:var(--mut);margin-top:4px;font-family:var(--mono);overflow:hidden;',
+  '.fll-ev-t{display:flex;align-items:center;gap:9px;font-size:13px;font-weight:600}',
+  '.fll-ev-t em{margin-left:auto;font-style:normal;font-size:11px;color:var(--mut);font-variant-numeric:tabular-nums}',
+  '.fll-ev-d{font-size:12px;color:var(--mut);margin-top:4px;font-family:var(--mono);overflow:hidden;',
   'text-overflow:ellipsis;white-space:nowrap}',
 
-  /* ---------- hanh trinh ---------- */
-  /* Dung lai khung .fll-tl/.fll-ev cua Timeline, chi doi mau cham theo loai thao tac. */
+  /* ---------- hành trình ---------- */
+  /* Dùng lại khung .fll-tl/.fll-ev của Timeline, chỉ đổi màu chấm theo loại thao tác. */
   '.fll-ev.jr-saw{border-left:2px solid var(--warn)}',
   '.fll-ev.jr-fail{border-left:2px solid var(--err)}',
-  '.fll-jms{font-size:9.5px;font-weight:700;color:var(--warn);background:rgba(255,182,72,.14);',
+  '.fll-jms{font-size:10.5px;font-weight:700;color:var(--warn);background:rgba(255,182,72,.14);',
   'padding:1px 6px;border-radius:20px;font-variant-numeric:tabular-nums;flex:0 0 auto}',
-  '.fll-jn{font-size:9.5px;font-weight:800;color:var(--mut);background:var(--bg3);padding:1px 6px;',
+  '.fll-jn{font-size:10.5px;font-weight:800;color:var(--mut);background:var(--bg3);padding:1px 6px;',
   'border-radius:20px;font-variant-numeric:tabular-nums;flex:0 0 auto}',
 
-  /* ---------- form loc ---------- */
+  /* ---------- form lọc ---------- */
   '.fll-in{width:100%;padding:10px 12px;border-radius:9px;border:1px solid var(--line);background:var(--bg2);',
-  'color:var(--txt);font-size:12px;font-family:var(--mono);transition:.14s}',
+  'color:var(--txt);font-size:13.5px;font-family:var(--mono);transition:.14s}',
   '.fll-in::placeholder{color:#6d6580}',
   '.fll-in:focus{border-color:var(--acc);box-shadow:0 0 0 3px rgba(255,46,136,.14)}',
   '.fll-in.bad{border-color:var(--err)}',
-  '.fll-hint{font-size:10.5px;line-height:1.55;color:var(--mut)}',
+  '.fll-hint{font-size:12px;line-height:1.55;color:var(--mut)}',
   '.fll-hint b{font-weight:650}',
   '.fll-btn{padding:9px 15px;border-radius:9px;border:1px solid var(--line);background:var(--bg2);color:var(--txt);',
-  'font-size:11.5px;font-weight:650;cursor:pointer;transition:.14s}',
+  'font-size:13px;font-weight:650;cursor:pointer;transition:.14s}',
   '.fll-btn:hover{border-color:var(--acc);background:var(--bg3)}',
   '.fll-btn.pri{background:var(--acc);border-color:var(--acc);color:#fff}',
   '.fll-btn.pri:hover{filter:brightness(1.12)}',
   '.fll-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}',
-  '.fll-empty{text-align:center;padding:40px 16px;color:var(--mut);font-size:12px}',
+  '.fll-empty{text-align:center;padding:40px 16px;color:var(--mut);font-size:13.5px}',
 
-  /* ---------- footer dieu huong ---------- */
-  /* Chua padding-right rong hon de nut ">" khong nam duoi tay nam keo goc. */
-  /* Thanh nay nam duoi cung nen de bi bo qua, ma luon hien thi lai ton cho khi khong co viec.
-     Nay chi hien khi that su co danh sach dong de duyet — viec no XUAT HIEN chinh la loi gioi thieu.
-     [hidden] phai ghi ro vi display:flex ben duoi se de len mac dinh cua thuoc tinh hidden. */
+  /* ---------- thanh điều hướng dưới cùng ---------- */
+  /* Chừa padding-right rộng hơn để nút ">" không nằm dưới tay nắm kéo góc. */
+  /* Thanh này nằm dưới cùng nên dễ bị bỏ qua, mà luôn hiển thị lại tốn chỗ khi không có việc.
+     Nay chỉ hiện khi thật sự có danh sách dòng để duyệt — việc nó XUẤT HIỆN chính là lời giới thiệu.
+     [hidden] phải ghi rõ vì display:flex bên dưới sẽ đè lên mặc định của thuộc tính hidden. */
   '.fll-ft[hidden]{display:none}',
   '.fll-ft{display:flex;align-items:center;gap:6px;padding:9px 30px 9px 8px;',
   'border-top:1px solid var(--line);background:linear-gradient(0deg,#241f31,#1a1723);flex:0 0 auto;',
   'transition:background .18s,border-color .18s}',
   '.fll-ft{border-top:2px solid var(--acc);background:linear-gradient(0deg,#2c2235,#221b2c)}',
-  '.fll-ft .fll-info{flex:1;min-width:0;font-size:11px;color:var(--mut);display:flex;align-items:center;',
+  '.fll-ft .fll-info{flex:1;min-width:0;font-size:12.5px;color:var(--mut);display:flex;align-items:center;',
   'gap:6px;overflow:hidden}',
   '.fll-ft .fll-info b{color:var(--txt);font-weight:650;font-variant-numeric:tabular-nums}',
-  '.fll-ft-tag{flex:0 0 auto;font-size:8px;font-weight:800;letter-spacing:.5px;text-transform:uppercase;',
+  '.fll-ft-tag{flex:0 0 auto;font-size:9px;font-weight:800;letter-spacing:.5px;text-transform:uppercase;',
   'color:var(--acc);background:rgba(255,46,136,.14);padding:2px 5px;border-radius:20px}',
-  '.fll-ft-pos{flex:0 0 auto;font-size:12px}',
+  '.fll-ft-pos{flex:0 0 auto;font-size:13.5px}',
   '.fll-ft-lbl{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
   '.fll-ft-line{flex:0 0 auto;color:var(--mut)}',
 
-  /* Nut duyet: truoc chi la mui ten 28px khong nhan, nguoi dung khong biet co phim tat.
-     Nay deo luon chu phim ngay tren nut. */
+  /* Nút duyệt: trước chỉ là mũi tên 28px không nhãn, người dùng không biết có phím tắt.
+     Nay đeo luôn chữ phím ngay trên nút. */
   '.fll-nav{display:flex;align-items:center;gap:3px;padding:5px 7px;border-radius:8px;',
-  'border:1px solid var(--line);background:var(--bg2);color:var(--mut);font-size:10px;cursor:pointer;',
+  'border:1px solid var(--line);background:var(--bg2);color:var(--mut);font-size:11px;cursor:pointer;',
   'transition:.14s;flex:0 0 auto}',
-  '.fll-nav em{font-style:normal;font-size:9.5px;font-weight:800;background:var(--bg3);color:var(--mut);',
+  '.fll-nav em{font-style:normal;font-size:10.5px;font-weight:800;background:var(--bg3);color:var(--mut);',
   'padding:1px 5px;border-radius:4px}',
   '.fll-nav{color:var(--txt);border-color:rgba(255,46,136,.4)}',
   '.fll-nav em{background:rgba(255,46,136,.18);color:var(--acc)}',
@@ -2028,41 +2033,33 @@ const PANEL_CSS = [
   '.fll-ft-flash{animation:fll-ftflash .55s ease-out}',
   '@keyframes fll-ftflash{0%{background:rgba(255,46,136,.32)}100%{background:linear-gradient(0deg,#2c2235,#221b2c)}}',
 
-  /* ---------- pill khi thu nho ---------- */
+  /* ---------- pill khi thu nhỏ ---------- */
   '.fll-pill{position:fixed;right:18px;bottom:18px;display:flex;align-items:center;gap:9px;padding:11px 18px;',
-  'border-radius:24px;background:var(--bg);border:1px solid var(--line);color:var(--txt);font-size:12px;',
+  'border-radius:24px;background:var(--bg);border:1px solid var(--line);color:var(--txt);font-size:13.5px;',
   'font-weight:600;cursor:pointer;box-shadow:0 10px 30px rgba(0,0,0,.42);transition:.16s;',
   'animation:fll-in .18s cubic-bezier(.2,.9,.3,1)}',
   '.fll-pill:hover{transform:translateY(-2px);border-color:var(--acc)}',
   '.fll-pill b{color:var(--err);font-weight:750;font-variant-numeric:tabular-nums}',
 
-  /* ---------- style bom vao bang log cua trang ---------- */
-  /* Loc bang mot class tren container + danh dau dong duoc giu, thay vi an tung dong bi loai. */
+  /* ---------- style bơm vào bảng log của trang ---------- */
+  /* Lọc bằng một class trên container + đánh dấu dòng được giữ, thay vì ẩn từng dòng bị loại. */
   '.fll-filtering > [class*="logRow"]:not(.fll-keep){display:none!important}',
-  /* Che do dao: loc rong thi danh dau dong BI LOAI cho it thao tac hon. */
+  /* Chế độ đảo: lọc rộng thì đánh dấu dòng BỊ LOẠI cho ít thao tác hơn. */
   '.fll-dropping > [class*="logRow"].fll-drop{display:none!important}',
   '.fll-hit{background:rgba(255,46,136,.22)!important;outline:2px solid #ff2e88!important;outline-offset:-2px;',
   'border-radius:3px;animation:fll-flash .9s ease-out}',
   '@keyframes fll-flash{0%{background:rgba(255,46,136,.6)!important}100%{background:rgba(255,46,136,.22)!important}}',
 ].join('');
-// AI-GENERATED END
-/*
-File: src/02g-config.js
-Created At: 2026-09-10 16:00:00 +07:00
-Created By: AI
-AI Agent: Claude Code
-Model: claude-opus-5
-*/
 // @ts-check
-// AI-GENERATED START — rut cac dong "config" ma app nhan tu BE / webadmin / CDN / A-B testing
+// rút các dòng "config" mà app nhận từ BE / webadmin / CDN / A-B testing
 //
-// Vi sao tach rieng khoi buildIssueGroups: nhung dong nay deu o muc INFO nen khong bao gio loi qua
-// nhom loi, va chung khong phai su kien nguoi dung nen khong vao hanh trinh. Chung tra loi mot cau
-// khac han: "luc do may nay dang chay voi cau hinh gi".
+// Vì sao tách riêng khỏi buildIssueGroups: những dòng này đều ở mức INFO nên không bao giờ lọt qua
+// nhóm lỗi, và chúng không phải sự kiện người dùng nên không vào hành trình. Chúng trả lời một câu
+// khác hẳn: "lúc đó máy này đang chạy với cấu hình gì".
 //
-// Nguon (source) KHONG suy doan: moi nhan duoi day deu doc duoc thang tu chinh dong log
-// (chu "webadmin", url CDN, ten lop ABTesting...). Dong nao khong tu noi nguon thi vao nhom 'oth'
-// chu khong doan bua.
+// Nguồn (source) KHÔNG suy đoán: mọi nhãn dưới đây đều đọc được thẳng từ chính dòng log
+// (chữ "webadmin", url CDN, tên lớp ABTesting...). Dòng nào không tự nói nguồn thì vào nhóm 'oth'
+// chứ không đoán bừa.
 
 const CONFIG_SOURCE_ORDER = ['ab', 'be', 'wa', 'cdn', 'app', 'oth'];
 const CONFIG_SOURCE_META = {
@@ -2108,23 +2105,23 @@ const RE_CFG_OMEGA = /OMEGA FEATURE TESTINGS LIST CODE:\s*([\s\S]+)$/;
 const RE_CFG_SENTRY_KMP = /@@SentryKMP\s*::\s*(.+?)\s+(\w+=[\s\S]+)$/;
 const RE_CFG_SPAM = /(ApiSpamDetector):\s*Config:\s*([\s\S]+)$/;
 const RE_CFG_AUTH_BG = /(AuthenticationBackgroundConfigApi)\s*>>\s*fetchConfig\s*>>\s*loaded\s+([\s\S]+)$/;
-// Kotlin/KMM in data class ra dang TenLop(a=1, b=2). Chi nhan khi TEN LOP co chu Config/Setting —
-// khong the bat moi cap ngoac, gan nua dong log nao cung co ngoac.
+// Kotlin/KMM in data class ra dạng TenLop(a=1, b=2). Chỉ nhận khi TÊN LỚP có chữ Config/Setting —
+// không thể bắt mọi cặp ngoặc, gần nửa dòng log nào cũng có ngoặc.
 const RE_CFG_DATA_CLASS = /([A-Z]\w*(?:Config|Setting)\w*)\((.{20,})\)\s*$/;
-// Duong dan API co chu "config": xet tren path da bo query, vi query cua API khac cung co
-// "displayConfig=" ma do khong phai API cau hinh.
+// Đường dẫn API có chữ "config": xét trên path đã bỏ query, vì query của API khác cũng có
+// "displayConfig=" mà đó không phải API cấu hình.
 const RE_CFG_URL = /config/i;
 
-// Khong dat \b truoc "config": trong log chu nay hau het dinh lien voi tu khac (fetchConfig,
-// getTabMeConfigBE, displayConfig) nen \b se truot het.
-// Loai rieng dong tu "configure/configuring/configured" (dong bao da dung xong mot buoc, khong
-// mang gia tri cau hinh nao); "configuration(s)" thi van nhan.
+// Không đặt \b trước "config": trong log chữ này hầu hết dính liền với từ khác (fetchConfig,
+// getTabMeConfigBE, displayConfig) nên \b sẽ trượt hết.
+// Loại riêng động từ "configure/configuring/configured" (dòng báo đã dùng xong một bước, không
+// mang giá trị cấu hình nào); "configuration(s)" thì vẫn nhận.
 const RE_CFG_WORD = /config(?!ur(?:e|ing|ed)\b)|setting|feature.?flag|toggle|kill.?switch/i;
-// Dong tu noi la nhan ve tu mot loi goi -> xep vao 'be'. Khong co dau hieu nay thi de 'oth'.
+// Động từ nói là nhận về từ một lời gọi -> xếp vào 'be'. Không có dấu hiệu này thì để 'oth'.
 const RE_CFG_FROM_BE = /response|payload|fetched|downloaded/i;
 const RE_CFG_BLOB = /[{[]/;
-// Nam module nay deu da co cho rieng (tab HTTP, nhom loi Grafana, hanh trinh tracker; con MQTT va
-// NOTIFICATION la ban tin day xuong chu khong phai cau hinh) — de chung vao day chi lam loang.
+// Năm module này đều đã có chỗ riêng (tab HTTP, nhóm lỗi Grafana, hành trình tracker; còn MQTT và
+// NOTIFICATION là bản tin đẩy xuống chứ không phải cấu hình) — để chúng vào đây chỉ làm loãng.
 const RE_CFG_SKIP_MODULE = /^(HTTP|Grafana|MoMoTracker|MQTT|NOTIFICATION)/;
 
 function cfgHit(source, key, value, note) {
@@ -2133,7 +2130,7 @@ function cfgHit(source, key, value, note) {
   return { source, key: trimmed.slice(0, 90), value: String(value).trim(), note: note || '' };
 }
 
-// Cat duoi url lay ten file, vi chinh ten file moi la "khoa" cua cau hinh do.
+// Cắt đuôi url lấy tên file, vì chính tên file mới là "khoá" của cấu hình đó.
 function cdnConfigName(url) {
   const clean = url.split('?')[0].replace(/\/+$/, '');
   const name = clean.slice(clean.lastIndexOf('/') + 1);
@@ -2191,8 +2188,8 @@ function matchConfigSpecific(message) {
   return null;
 }
 
-// Luoi vet cuoi cung, co y hep: chu "config" phai nam TRUOC khoi JSON. Nho vay dong payload khuyen mai
-// dai 5000 ky tu (mo dau bang "{", chu displayConfig nam sau do) khong bi keo vao day.
+// Lưới vét cuối cùng, cố ý hẹp: chữ "config" phải nằm TRƯỚC khối JSON. Nhờ vậy dòng payload khuyến mãi
+// dài 5000 ký tự (mở đầu bằng "{", chữ displayConfig nằm sau đó) không bị kéo vào đây.
 function matchConfigGeneric(message) {
   const blob = message.search(RE_CFG_BLOB);
   if (blob < 0) return null;
@@ -2227,10 +2224,10 @@ function buildConfigs(entries, httpCalls) {
     group.count += 1;
     group.indices.push(entry.domIndex);
     if (hit.note && !group.note) group.note = hit.note;
-    // Chi ghi khi gia tri KHAC lan truoc. Nho vay values.length > 1 co dung mot nghia:
-    // cau hinh nay doi giua chung phien — thu dang de y nhat khi "pha an".
-    // Nhung van phai gom DU chi so dong cua moi gia tri: mot khoa ghi 4 lan cung mot gia tri thi
-    // van la 4 dong log co that, phai duyet duoc ca bon chu khong chi nhay toi dong dau.
+    // Chỉ ghi khi giá trị KHÁC lần trước. Nhờ vậy values.length > 1 có đúng một nghĩa:
+    // cấu hình này đổi giữa chừng phiên — thứ đáng để ý nhất khi "phá án".
+    // Nhưng vẫn phải gom ĐỦ chỉ số dòng của mọi giá trị: một khoá ghi 4 lần cùng một giá trị thì
+    // vẫn là 4 dòng log có thật, phải duyệt được cả bốn chứ không chỉ nhảy tới dòng đầu.
     const last = group.values[group.values.length - 1];
     if (last && last.value === hit.value) {
       last.indices.push(entry.domIndex);
@@ -2242,8 +2239,8 @@ function buildConfigs(entries, httpCalls) {
       domIndex: entry.domIndex,
       lineNo: entry.lineNo,
       time: entry.time,
-      // Xet tren GIA TRI chu khong phai ca dong: dong log nao cung co "[Module: X]" nen do tren
-      // entry.raw thi hang nao cung moc ra nut JSON, bam vao lai chang co JSON nao.
+      // Xét trên GIÁ TRỊ chứ không phải cả dòng: dòng log nào cũng có "[Module: X]" nên đo trên
+      // entry.raw thì hàng nào cũng mọc ra nút JSON, bấm vào lại chẳng có JSON nào.
       hasJson: RE_CFG_BLOB.test(hit.value),
     });
   });
@@ -2264,9 +2261,9 @@ function buildConfigs(entries, httpCalls) {
   CONFIG_SOURCE_ORDER.forEach((source) => {
     bySource[source] = items.filter((item) => item.source === source);
   });
-  // Call BE co chu "config" tren duong dan: chinh no la cho app di XIN cau hinh. Cac dong nay nam o
-  // module HTTP nen bi loai khoi vong quet ben tren; keo rieng ra day de tab tra loi duoc ca cau
-  // "app xin cau hinh gi tu BE" chu khong chi "app nhan duoc gi".
+  // Call BE có chữ "config" trên đường dẫn: chính nó là chỗ app đi XIN cấu hình. Các dòng này nằm ở
+  // module HTTP nên bị loại khỏi vòng quét bên trên; kéo riêng ra đây để tab trả lời được cả câu
+  // "app xin cấu hình gì từ BE" chứ không chỉ "app nhận được gì".
   const calls = (httpCalls || []).filter((call) => RE_CFG_URL.test(call.path || ''));
   return {
     items,
@@ -2278,33 +2275,25 @@ function buildConfigs(entries, httpCalls) {
     hasAny: items.length > 0 || calls.length > 0,
   };
 }
-// AI-GENERATED END
-/*
-File: src/02h-duplicate.js
-Created At: 2026-09-11 00:30:00 +07:00
-Created By: AI
-AI Agent: Claude Code
-Model: claude-opus-5
-*/
 // @ts-check
-// AI-GENERATED START — phat hien mot khoi dong bi lap lai nguyen xi trong log
+// phát hiện một khối dòng bị lặp lại nguyên xi trong log
 //
-// Vi sao can: mot log feedback production that (autoId 45490371) dai 4222 dong hoa ra la 2111 dong dau
-// LAP LAI Y HET — md5 hai nua bang nhau, cho noi nam ngay sau mot dong "LOGGER: END OF BATCH". Tool
-// khong biet chuyen do nen dem gap doi MOI THU: moi nhom loi, moi call HTTP, moi event tracker. Doc
-// "loi nay xay ra 4 lan" trong khi that ra 2 lan la doc sai han van de.
+// Vì sao cần: một log feedback production thật (autoId 45490371) dài 4222 dòng hoá ra là 2111 dòng đầu
+// LẶP LẠI Y HỆT — md5 hai nửa bằng nhau, chỗ nối nằm ngay sau một dòng "LOGGER: END OF BATCH". Tool
+// không biết chuyện đó nên đếm gấp đôi MỌI THỨ: mọi nhóm lỗi, mọi call HTTP, mọi event tracker. Đọc
+// "lỗi này xảy ra 4 lần" trong khi thật ra 2 lần là đọc sai hẳn vấn đề.
 //
-// Cach tim: moi dong trung nhau sinh ra mot "phieu" cho do lech giua hai lan xuat hien. Log bi noi doi
-// se do don gan het phieu vao DUNG MOT do lech (2111). Sau do xac minh bang cach dem chuoi lien tiep
-// dai nhat khop theo do lech do — trung ngau nhien vai dong le te thi khong tao duoc chuoi dai.
+// Cách tìm: mỗi dòng trùng nhau sinh ra một "phiếu" cho độ lệch giữa hai lần xuất hiện. Log bị nối đôi
+// sẽ dồn gần hết phiếu vào ĐÚNG MỘT độ lệch (2111). Sau đó xác minh bằng cách đếm chuỗi liên tiếp
+// dài nhất khớp theo độ lệch đó — trùng ngẫu nhiên vài dòng lẻ tẻ thì không tạo được chuỗi dài.
 //
-// Co y KHONG tu dong bo khoi lap: bao truoc, de nguoi doc bam. Khu nham mot khoi khong lap thi so lieu
-// cung sai, chi la sai theo huong khac — ma luc do khong con dau hieu nao de nhan ra.
+// Cố ý KHÔNG tự động bỏ khối lặp: báo trước, để người đọc bấm. Khử nhầm một khối không lặp thì số liệu
+// cũng sai, chỉ là sai theo hướng khác — mà lúc đó không còn dấu hiệu nào để nhận ra.
 
-// Duoi nguong nay coi nhu trung ngau nhien: log sach nhat trong ba log that co chuoi lap dai nhat
-// 8 dong (cac dong dinh ky nhu heartbeat, "END OF BATCH"). 40 la cach xa nguong do.
+// Dưới ngưỡng này coi như trùng ngẫu nhiên: log sạch nhất trong ba log thật có chuỗi lặp dài nhất
+// 8 dòng (các dòng định kỳ như heartbeat, "END OF BATCH"). 40 là cách xa ngưỡng đó.
 const DUPLICATE_MIN_RUN = 40;
-// Dong qua ngan (dau phan cach, dong trong) trung nhau la chuyen binh thuong, khong tinh phieu.
+// Dòng quá ngắn (dấu phân cách, dòng trống) trùng nhau là chuyện bình thường, không tính phiếu.
 const DUPLICATE_MIN_LINE = 24;
 
 function tallyDuplicateOffsets(entries) {
@@ -2324,7 +2313,7 @@ function tallyDuplicateOffsets(entries) {
   return offsets;
 }
 
-// Do lech duoc nhieu phieu nhat moi la ung vien; con lai la trung le te.
+// Độ lệch được nhiều phiếu nhất mới là ứng viên; còn lại là trùng lẻ tẻ.
 function bestDuplicateOffset(offsets) {
   let best = 0;
   let bestVotes = 0;
@@ -2337,11 +2326,11 @@ function bestDuplicateOffset(offsets) {
   return { offset: best, votes: bestVotes };
 }
 
-// Chuoi lien tiep dai nhat ma entries[i] giong het entries[i - offset].
+// Chuỗi liên tiếp dài nhất mà entries[i] giống hệt entries[i - offset].
 //
-// Dong ngan (dong trong, dong phan cach) la TRUNG TINH: khong tinh la khop, nhung cung khong cat dut
-// chuoi. Do that: coi chung la cat dut thi khoi lap 2111 dong cua log production chi nhan ra duoc 491
-// dong, vi cu vai chuc dong lai co mot dong trong xen vao.
+// Dòng ngắn (dòng trống, dòng phân cách) là TRUNG TÍNH: không tính là khớp, nhưng cũng không cắt đứt
+// chuỗi. Đo thật: coi chúng là cắt đứt thì khối lặp 2111 dòng của log production chỉ nhận ra được 491
+// dòng, vì cứ vài chục dòng lại có một dòng trống xen vào.
 function longestRunAtOffset(entries, offset) {
   let runStart = -1;
   let runCount = 0;
@@ -2373,56 +2362,46 @@ function findDuplicateBlock(entries) {
     offset,
     from,
     to,
-    // length = ca doan bi lap (ke ca dong trong xen giua); matched = so dong that su khop tung ky tu.
+    // length = cả đoạn bị lặp (kể cả dòng trống xen giữa); matched = số dòng thật sự khớp từng ký tự.
     length: to - from + 1,
     matched: run.count,
-    // Khoi goc ma khoi tren lap lai — de nguoi doc nhay toi doi chieu.
-    sourceFrom: from - offset,
     lineFrom: entries[from].lineNo,
     lineTo: entries[to].lineNo,
     sourceLineFrom: entries[from - offset].lineNo,
   };
 }
 
-// Danh dau tren tung entry de bo loc va thong ke doc duoc. Tra ve chinh thong tin khoi de gan vao data.
+// Đánh dấu trên từng entry để bộ lọc và thống kê đọc được. Trả về chính thông tin khối để gắn vào data.
 function markDuplicateEntries(entries) {
   const block = findDuplicateBlock(entries);
   if (!block) return null;
   for (let index = block.from; index <= block.to; index += 1) entries[index].isDuplicate = true;
   return block;
 }
-// AI-GENERATED END
-/*
-File: src/02i-environment.js
-Created At: 2026-09-11 02:00:00 +07:00
-Created By: AI
-AI Agent: Claude Code
-Model: claude-opus-5
-*/
 // @ts-check
-// AI-GENERATED START — doc "may nay la may gi, chay ban nao, noi vao dau" tu header cua request HTTP
+// đọc "máy này là máy gì, chạy bản nào, nối vào đâu" từ header của request HTTP
 //
-// Vi sao lay tu header chu khong tu module DeviceProfileManager: dem tren ba log that,
-// DeviceProfileManager co 27 / 9 / 0 dong — bang 0 tren log production. Con header User-Agent thi co
-// 52 / 66 / 94 lan, va moi log chi co DUNG MOT gia tri. Day la nguon duy nhat tra loi duoc cau "may
-// gi, iOS may, ban nao" tren ca log production.
+// Vì sao lấy từ header chứ không từ module DeviceProfileManager: đếm trên ba log thật,
+// DeviceProfileManager có 27 / 9 / 0 dòng — bằng 0 trên log production. Còn header User-Agent thì có
+// 52 / 66 / 94 lần, và mỗi log chỉ có ĐÚNG MỘT giá trị. Đây là nguồn duy nhất trả lời được câu "máy
+// gì, iOS mấy, bản nào" trên cả log production.
 //
-// Dang that (da lam mo id): MoMoPlatform UAT/5.15.0.51500 CFNetwork/1410.1 Darwin/22.6.0
+// Dạng thật (đã làm mờ id): MoMoPlatform UAT/5.15.0.51500 CFNetwork/1410.1 Darwin/22.6.0
 //                           (iPhone 8 Plus iOS/16.7.16) AgentID/<AN>
 
 const RE_ENV_UA = /MoMoPlatform\s*([A-Za-z]*)\s*\/?([\d.]+)\s+CFNetwork\/([\d.]+)\s+Darwin\/([\d.]+)\s+\(([^)]*)\)/;
 const RE_ENV_DEVICE = /^(.*?)\s+iOS\/([\d.]+)$/;
 const RE_ENV_PERF = /device_performance[=:"\s]+([a-z-]{3,20})/;
 const RE_ENV_OS = /device_os[=:"\s]+([A-Za-z0-9._ ]{2,30})/;
-// Ky tu dong phai gom ca "}": tren log that lang nam giua map nen sau no la dau phay, nhung khi no la
-// truong CUOI cua map thi sau no la dau dong ngoac.
+// Ký tự đóng phải gồm cả "}": trên log thật lang nằm giữa map nên sau nó là dấu phẩy, nhưng khi nó là
+// trường CUỐI của map thì sau nó là dấu đóng ngoặc.
 const RE_ENV_LANG = /[",\s]lang[=:"\s]+([a-z]{2,5})[",\s}]/;
-// Dau hieu KHONG phai production tren hostname. Khong lam danh sach host production: danh sach do se
-// cu phai cap nhat, con dau hieu uat/dev/staging thi on dinh hon nhieu.
+// Dấu hiệu KHÔNG phải production trên hostname. Không làm danh sách host production: danh sách đó sẽ
+// cứ phải cập nhật, còn dấu hiệu uat/dev/staging thì ổn định hơn nhiều.
 const RE_ENV_NONPROD_HOST = /(^|[.\-/])(uat|dev|staging|test|sandbox)([.\-:/]|$)/i;
-// Tim DAU HIEU khong-production, khong phai "khac chu production". Ban production tren App Store ghi
-// flavor la "Store" — coi moi thu khac chu "production" la dang ngo thi log that nao cung bi canh bao
-// nham. Da dinh dung loi do khi test tren trang admin that.
+// Tìm DẤU HIỆU không-production, không phải "khác chữ production". Bản production trên App Store ghi
+// flavor là "Store" — coi mọi thứ khác chữ "production" là đáng ngờ thì log thật nào cũng bị cảnh báo
+// nhầm. Đã dính đúng lỗi đó khi test trên trang admin thật.
 const RE_ENV_NONPROD_BUILD = /^(uat|staging|dev|test|sandbox|alpha|beta|debug)$/i;
 
 function envFirst(entries, re, group) {
@@ -2430,14 +2409,14 @@ function envFirst(entries, re, group) {
     const raw = entries[i].raw;
     if (!raw) continue;
     const hit = re.exec(raw);
-    // group == null chu khong phai "group || 1": goi voi group = 0 (lay ca chuoi khop) thi 0 la falsy,
-    // "0 || 1" ra 1 va ham tra ve nhom thu nhat. Da dinh dung bay nay.
+    // group == null chứ không phải "group || 1": gọi với group = 0 (lấy cả chuỗi khớp) thì 0 là falsy,
+    // "0 || 1" ra 1 và hàm trả về nhóm thứ nhất. Đã dính đúng bẫy này.
     if (hit) return hit[group == null ? 1 : group];
   }
   return '';
 }
 
-// Ten may + phien ban iOS nam chung trong ngoac: "iPhone 8 Plus iOS/16.7.16".
+// Tên máy + phiên bản iOS nằm chung trong ngoặc: "iPhone 8 Plus iOS/16.7.16".
 function parseEnvDevice(inside) {
   const hit = RE_ENV_DEVICE.exec(inside || '');
   if (!hit) return { device: inside || '', osVersion: '' };
@@ -2458,7 +2437,7 @@ function buildEnvironment(entries, httpCalls) {
 
   const flavor = parsed ? parsed[1] : '';
   return {
-    // Rong het thi tab khong ve muc nay — log production cat giua chung co the khong co request nao.
+    // Rỗng hết thì tab không vẽ mục này — log production cắt giữa chừng có thể không có request nào.
     available: !!(parsed || hosts.size),
     flavor,
     appVersion: parsed ? parsed[2] : '',
@@ -2471,30 +2450,22 @@ function buildEnvironment(entries, httpCalls) {
     lang: envFirst(entries, RE_ENV_LANG),
     hostCount: hosts.size,
     nonProdHosts,
-    // Ban Staging/UAT ma lai goi toan host khong co dau hieu uat/dev — gap that tren mot log. Chi NOI
-    // RA su that quan sat duoc, khong ket luan "log nay la prod hay khong": ban build va host la hai
-    // chuyen khac nhau, va danh sach host o day chi gom nhung host co request trong log.
+    // Bản Staging/UAT mà lại gọi toàn host không có dấu hiệu uat/dev — gặp thật trên một log. Chỉ NÓI
+    // RA sự thật quan sát được, không kết luận "log này là prod hay không": bản build và host là hai
+    // chuyện khác nhau, và danh sách host ở đây chỉ gồm những host có request trong log.
     mixedBuild: RE_ENV_NONPROD_BUILD.test(flavor) && hosts.size > 0 && nonProdHosts.length === 0,
   };
 }
-// AI-GENERATED END
-/*
-File: src/02j-summary.js
-Created At: 2026-09-11 02:40:00 +07:00
-Created By: AI
-AI Agent: Claude Code
-Model: claude-opus-5
-*/
 // @ts-check
-// AI-GENERATED START — dung mot khoi markdown ~25 dong de dan thang vao ticket
+// dựng một khối markdown ~25 dòng để dán thẳng vào ticket
 //
-// Buoc trong nhat trong quy trinh cua dev: doc log xong van phai go tay lai vao ticket. "Copy dong dang
-// hien" cho ra vai nghin dong tho — khong ai dan duoc, ma lai kem nguyen so dien thoai va token trong
+// Bước trống nhất trong quy trình của dev: đọc log xong vẫn phải gõ tay lại vào ticket. "Copy dòng đang
+// hiện" cho ra vài nghìn dòng thô — không ai dán được, mà lại kèm nguyên số điện thoại và token trong
 // payload.
 //
-// LUAT CUA KHOI NAY: chi liet ke SU KIEN CO GIO, tuyet doi khong co cau "nguyen nhan la X". Xep hang
-// nguyen nhan la suy doan, ma cai nay se nam lai trong ticket cho nguoi khac doc nhu su that.
-// Va chi lay nhung truong DA HIEN tren panel — khong nhet payload tho vao.
+// LUẬT CỦA KHỐI NÀY: chỉ liệt kê SỰ KIỆN CÓ GIỜ, tuyệt đối không có câu "nguyên nhân là X". Xếp hạng
+// nguyên nhân là suy đoán, mà cái này sẽ nằm lại trong ticket cho người khác đọc như sự thật.
+// Và chỉ lấy những trường ĐÃ HIỆN trên panel — không nhét payload thô vào.
 
 const SUMMARY_MAX_GROUPS = 5;
 const SUMMARY_MAX_CALLS = 5;
@@ -2520,12 +2491,12 @@ function summaryEnvironment(data) {
   return out;
 }
 
-// Nhung gi log KHONG tra loi duoc cung phai nam trong ticket: nguoi doc sau se biet vi sao khong co
-// phan do, thay vi tuong la "da kiem, khong co van de".
+// Những gì log KHÔNG trả lời được cũng phải nằm trong ticket: người đọc sau sẽ biết vì sao không có
+// phần đó, thay vì tưởng là "đã kiểm, không có vấn đề".
 function summaryBlindSpots(data) {
   const notes = [];
-  // LUON nhac, chi doi cau chu. Truoc day cho bat "bo khoi lap" thi cau nay bien mat — nguoi doc ticket
-  // khong con mot dau hieu nao rang file goc bi noi doi.
+  // LUÔN nhắc, chỉ đổi câu chữ. Trước đây chỗ bật "bỏ khối lặp" thì câu này biến mất — người đọc ticket
+  // không còn một dấu hiệu nào rằng file gốc bị nối đôi.
   if (data.duplicate) {
     notes.push(lensState.filter.skipDuplicate
       ? 'file gốc có ' + data.duplicate.length + ' dòng lặp lại nguyên xi; các con số trên đã trừ chúng ra'
@@ -2548,8 +2519,8 @@ function summaryBlindSpots(data) {
   return notes;
 }
 
-// Ticket mo ta CA LOG chu khong mo ta lat cat nguoi doc dang mo — nhung "bo khoi lap" khong phai mot
-// lat cat, no la sua du lieu ve dung. Nen day la ngoai le duy nhat duoc loc.
+// Ticket mô tả CẢ LOG chứ không mô tả lát cắt người đọc đang mở — nhưng "bỏ khối lặp" không phải một
+// lát cắt, nó là sửa dữ liệu về đúng. Nên đây là ngoại lệ duy nhất được lọc.
 function summaryData(data) {
   if (!data.duplicate || !lensState.filter.skipDuplicate) return data;
   const entries = data.entries.filter((entry) => !entry.isDuplicate);
@@ -2628,19 +2599,11 @@ function buildTicketSummary(fullData) {
     'Đây là danh sách sự kiện có giờ, không phải kết luận nguyên nhân._\n';
   return out;
 }
-// AI-GENERATED END
-/*
-File: src/03a-state.js
-Created At: 2026-09-08 16:00:00 +07:00
-Created By: AI
-AI Agent: Claude Code
-Model: claude-opus-5
-*/
 // @ts-check
-// AI-GENERATED START — hang so dung chung, lensState, tat tieng chu ky, ham dinh dang
-// Tach ra tu src/03-shell.js (992 dong / 67 ham). Cac file src/*.js duoc build.sh noi lai
-// theo thu tu ten file va boc trong MOT IIFE nen van dung chung scope — tach chi de doc,
-// khong doi cach chung goi nhau.
+// hằng số dùng chung, lensState, tắt tiếng chữ ký, hàm định dạng
+// Tách ra từ src/03-shell.js (992 dòng / 67 hàm). Các file src/*.js được build.sh nối lại
+// theo thứ tự tên file và bọc trong MỘT IIFE nên vẫn dùng chung scope — tách chỉ để đọc,
+// không đổi cách chúng gọi nhau.
 
 const MINIMAP_BUCKETS = 90;
 const SPARKLINE_BUCKETS = 26;
@@ -2673,15 +2636,15 @@ const lensState = {
   mutedSignatures: new Set(),
   filterTemplates: [],
   isShowingMuted: false,
-  // 'keep' = danh dau dong duoc giu, 'drop' = danh dau dong bi loai. Chon theo phia it hon,
-  // vi chi phi loc nam o SO LAN cham class chu khong phai o layout.
+  // 'keep' = đánh dấu dòng được giữ, 'drop' = đánh dấu dòng bị loại. Chọn theo phía ít hơn,
+  // vì chi phí lọc nằm ở SỐ LẦN chạm class chứ không phải ở layout.
   filterDomMode: 'keep',
-  // Nguoi dung bam "x" tren feedback nay: dung tu gan lai nua (nhung sang feedback khac thi gan lai).
+  // Người dùng bấm "x" trên feedback này: đừng tự gắn lại nữa (nhưng sang feedback khác thì gắn lại).
   isDismissed: false,
-  // Nho lan truoc dang mo panel hay dang thu gon, de sang feedback khac tra ve dung dang do.
+  // Nhớ lần trước đang mở panel hay đang thu gọn, để sang feedback khác trả về đúng dạng đó.
   wasPanelOpen: false,
-  // Dong bi bo loc an nhung nguoi dung van nhay toi: phai dem rieng, khong thi con so
-  // "dang hien N/total" se noi doi.
+  // Dòng bị bộ lọc ẩn nhưng người dùng vẫn nhảy tới: phải đếm riêng, không thì con số
+  // "đang hiện N/total" sẽ nói dối.
   forcedVisibleIndices: new Set(),
   filter: {
     levels: new Set(),
@@ -2689,27 +2652,33 @@ const lensState = {
     text: '',
     useRegex: true,
     hideOthers: true,
-    // Khoang thoi gian tuy y. Chip preset ghi (lastTs - N, lastTs); keo tren minimap ghi khoang bat ky.
+    // Khoảng thời gian tuỳ ý. Chip preset ghi (lastTs - N, lastTs); kéo trên minimap ghi khoảng bất kỳ.
     timeFrom: null,
     timeTo: null,
+    // Preset đang bật, tính bằng ms ("2 phút cuối" = 120000), null = khoảng tự chọn hoặc không lọc.
+    // Phải NHỚ chứ không suy ngược từ (timeFrom, timeTo): setTimeWindowPreset kẹp timeFrom về firstTs,
+    // nên trên log ngắn hơn preset thì hiệu hai mốc không còn bằng preset và chip không sáng, nhãn
+    // lại đổi thành hai mốc giờ tuyệt đối. Đo trên ba log thật (dài 291s / 572s / 234s): preset
+    // "5 phút cuối" hỏng ở CẢ BA. Nhớ preset còn cho phép tính lại cửa sổ khi sang log khác.
+    windowPreset: null,
     session: null,
-    // Bo qua khoi dong bi lap lai nguyen xi. Mac dinh TAT: bao truoc roi de nguoi doc bam, vi khu nham
-    // mot khoi khong lap thi so lieu cung sai — chi la sai theo huong khac va khong con dau hieu nao.
+    // Bỏ qua khối dòng bị lặp lại nguyên xi. Mặc định TẮT: báo trước rồi để người đọc bấm, vì khử nhầm
+    // một khối không lặp thì số liệu cũng sai — chỉ là sai theo hướng khác và không còn dấu hiệu nào.
     skipDuplicate: false,
   },
-  // Muc dang di chuot qua, de biet luc nao phai ve lai mui ten len minimap (va luc nao thi thoi).
+  // Mục đang di chuột qua, để biết lúc nào phải vẽ lại mũi tên lên minimap (và lúc nào thì thôi).
   aimEl: null,
-  // Phan tu chuot dang dung tren, de biet luc nao phai hien tooltip tu ve (va luc nao thi thoi).
+  // Phần tử chuột đang dừng trên, để biết lúc nào phải hiện tooltip tự vẽ (và lúc nào thì thôi).
   tipEl: null,
-  // Khoang thoi gian minimap dang VE (null = ve nguyen ca log). Doc lap voi bo loc: phong to chi doi
-  // cai nhin, khong doi tap dong dang hien.
+  // Khoảng thời gian minimap đang VẼ (null = vẽ nguyên cả log). Độc lập với bộ lọc: phóng to chỉ đổi
+  // cái nhìn, không đổi tập dòng đang hiện.
   mapZoom: null,
-  // Cac nac phong to truoc do, de lui tung nac mot thay vi nhay thang ve ca log.
+  // Các nấc phóng to trước đó, để lùi từng nấc một thay vì nhảy thẳng về cả log.
   mapZoomStack: [],
   el: {},
 };
 
-/* ------------------------------------------- tat tieng chu ky (nho qua phien) */
+/* ------------------------------------------- tắt tiếng chữ ký (nhớ qua phiên) */
 
 function loadMutedSignatures() {
   try {
@@ -2723,7 +2692,7 @@ function persistMutedSignatures() {
   try {
     localStorage.setItem(MUTE_STORAGE_KEY, JSON.stringify(Array.from(lensState.mutedSignatures)));
   } catch (error) {
-    // Rieng tu / het dung luong: tat tieng van chay trong phien nay, chi khong nho sang lan sau.
+    // Riêng tư / hết dung lượng: tắt tiếng vẫn chạy trong phiên này, chỉ không nhớ sang lần sau.
   }
 }
 
@@ -2741,7 +2710,7 @@ function countUnmutedErrorGroups(source) {
   return source.groups.filter((group) => group.level === 'ERROR' && !isGroupMuted(group)).length;
 }
 
-// Cac tab doc qua day: co bo loc thi la thong ke cua tap dang hien, khong thi la ca file.
+// Các tab đọc qua đây: có bộ lọc thì là thống kê của tập đang hiện, không thì là cả file.
 function getView() {
   return lensState.view || lensState.data;
 }
@@ -2766,8 +2735,8 @@ function formatDuration(ms) {
   if (ms == null) return '';
   if (ms < 1000) return ms + 'ms';
   if (ms < 60000) return (ms / 1000).toFixed(ms < 10000 ? 1 : 0) + 's';
-  // Khoang lang giua hai lan mo app co the dai vai tieng. "14182s" thi khong ai doc ra la gan bon
-  // tieng — phai tu chia trong dau. Tren mot phut thi doi sang phut/gio.
+  // Khoảng lặng giữa hai lần mở app có thể dài vài tiếng. "14182s" thì không ai đọc ra là gần bốn
+  // tiếng — phải tự chia trong đầu. Trên một phút thì đổi sang phút/giờ.
   const totalSeconds = Math.round(ms / 1000);
   const minutes = Math.floor(totalSeconds / 60) % 60;
   const hours = Math.floor(totalSeconds / 3600);
@@ -2778,28 +2747,20 @@ function formatDuration(ms) {
 function formatCount(value) {
   return value >= 1000 ? (value / 1000).toFixed(1) + 'k' : String(value);
 }
-// AI-GENERATED END
-/*
-File: src/03b-nav.js
-Created At: 2026-09-08 16:00:00 +07:00
-Created By: AI
-AI Agent: Claude Code
-Model: claude-opus-5
-*/
 // @ts-check
-// AI-GENERATED START — nhay toi dong log, duyet ket qua khop, thanh dieu huong duoi
-// Tach ra tu src/03-shell.js (992 dong / 67 ham). Cac file src/*.js duoc build.sh noi lai
-// theo thu tu ten file va boc trong MOT IIFE nen van dung chung scope — tach chi de doc,
-// khong doi cach chung goi nhau.
+// nhảy tới dòng log, duyệt kết quả khớp, thanh điều hướng dưới
+// Tách ra từ src/03-shell.js (992 dòng / 67 hàm). Các file src/*.js được build.sh nối lại
+// theo thứ tự tên file và bọc trong MỘT IIFE nên vẫn dùng chung scope — tách chỉ để đọc,
+// không đổi cách chúng gọi nhau.
 
-/* ---------------------------------------------------------------- dieu huong */
+/* ---------------------------------------------------------------- điều hướng */
 
 function jumpToIndex(domIndex) {
   const data = lensState.data;
   const entry = data.entries[domIndex];
   if (!entry || !entry.el) return;
 
-  // Truoc day cho chay het 4085 phan tu de go class highlight moi lan bam n — chi can nho dong truoc do.
+  // Trước đây cho chạy hết 4085 phần tử để gỡ class highlight mỗi lần bấm n — chỉ cần nhớ dòng trước đó.
   if (lensState.el.lastHit && lensState.el.lastHit !== entry.el) lensState.el.lastHit.classList.remove('fll-hit');
   if (!isRowVisible(entry)) {
     lensState.forcedVisibleIndices.add(domIndex);
@@ -2826,9 +2787,9 @@ function setMatches(indices, label) {
   lensState.matchPos = indices.length ? 0 : -1;
   if (indices.length) jumpToIndex(indices[0]);
   renderFooter();
-  // Nhay mot cai khi co danh sach MOI. Thanh nay nam duoi cung panel nen nguoi dung hay khong nhan ra
-  // vua co gi do de duyet; nhay o day chi de keo mat xuong. Co y KHONG nhay moi lan bam n/p — luc do
-  // nguoi dung dang nhin no roi, nhay nua thanh phien.
+  // Nháy một cái khi có danh sách MỚI. Thanh này nằm dưới cùng panel nên người dùng hay không nhận ra
+  // vừa có gì đó để duyệt; nháy ở đây chỉ để kéo mắt xuống. Cố ý KHÔNG nháy mỗi lần bấm n/p — lúc đó
+  // người dùng đang nhìn nó rồi, nháy nữa thành phiền.
   flashFooter();
 }
 
@@ -2837,8 +2798,8 @@ function flashFooter() {
   const footer = info && info.parentElement;
   if (!footer || !lensState.matches.length) return;
   footer.classList.remove('fll-ft-flash');
-  // Doc lai offsetWidth de trinh duyet ket thuc animation cu truoc khi gan lai class,
-  // neu khong thi bam hai lan lien tiep se khong thay nhay lan thu hai.
+  // Đọc lại offsetWidth để trình duyệt kết thúc animation cũ trước khi gắn lại class,
+  // nếu không thì bấm hai lần liên tiếp sẽ không thấy nháy lần thứ hai.
   void footer.offsetWidth;
   footer.classList.add('fll-ft-flash');
 }
@@ -2851,10 +2812,10 @@ function moveMatch(step) {
   renderFooter();
 }
 
-// Thanh duoi cung tung luon hien va ghi "Chua chon gi de duyet" — dung nhung khong noi no LA gi,
-// nen nguoi dung nhin qua khong biet de lam gi, ma van chiem cho.
-// Nay AN HAN khi chua co gi de duyet. Chinh viec no hien ra (kem mot nhay mau accent) la loi gioi
-// thieu: no chi xuat hien dung luc vua co mot danh sach dong de di qua.
+// Thanh dưới cùng từng luôn hiện và ghi "Chưa chọn gì để duyệt" — đúng nhưng không nói nó LÀ gì,
+// nên người dùng nhìn qua không biết để làm gì, mà vẫn chiếm chỗ.
+// Nay ẨN HẲN khi chưa có gì để duyệt. Chính việc nó hiện ra (kèm một nháy màu accent) là lời giới
+// thiệu: nó chỉ xuất hiện đúng lúc vừa có một danh sách dòng để đi qua.
 function renderFooter() {
   const info = lensState.el.info;
   if (!info) return;
@@ -2874,21 +2835,13 @@ function renderFooter() {
     '<span class="fll-ft-lbl">' + escapeHtml(lensState.matchLabel) + '</span>' +
     '<span class="fll-ft-line">#<b>' + (entry ? entry.lineNo : '?') + '</b></span>';
 }
-// AI-GENERATED END
-/*
-File: src/03c-filter.js
-Created At: 2026-09-08 16:00:00 +07:00
-Created By: AI
-AI Agent: Claude Code
-Model: claude-opus-5
-*/
 // @ts-check
-// AI-GENERATED START — loi bo loc: bien dieu kien thanh ham, loc tap dong, dung view
-// Tach ra tu src/03-shell.js (992 dong / 67 ham). Cac file src/*.js duoc build.sh noi lai
-// theo thu tu ten file va boc trong MOT IIFE nen van dung chung scope — tach chi de doc,
-// khong doi cach chung goi nhau.
+// lõi bộ lọc: biến điều kiện thành hàm, lọc tập dòng, dựng view
+// Tách ra từ src/03-shell.js (992 dòng / 67 hàm). Các file src/*.js được build.sh nối lại
+// theo thứ tự tên file và bọc trong MỘT IIFE nên vẫn dùng chung scope — tách chỉ để đọc,
+// không đổi cách chúng gọi nhau.
 
-/* ------------------------------------------------------------------ bo loc */
+/* ------------------------------------------------------------------ bộ lọc */
 
 function hasAnyFilterFacet() {
   const filter = lensState.filter;
@@ -2896,7 +2849,7 @@ function hasAnyFilterFacet() {
     filter.timeFrom !== null || filter.timeTo !== null || filter.skipDuplicate);
 }
 
-// Mot lan ghi class len container thay cho hang nghin lan ghi len tung dong.
+// Một lần ghi class lên container thay cho hàng nghìn lần ghi lên từng dòng.
 function setLogFilteringMode(isFiltering, mode) {
   const container = lensState.data && lensState.data.container;
   if (!container) return;
@@ -2905,21 +2858,21 @@ function setLogFilteringMode(isFiltering, mode) {
   lensState.isFiltering = isFiltering;
 }
 
-// Chi phi loc nam gan nhu HOAN TOAN o so lan cham vao class cua dong, khong phai o layout.
-// Do that tren trang admin voi 10362 dong:
+// Chi phí lọc nằm gần như HOÀN TOÀN ở số lần chạm vào class của dòng, không phải ở layout.
+// Đo thật trên trang admin với 10362 dòng:
 //   10k classList.add            -> 7025ms
-//   bat .fll-filtering khi ca 10k dong deu co .fll-keep -> 224ms
+//   bật .fll-filtering khi cả 10k dòng đều có .fll-keep -> 224ms
 //   83 classList.add             -> 5ms
-//   tat loc, hien lai toan bo    -> 13ms
-// Tuc 10k lan cham class dat gap 1400 lan so voi 83 lan. Vi vay danh dau theo phia IT HON:
-// loc hep (vai chuc dong) thi danh dau dong DUOC GIU, loc rong (loc theo phien app — mot phien
-// co the la 10279/10362 dong) thi danh dau dong BI LOAI. So lan cham luon la min(giu, loai).
+//   tắt lọc, hiện lại toàn bộ    -> 13ms
+// Tức 10k lần chạm class đắt gấp 1400 lần so với 83 lần. Vì vậy đánh dấu theo phía ÍT HƠN:
+// lọc hẹp (vài chục dòng) thì đánh dấu dòng ĐƯỢC GIỮ, lọc rộng (lọc theo phiên app — một phiên
+// có thể là 10279/10362 dòng) thì đánh dấu dòng BỊ LOẠI. Số lần chạm luôn là min(giữ, loại).
 function pickRowMarkMode(visibleCount, total) {
   return visibleCount * 2 > total ? 'drop' : 'keep';
 }
 
 function applyRowMarks(entries, keepFlags, isFiltering, mode) {
-  // Doi cach danh dau thi phai go het dau cu truoc, neu khong dong mang dau cu se an/hien sai.
+  // Đổi cách đánh dấu thì phải gỡ hết dấu cũ trước, nếu không dòng mang dấu cũ sẽ ẩn/hiện sai.
   if (lensState.filterDomMode !== mode) {
     const stale = lensState.filterDomMode === 'drop' ? 'fll-drop' : 'fll-keep';
     entries.forEach((entry) => {
@@ -2934,7 +2887,7 @@ function applyRowMarks(entries, keepFlags, isFiltering, mode) {
     const keep = keepFlags[index] === 1;
     entry.isKept = keep;
     if (!isFiltering || !entry.el) return;
-    // Che do 'drop' danh dau dong BI LOAI, nen dau can gan la phu dinh cua keep.
+    // Chế độ 'drop' đánh dấu dòng BỊ LOẠI, nên dấu cần gắn là phủ định của keep.
     const wanted = mode === 'drop' ? !keep : keep;
     if (entry.isMarked !== wanted) {
       entry.el.classList.toggle(cls, wanted);
@@ -2947,7 +2900,7 @@ function isRowVisible(entry) {
   return !lensState.isFiltering || entry.isKept === true;
 }
 
-// Ep mot dong hien ra du bo loc dang giau no — cach ep phu thuoc dang danh dau nao dang dung.
+// Ép một dòng hiện ra dù bộ lọc đang giấu nó — cách ép phụ thuộc dạng đánh dấu nào đang dùng.
 function forceRowVisible(entry) {
   if (!entry.el) return;
   if (lensState.filterDomMode === 'drop') {
@@ -2984,18 +2937,20 @@ function compileFilter() {
   };
 }
 
-// skipFacetId cho phep hoi "neu bo qua dung dieu kien nay thi dong co lot khong".
-// Do la cach dem cho cac chip trong tab Loc: mot facet khong duoc tu dem theo chinh no,
-// neu khong thi chon ERROR xong chip WARNING ve 0 va khong con duong noi rong lai.
+// skipFacetId cho phép hỏi "nếu bỏ qua đúng điều kiện này thì dòng có lọt không".
+// Đó là cách đếm cho các chip trong tab Lọc: một facet không được tự đếm theo chính nó,
+// nếu không thì chọn ERROR xong chip WARNING về 0 và không còn đường nới rộng lại.
 function entryMatches(entry, compiled, skipFacetId) {
   if (skipFacetId !== 'duplicate' && compiled.skipDuplicate && entry.isDuplicate) return false;
   if (skipFacetId !== 'levels' && compiled.levels.size && !compiled.levels.has(entry.level)) return false;
   if (skipFacetId !== 'modules' && compiled.modules.size && !compiled.modules.has(entry.module)) return false;
   if (skipFacetId !== 'session' && compiled.session && entry.session !== compiled.session) return false;
   if (skipFacetId !== 'window' && (compiled.timeFrom !== null || compiled.timeTo !== null)) {
-    if (!entry.ts) return false;
-    if (compiled.timeFrom !== null && entry.ts < compiled.timeFrom) return false;
-    if (compiled.timeTo !== null && entry.ts > compiled.timeTo) return false;
+    // windowTs chứ không phải ts: dòng tiếp nối thừa hưởng giờ của dòng trên nó, nhờ vậy stack trace
+    // nhiều dòng không bị cửa sổ thời gian xén mất phần dưới.
+    if (!entry.windowTs) return false;
+    if (compiled.timeFrom !== null && entry.windowTs < compiled.timeFrom) return false;
+    if (compiled.timeTo !== null && entry.windowTs > compiled.timeTo) return false;
   }
   if (skipFacetId !== 'text' && compiled.text && !compiled.isBadPattern) {
     return compiled.matcher
@@ -3017,8 +2972,8 @@ function tallyFacetCandidates(skipFacetId, pickKey) {
   return tally;
 }
 
-// Cua so thoi gian dang xem, suy tu cac dieu kien THOI GIAN (khong phai tu tap dong con lai).
-// Neu suy tu tap dong thi loc "chi ERROR" se lam khoang lang phinh thanh nhung khoang gia giua hai loi.
+// Cửa sổ thời gian đang xem, suy từ các điều kiện THỜI GIAN (không phải từ tập dòng còn lại).
+// Nếu suy từ tập dòng thì lọc "chỉ ERROR" sẽ làm khoảng lặng phình thành những khoảng giả giữa hai lỗi.
 function getVisibleTimeRange() {
   const data = lensState.data;
   const filter = lensState.filter;
@@ -3043,7 +2998,7 @@ function buildView() {
   const subset = lensState.lastFilterResult.visible.map((index) => data.entries[index]);
   const stats = deriveStats(subset, data.gaps);
   const range = getVisibleTimeRange();
-  // Khoang lang la thuoc tinh cua duong thoi gian, khong phai cua tap dong: chi cat theo cua so thoi gian.
+  // Khoảng lặng là thuộc tính của đường thời gian, không phải của tập dòng: chỉ cắt theo cửa sổ thời gian.
   stats.gaps = data.gaps.filter((gap) => gap.before.ts >= range.from && gap.before.ts <= range.to);
   lensState.view = Object.assign({}, data, stats);
 }
@@ -3052,21 +3007,21 @@ function computeFilteredIndices() {
   const filter = lensState.filter;
   const compiled = compileFilter();
   const isBadPattern = compiled.isBadPattern;
-  // Ham nay tinh lai toan bo trang thai nen moi dong tung duoc "ep hien" tro ve chuan.
+  // Hàm này tính lại toàn bộ trạng thái nên mọi dòng từng được "ép hiện" trở về chuẩn.
   lensState.forcedVisibleIndices.clear();
   const isFiltering = filter.hideOthers && hasAnyFilterFacet();
   const entries = lensState.data.entries;
   const visible = [];
-  // Tinh xong het roi moi dung toi DOM: phai biet tong so dong duoc giu thi moi chon duoc
-  // danh dau theo phia nao cho it thao tac hon.
+  // Tính xong hết rồi mới đụng tới DOM: phải biết tổng số dòng được giữ thì mới chọn được
+  // đánh dấu theo phía nào cho ít thao tác hơn.
   const keepFlags = new Uint8Array(entries.length);
   entries.forEach((entry, index) => {
     if (!entryMatches(entry, compiled, null)) return;
     keepFlags[index] = 1;
     visible.push(entry.domIndex);
   });
-  // Khi khong loc thi giu nguyen cach danh dau dang co: class tren container tat la moi dong tu
-  // hien lai, va dau tren dong van khop nen lan loc sau chi ghi dung phan chenh lech.
+  // Khi không lọc thì giữ nguyên cách đánh dấu đang có: class trên container tắt là mọi dòng tự
+  // hiện lại, và dấu trên dòng vẫn khớp nên lần lọc sau chỉ ghi đúng phần chênh lệch.
   const mode = isFiltering ? pickRowMarkMode(visible.length, entries.length) : lensState.filterDomMode;
   applyRowMarks(entries, keepFlags, isFiltering, mode);
   setLogFilteringMode(isFiltering, mode);
@@ -3076,30 +3031,22 @@ function computeFilteredIndices() {
   return lensState.lastFilterResult;
 }
 
-// Ve lai tab Loc khong duoc tu quet lai 4085 dong: moi duong doi bo loc deu da goi
-// computeFilteredIndices truoc do roi. Quet hai lan la ly do "Xoa tat ca" tung ton 200ms.
+// Vẽ lại tab Lọc không được tự quét lại 4085 dòng: mọi đường đổi bộ lọc đều đã gọi
+// computeFilteredIndices trước đó rồi. Quét hai lần là lý do "Xoá tất cả" từng tốn 200ms.
 function getFilterResult() {
   return lensState.lastFilterResult || computeFilteredIndices();
 }
-// AI-GENERATED END
-/*
-File: src/03d-permalink.js
-Created At: 2026-09-08 16:00:00 +07:00
-Created By: AI
-AI Agent: Claude Code
-Model: claude-opus-5
-*/
 // @ts-check
-// AI-GENERATED START — permalink qua hash URL va mau bo loc luu san
-// Tach ra tu src/03-shell.js (992 dong / 67 ham). Cac file src/*.js duoc build.sh noi lai
-// theo thu tu ten file va boc trong MOT IIFE nen van dung chung scope — tach chi de doc,
-// khong doi cach chung goi nhau.
+// permalink qua hash URL và mẫu bộ lọc lưu sẵn
+// Tách ra từ src/03-shell.js (992 dòng / 67 hàm). Các file src/*.js được build.sh nối lại
+// theo thứ tự tên file và bọc trong MỘT IIFE nên vẫn dùng chung scope — tách chỉ để đọc,
+// không đổi cách chúng gọi nhau.
 
 /* --------------------------------------------------- permalink qua hash URL */
 
-// Mot dinh nghia duy nhat cho ca permalink lan mau bo loc.
-// Khoang thoi gian ket thuc dung o lastTs duoc luu dang "N cuoi" chu khong phai moc tuyet doi:
-// nhu the mau "2 phut cuoi" con dung duoc o feedback khac, con moc tuyet doi thi vo nghia.
+// Một định nghĩa duy nhất cho cả permalink lẫn mẫu bộ lọc.
+// Khoảng thời gian kết thúc đúng ở lastTs được lưu dạng "N cuối" chứ không phải mốc tuyệt đối:
+// như thế mẫu "2 phút cuối" còn dùng được ở feedback khác, còn mốc tuyệt đối thì vô nghĩa.
 function serializeFilter() {
   const filter = lensState.filter;
   const data = lensState.data;
@@ -3110,13 +3057,15 @@ function serializeFilter() {
     re: filter.useRegex ? 1 : 0,
     s: filter.session || 0,
   };
-  // Thieu cho nay thi: mau bo loc luu xong mo ta la "khong co dieu kien nao" va bam vao khong lam gi,
-  // con permalink gui cho dong nghiep se hien so gap doi ma khong co dau hieu gi.
+  // Thiếu chỗ này thì: mẫu bộ lọc lưu xong mô tả là "không có điều kiện nào" và bấm vào không làm gì,
+  // còn permalink gửi cho đồng nghiệp sẽ hiện số gấp đôi mà không có dấu hiệu gì.
   if (filter.skipDuplicate) payload.d = 1;
   if (filter.timeFrom !== null || filter.timeTo !== null) {
     const from = filter.timeFrom !== null ? filter.timeFrom : data.firstTs;
     const to = filter.timeTo !== null ? filter.timeTo : data.lastTs;
-    if (Math.abs(to - data.lastTs) < 1000) payload.wLast = to - from;
+    // Preset gửi đi dưới dạng "N cuối" để người nhận tính lại trên log của họ, không gửi hai mốc tuyệt đối.
+    if (filter.windowPreset) payload.wLast = filter.windowPreset;
+    else if (Math.abs(to - data.lastTs) < 1000) payload.wLast = to - from;
     else {
       payload.f = from - data.firstTs;
       payload.tt = to - data.firstTs;
@@ -3133,13 +3082,14 @@ function applyFilterPayload(payload) {
   filter.text = payload.q || '';
   filter.useRegex = payload.re !== 0;
   filter.session = payload.s || null;
-  // Phai dat lai CA khi payload khong co: ap mot mau khong co dieu kien nay ma van giu co dang bat thi
-  // ket qua khac han mo ta cua mau.
+  // Phải đặt lại CẢ khi payload không có: áp một mẫu không có điều kiện này mà vẫn giữ cờ đang bật thì
+  // kết quả khác hẳn mô tả của mẫu.
   filter.skipDuplicate = payload.d === 1;
   filter.timeFrom = null;
   filter.timeTo = null;
+  filter.windowPreset = null;
   filter.hideOthers = true;
-  // payload.w la dang cu cua permalink (chi luu "N giay cuoi").
+  // payload.w là dạng cũ của permalink (chỉ lưu "N giây cuối").
   if (payload.wLast || payload.w) setTimeWindowPreset(payload.wLast || payload.w);
   else if (payload.f >= 0 || payload.tt >= 0) {
     filter.timeFrom = payload.f >= 0 ? Math.min(data.lastTs, data.firstTs + payload.f) : null;
@@ -3147,9 +3097,9 @@ function applyFilterPayload(payload) {
   }
 }
 
-// Chi doc/ghi chuoi, khong dat lai location.hash: trang la SPA, doi hash co the lam router chay lai.
+// Chỉ đọc/ghi chuỗi, không đặt lại location.hash: trang là SPA, đổi hash có thể làm router chạy lại.
 function buildPermalink() {
-  // matches chua domIndex, khong phai vi tri trong entries — phai tra qua mot lop nua.
+  // matches chứa domIndex, không phải vị trí trong entries — phải tra qua một lớp nữa.
   const entry = lensState.matches.length
     ? lensState.data.entries[lensState.matches[Math.max(0, lensState.matchPos)]]
     : null;
@@ -3168,8 +3118,8 @@ function applyPermalinkFromHash() {
     return false;
   }
   applyFilterPayload(payload);
-  // Link cu co the ghi t='http' hoac t='slow' — hai tab da gop di. Khong chan thi renderTab roi vao
-  // nhanh else va ve tab Dien bien trong khi thanh tab khong co nut nao sang.
+  // Link cũ có thể ghi t='http' hoặc t='slow' — hai tab đã gộp đi. Không chặn thì renderTab rơi vào
+  // nhánh else và vẽ tab Diễn biến trong khi thanh tab không có nút nào sáng.
   lensState.tab = TAB_DEFS.some((tab) => tab.id === payload.t) ? payload.t : 'sum';
   applyFilter(false);
   if (payload.ln) {
@@ -3179,7 +3129,7 @@ function applyPermalinkFromHash() {
   return true;
 }
 
-/* ------------------------------------------------ mau bo loc (luu trong localStorage) */
+/* ------------------------------------------------ mẫu bộ lọc (lưu trong localStorage) */
 
 function loadFilterTemplates() {
   try {
@@ -3194,7 +3144,7 @@ function persistFilterTemplates() {
   try {
     localStorage.setItem(TEMPLATE_STORAGE_KEY, JSON.stringify(lensState.filterTemplates));
   } catch (error) {
-    // Rieng tu / het dung luong: mau van dung duoc trong phien nay, chi khong nho sang lan sau.
+    // Riêng tư / hết dung lượng: mẫu vẫn dùng được trong phiên này, chỉ không nhớ sang lần sau.
   }
 }
 
@@ -3225,7 +3175,7 @@ function applyFilterTemplate(name) {
   applyFilter(true);
 }
 
-// Mo ta ngan mot mau de hien lam tooltip — doc duoc ma khong can ap thu.
+// Mô tả ngắn một mẫu để hiện làm tooltip — đọc được mà không cần áp thử.
 function describeTemplatePayload(payload) {
   const parts = [];
   if (payload.wLast) parts.push(formatWindowPresetLabel(payload.wLast));
@@ -3246,36 +3196,25 @@ function applyFilter(shouldNavigate) {
   refreshFilterBar();
   return result;
 }
-// AI-GENERATED END
-/*
-File: src/03e-filterbar.js
-Created At: 2026-09-08 16:00:00 +07:00
-Created By: AI
-AI Agent: Claude Code
-Model: claude-opus-5
-*/
 // @ts-check
-// AI-GENERATED START — thanh bo loc thuong tru: chip facet, cua so thoi gian, go tung dieu kien
-// Tach ra tu src/03-shell.js (992 dong / 67 ham). Cac file src/*.js duoc build.sh noi lai
-// theo thu tu ten file va boc trong MOT IIFE nen van dung chung scope — tach chi de doc,
-// khong doi cach chung goi nhau.
+// thanh bộ lọc thường trú: chip facet, cửa sổ thời gian, gỡ từng điều kiện
+// Tách ra từ src/03-shell.js (992 dòng / 67 hàm). Các file src/*.js được build.sh nối lại
+// theo thứ tự tên file và bọc trong MỘT IIFE nên vẫn dùng chung scope — tách chỉ để đọc,
+// không đổi cách chúng gọi nhau.
 
-/* ------------------------------- thanh bo loc thuong tru (hien o moi tab) */
+/* ------------------------------- thanh bộ lọc thường trú (hiện ở mọi tab) */
 
-// Bo loc la state chung nhung truoc day chi nhin thay duoc trong tab Loc: doi sang tab khac
-// la khong con dau hieu nao cho biet bang log dang bi cat bot. Thanh nay hien o moi tab.
+// Bộ lọc là state chung nhưng trước đây chỉ nhìn thấy được trong tab Lọc: đổi sang tab khác
+// là không còn dấu hiệu nào cho biết bảng log đang bị cắt bớt. Thanh này hiện ở mọi tab.
 function formatWindowLabel() {
   const filter = lensState.filter;
   const data = lensState.data;
+  // Đang bật preset thì gọi tên preset. Đọc từ filter.windowPreset chứ không suy ngược từ hai mốc:
+  // trên log ngắn hơn preset, timeFrom bị kẹp về firstTs nên hiệu hai mốc nhỏ hơn preset và nhãn rơi
+  // vào nhánh giờ tuyệt đối.
+  if (filter.windowPreset) return formatWindowPresetLabel(filter.windowPreset);
   const from = filter.timeFrom !== null ? filter.timeFrom : data.firstTs;
   const to = filter.timeTo !== null ? filter.timeTo : data.lastTs;
-  // Neu trung khit mot preset thi goi ten preset cho de doc, con lai hien khoang thoi gian that.
-  if (Math.abs(to - data.lastTs) < 1000) {
-    const span = to - from;
-    for (let i = 0; i < TIME_WINDOW_CHOICES.length; i += 1) {
-      if (Math.abs(span - TIME_WINDOW_CHOICES[i]) < 1000) return formatWindowPresetLabel(TIME_WINDOW_CHOICES[i]);
-    }
-  }
   return formatClock(from) + ' → ' + formatClock(to);
 }
 
@@ -3286,19 +3225,20 @@ function formatWindowPresetLabel(ms) {
 function isWindowPresetActive(ms) {
   const filter = lensState.filter;
   if (!ms) return filter.timeFrom === null && filter.timeTo === null;
-  if (filter.timeFrom === null || filter.timeTo === null) return false;
-  return Math.abs(filter.timeTo - lensState.data.lastTs) < 1000 &&
-    Math.abs(filter.timeTo - filter.timeFrom - ms) < 1000;
+  return filter.windowPreset === ms;
 }
 
 function setTimeWindowPreset(ms) {
   const filter = lensState.filter;
+  filter.windowPreset = ms || null;
   if (!ms) {
     filter.timeFrom = null;
     filter.timeTo = null;
     return;
   }
   filter.timeTo = lensState.data.lastTs;
+  // Vẫn kẹp về firstTs (không lọc mất gì trên log ngắn hơn preset), nhưng preset đã được nhớ riêng
+  // nên việc kẹp không còn làm chip tắt.
   filter.timeFrom = Math.max(lensState.data.firstTs, lensState.data.lastTs - ms);
 }
 
@@ -3325,6 +3265,7 @@ function clearFilterFacet(facetId) {
   if (facetId === 'window') {
     filter.timeFrom = null;
     filter.timeTo = null;
+    filter.windowPreset = null;
   }
   else if (facetId === 'duplicate') filter.skipDuplicate = false;
   else if (facetId === 'session') filter.session = null;
@@ -3356,7 +3297,7 @@ function refreshFilterBar() {
         '</span>')
       .join('') +
     '<button class="fll-fclear" data-act="clearFilters">Xoá tất cả</button></div>';
-  // Do SAU khi da co noi dung: thanh bo loc chua co chu thi chieu cao chua dung.
+  // Đo SAU khi đã có nội dung: thanh bộ lọc chưa có chữ thì chiều cao chưa đúng.
   positionSheetBelowTimeline();
 }
 
@@ -3368,7 +3309,7 @@ function resetFilter() {
   lensState.filter.timeTo = null;
   lensState.filter.session = null;
   lensState.filter.skipDuplicate = false;
-  // Moi dieu kien da rong nen luot nay chi cham vao dung nhung dong dang bi an.
+  // Mọi điều kiện đã rỗng nên lượt này chỉ chạm vào đúng những dòng đang bị ẩn.
   computeFilteredIndices();
   if (lensState.el.lastHit) lensState.el.lastHit.classList.remove('fll-hit');
   lensState.el.lastHit = null;
@@ -3391,24 +3332,16 @@ function filterByLevel(level) {
   switchTab('flt');
   applyFilter(true);
 }
-// AI-GENERATED END
-/*
-File: src/03f-minimap.js
-Created At: 2026-09-08 16:00:00 +07:00
-Created By: AI
-AI Agent: Claude Code
-Model: claude-opus-5
-*/
 // @ts-check
-// AI-GENERATED START — minimap mat do log va thao tac keo chon khoang thoi gian tren no
-// Tach ra tu src/03-shell.js (992 dong / 67 ham). Cac file src/*.js duoc build.sh noi lai
-// theo thu tu ten file va boc trong MOT IIFE nen van dung chung scope — tach chi de doc,
-// khong doi cach chung goi nhau.
+// minimap mật độ log và thao tác kéo chọn khoảng thời gian trên nó
+// Tách ra từ src/03-shell.js (992 dòng / 67 hàm). Các file src/*.js được build.sh nối lại
+// theo thứ tự tên file và bọc trong MỘT IIFE nên vẫn dùng chung scope — tách chỉ để đọc,
+// không đổi cách chúng gọi nhau.
 
 /* ----------------------------------------------------------------- minimap */
 
-// Minimap ve trong khoang nao: ca log, hay chi khoang dang phong to. Moi cho quy doi thoi gian <-> toa
-// do deu phai di qua day, neu khong thi phong to xong vach danh dau va vi tri cuon se lech het.
+// Minimap vẽ trong khoảng nào: cả log, hay chỉ khoảng đang phóng to. Mọi chỗ quy đổi thời gian <-> toạ
+// độ đều phải đi qua đây, nếu không thì phóng to xong vạch đánh dấu và vị trí cuộn sẽ lệch hết.
 function minimapBounds() {
   const zoom = lensState.mapZoom;
   if (zoom) return { from: zoom.from, to: zoom.to };
@@ -3453,8 +3386,8 @@ function renderMinimap() {
         height.toFixed(1) + '%;background:' + color + '"></i>';
     })
     .join('');
-  // Minimap co y giu NGUYEN toan dai: no la la ban do "dang o dau trong ca log".
-  // Bo loc thoi gian chi lam mo phan ngoai cua so, van thay duoc toan canh.
+  // Minimap cố ý giữ NGUYÊN toàn dải: nó là tấm bản đồ "đang ở đâu trong cả log".
+  // Bộ lọc thời gian chỉ làm mờ phần ngoài cửa sổ, vẫn thấy được toàn cảnh.
   lensState.el.map.innerHTML = columns +
     '<div class="fll-shade fll-shade-l"></div><div class="fll-shade fll-shade-r"></div>' +
     '<div class="fll-cursor"></div>';
@@ -3471,8 +3404,8 @@ function renderMinimap() {
         (lensState.mapZoomStack.length > 1
           ? ' — còn ' + (lensState.mapZoomStack.length - 1) + ' nấc nữa mới về cả log'
           : ' — về lại cả log') + '">&#8617;</button>' +
-        // Chi hien khi con NHIEU HON mot nac: con dung mot nac thi no lam y het nut lui, de canh nhau
-        // hai nut giong nhau chi to nguoi dung phai doan xem chung khac gi.
+        // Chỉ hiện khi còn NHIỀU HƠN một nấc: còn đúng một nấc thì nó làm y hệt nút lùi, để cạnh nhau
+        // hai nút giống nhau chỉ tổ người dùng phải đoán xem chúng khác gì.
         (lensState.mapZoomStack.length > 1
           ? '<button class="fll-mapzoom" data-act="mapZoomReset" data-tip="Xoá cả ' +
             lensState.mapZoomStack.length + ' nấc phóng to, về thẳng toàn bộ log">&#10005;</button>'
@@ -3508,10 +3441,10 @@ function updateMinimapRange() {
     : 'kéo để chọn khoảng · bấm để nhảy · nháy đúp để bỏ chọn';
 }
 
-// Nut "phong to" hien khi khoang dang chon NHO HON khung minimap dang ve — khong quan tam da phong
-// to hay chua. Truoc day cu thay dang phong to la an nut, nen chon tiep mot khoang nho hon ben trong
-// vung da phong thi khong con duong nao phong sau nua. Chi giau khi chon dung bang khung dang ve, luc
-// do bam vao khong doi duoc gi.
+// Nút "phóng to" hiện khi khoảng đang chọn NHỎ HƠN khung minimap đang vẽ — không quan tâm đã phóng
+// to hay chưa. Trước đây cứ thấy đang phóng to là ẩn nút, nên chọn tiếp một khoảng nhỏ hơn bên trong
+// vùng đã phóng thì không còn đường nào phóng sâu nữa. Chỉ giấu khi chọn đúng bằng khung đang vẽ, lúc
+// đó bấm vào không đổi được gì.
 function canZoomFurther(range, bounds) {
   return range.from > bounds.from || range.to < bounds.to;
 }
@@ -3520,7 +3453,7 @@ function hasAnyTimeRange() {
   return lensState.filter.timeFrom !== null || lensState.filter.timeTo !== null;
 }
 
-/* ------------------------------------------- keo chon khoang thoi gian tren minimap */
+/* ------------------------------------------- kéo chọn khoảng thời gian trên minimap */
 
 const MINIMAP_EDGE_GRAB_PX = 7;
 const MINIMAP_MIN_RANGE_MS = 500;
@@ -3534,8 +3467,8 @@ function minimapTsFromClientX(clientX) {
   return bounds.from + ratio * Math.max(1, bounds.to - bounds.from);
 }
 
-// Ep ve trong be ngang cua minimap: khi dang phong to, moc nam ngoai khung se cho toa do am hoac vuot
-// ra ngoai — ep vao mep de mui ten van chi dung "no o phia ben kia" thay vi ve ra ngoai panel.
+// Ép về trong bề ngang của minimap: khi đang phóng to, mốc nằm ngoài khung sẽ cho toạ độ âm hoặc vượt
+// ra ngoài — ép vào mép để mũi tên vẫn chỉ đúng "nó ở phía bên kia" thay vì vẽ ra ngoài panel.
 function minimapClientXFromTs(ts) {
   const rect = lensState.el.map.getBoundingClientRect();
   const bounds = minimapBounds();
@@ -3543,8 +3476,8 @@ function minimapClientXFromTs(ts) {
   return rect.left + Math.max(0, Math.min(1, ratio)) * rect.width;
 }
 
-// Chi ve lai hai mieng mo trong luc keo. Ap bo loc that su doi mot luot 4085 dong + layout bang log,
-// nang qua de chay theo tung nhip chuot — nen chi commit luc tha tay.
+// Chỉ vẽ lại hai miếng mờ trong lúc kéo. Áp bộ lọc thật sự đòi một lượt 4085 dòng + layout bảng log,
+// nặng quá để chạy theo từng nhịp chuột — nên chỉ commit lúc thả tay.
 function previewMinimapRange(from, to) {
   const bounds = minimapBounds();
   const span = Math.max(1, bounds.to - bounds.from);
@@ -3562,9 +3495,9 @@ function resolveMinimapDragMode(clientX) {
   const filter = lensState.filter;
   if (filter.timeFrom === null && filter.timeTo === null) return 'create';
   const range = getVisibleTimeRange();
-  // Vung sang phu kin ca minimap (hay gap ngay sau khi phong to: khung ve dung bang khoang dang chon)
-  // thi "doi" va "co gian" deu vo nghia — khong con cho nao de doi toi. Coi moi cu keo la chon moi,
-  // neu khong thi phong to xong la khong the chon mot khoang nho hon nua.
+  // Vùng sáng phủ kín cả minimap (hay gặp ngay sau khi phóng to: khung vẽ đúng bằng khoảng đang chọn)
+  // thì "dời" và "co giãn" đều vô nghĩa — không còn chỗ nào để dời tới. Coi mọi cú kéo là chọn mới,
+  // nếu không thì phóng to xong là không thể chọn một khoảng nhỏ hơn nữa.
   const bounds = minimapBounds();
   if (range.from <= bounds.from && range.to >= bounds.to) return 'create';
   if (Math.abs(clientX - minimapClientXFromTs(range.from)) <= MINIMAP_EDGE_GRAB_PX) return 'resizeStart';
@@ -3634,9 +3567,9 @@ function handleMinimapMouseUp() {
   window.removeEventListener('mouseup', handleMinimapMouseUp);
   const drag = minimapDrag;
   minimapDrag = null;
-  // Bam khong keo: de nguyen cho handleLensClick nhay toi moc do nhu cu.
+  // Bấm không kéo: để nguyên cho handleLensClick nhảy tới mốc đó như cũ.
   if (!drag || !drag.hasMoved) return;
-  // Da keo thi chan cu click sinh ra ngay sau mouseup, khong thi vua chon xong lai nhay lung tung.
+  // Đã kéo thì chặn cú click sinh ra ngay sau mouseup, không thì vừa chọn xong lại nhảy lung tung.
   lensState.suppressMapClick = true;
   setTimeout(() => {
     lensState.suppressMapClick = false;
@@ -3646,6 +3579,8 @@ function handleMinimapMouseUp() {
   else {
     lensState.filter.timeFrom = drag.previewFrom;
     lensState.filter.timeTo = drag.previewTo;
+    // Kéo tay là khoảng tự chọn: không còn là preset nào nữa, chip "N phút cuối" phải tắt.
+    lensState.filter.windowPreset = null;
     lensState.filter.hideOthers = true;
   }
   applyFilter(true);
@@ -3675,36 +3610,28 @@ function updateMinimapCursor(ts) {
   const bounds = minimapBounds();
   const ratio = (ts - bounds.from) / Math.max(1, bounds.to - bounds.from);
   if (ratio < 0 || ratio > 1) {
-    // Dong dang cuon toi nam ngoai khung dang phong to: an vach di con hon la ghim no o mep, vi ghim
-    // o mep thi nguoi doc tuong minh dang o dau khoang.
+    // Dòng đang cuộn tới nằm ngoài khung đang phóng to: ẩn vạch đi còn hơn là ghim nó ở mép, vì ghim
+    // ở mép thì người đọc tưởng mình đang ở đầu khoảng.
     cursor.style.opacity = '0';
     return;
   }
   cursor.style.left = (ratio * 100).toFixed(2) + '%';
   cursor.style.opacity = '1';
 }
-// AI-GENERATED END
-/*
-File: src/03g-panel.js
-Created At: 2026-09-08 16:00:00 +07:00
-Created By: AI
-AI Agent: Claude Code
-Model: claude-opus-5
-*/
 // @ts-check
-// AI-GENERATED START — keo tha panel, doi kich thuoc, nho lai vi tri
-// Tach ra tu src/03-shell.js (992 dong / 67 ham). Cac file src/*.js duoc build.sh noi lai
-// theo thu tu ten file va boc trong MOT IIFE nen van dung chung scope — tach chi de doc,
-// khong doi cach chung goi nhau.
+// kéo thả panel, đổi kích thước, nhớ lại vị trí
+// Tách ra từ src/03-shell.js (992 dòng / 67 hàm). Các file src/*.js được build.sh nối lại
+// theo thứ tự tên file và bọc trong MỘT IIFE nên vẫn dùng chung scope — tách chỉ để đọc,
+// không đổi cách chúng gọi nhau.
 
-/* ------------------------------------------------- keo tha va doi kich thuoc */
+/* ------------------------------------------------- kéo thả và đổi kích thước */
 
 function clampValue(value, min, max) {
   return Math.max(min, Math.min(Math.max(min, max), value));
 }
 
-// Panel mac dinh neo phai (top/right/bottom trong CSS) nen chieu cao la ngam.
-// Khi keo di hoac keo goc thi ghim han sang left/top/width/height de hai chieu deu chinh duoc.
+// Panel mặc định neo phải (top/right/bottom trong CSS) nên chiều cao là ngầm.
+// Khi kéo đi hoặc kéo góc thì ghim hẳn sang left/top/width/height để hai chiều đều chỉnh được.
 function isPanelRightAnchored(panel) {
   return !panel.style.left || panel.style.left === 'auto';
 }
@@ -3732,8 +3659,8 @@ function applyPanelGeometry(panel) {
   panel.style.height = geometry.height + 'px';
 }
 
-// mousemove/mouseup chi duoc gan trong luc keo roi go ngay, khong gan thuong tru:
-// mountPanel() chay lai moi lan mo tu pill, gan thuong tru se cong don listener.
+// mousemove/mouseup chỉ được gắn trong lúc kéo rồi gỡ ngay, không gắn thường trú:
+// mountPanel() chạy lại mỗi lần mở từ pill, gắn thường trú sẽ cộng dồn listener.
 function enableDragAndResize(panel, header, edgeGrip, cornerGrip) {
   let mode = null;
   let origin = null;
@@ -3749,7 +3676,7 @@ function enableDragAndResize(panel, header, edgeGrip, cornerGrip) {
       grabX: event.clientX - rect.left,
       grabY: event.clientY - rect.top,
       wasRightAnchored: isPanelRightAnchored(panel),
-      // Khai bao han o day thay vi gan them sau: gan them thi go sai ten mot chu la im lang hong.
+      // Khai báo hẳn ở đây thay vì gán thêm sau: gán thêm thì gõ sai tên một chữ là im lặng hỏng.
       /** @type {number | undefined} */
       committedLeft: undefined,
     };
@@ -3769,7 +3696,7 @@ function enableDragAndResize(panel, header, edgeGrip, cornerGrip) {
     event.preventDefault();
   }
 
-  // mousemove ban day hon tan so khung hinh, nen gom lai mot lan cap nhat moi frame.
+  // mousemove bắn dày hơn tần số khung hình, nên gom lại một lần cập nhật mỗi frame.
   function handleMove(event) {
     if (!mode) return;
     pendingEvent = event;
@@ -3784,9 +3711,9 @@ function enableDragAndResize(panel, header, edgeGrip, cornerGrip) {
     if (!mode || !event) return;
 
     if (mode === 'move') {
-      // Di chuyen bang transform chu khong phai left/top: transform duoc compositor xu ly,
-      // khong bat trinh duyet layout lai va ve lai vung panel (kem bong mo 70px) moi khung hinh.
-      // Chot lai thanh left/top luc tha tay.
+      // Di chuyển bằng transform chứ không phải left/top: transform được compositor xử lý,
+      // không bắt trình duyệt layout lại và vẽ lại vùng panel (kèm bóng mờ 70px) mỗi khung hình.
+      // Chốt lại thành left/top lúc thả tay.
       const left = clampValue(event.clientX - origin.grabX, VIEWPORT_MARGIN - origin.rect.width + 140,
         window.innerWidth - 140);
       const top = clampValue(event.clientY - origin.grabY, 0, window.innerHeight - 60);
@@ -3805,7 +3732,7 @@ function enableDragAndResize(panel, header, edgeGrip, cornerGrip) {
       return;
     }
 
-    // 'edge': keo mep trai, giu nguyen mep phai o ca hai kieu neo.
+    // 'edge': kéo mép trái, giữ nguyên mép phải ở cả hai kiểu neo.
     const width = clampValue(origin.rect.width + (origin.x - event.clientX), PANEL_MIN_WIDTH,
       origin.rect.right - VIEWPORT_MARGIN);
     panel.style.width = width + 'px';
@@ -3816,8 +3743,8 @@ function enableDragAndResize(panel, header, edgeGrip, cornerGrip) {
     window.removeEventListener('mousemove', handleMove);
     window.removeEventListener('mouseup', handleUp);
     if (!mode) return;
-    // Chot transform thanh vi tri that truoc khi do lai kich thuoc, khong thi getBoundingClientRect
-    // van dang cong them phan dich chuyen.
+    // Chốt transform thành vị trí thật trước khi đo lại kích thước, không thì getBoundingClientRect
+    // vẫn đang cộng thêm phần dịch chuyển.
     if (mode === 'move' && origin.committedLeft !== undefined) {
       panel.style.transform = '';
       panel.style.left = origin.committedLeft + 'px';
@@ -3838,16 +3765,16 @@ function enableDragAndResize(panel, header, edgeGrip, cornerGrip) {
   cornerGrip.addEventListener('mousedown', (event) => beginInteraction('corner', event));
 }
 
-/* ------------------------------------------------------------- phim tat */
+/* ------------------------------------------------------------- phím tắt */
 
-// Esc chi thu ve pill, khong huy panel: neu huy thi khong con gi de bam mo lai.
-// Nut "x" moi dong han, va Alt+L la duong quay lai — listener nay co y giu song sau khi dong.
+// Esc chỉ thu về pill, không huỷ panel: nếu huỷ thì không còn gì để bấm mở lại.
+// Nút "x" mới đóng hẳn, và Alt+L là đường quay lại — listener này cố ý giữ sống sau khi đóng.
 //
-// Da do tren trang that: khi trang admin nhan duoc Escape, chinh no goi removeChild go #fll-root
-// ra khoi body (khong phai code o day — bay Element.prototype.remove khong bat duoc gi).
-// Vi vay listener gan o capture phase tren window va chan lan truyen voi nhung phim minh xu ly,
-// de trang khong bao gio thay Escape khi panel dang mo. LENS_KEY_LISTENER_OPTIONS phai dung
-// y het nhau luc them va luc go, neu khac thi removeEventListener khong an.
+// Đã đo trên trang thật: khi trang admin nhận được Escape, chính nó gọi removeChild gỡ #fll-root
+// ra khỏi body (không phải code ở đây — bẫy Element.prototype.remove không bắt được gì).
+// Vì vậy listener gắn ở capture phase trên window và chặn lan truyền với những phím mình xử lý,
+// để trang không bao giờ thấy Escape khi panel đang mở. LENS_KEY_LISTENER_OPTIONS phải đúng
+// y hệt nhau lúc thêm và lúc gỡ, nếu khác thì removeEventListener không ăn.
 const LENS_KEY_LISTENER_OPTIONS = true;
 
 function isLensMounted() {
@@ -3855,7 +3782,7 @@ function isLensMounted() {
 }
 
 function handleShortcut(event) {
-  // Instance cu (world khac) khong duoc gianh phim voi instance dang lam chu.
+  // Instance cũ (world khác) không được giành phím với instance đang làm chủ.
   if (!isLensOwner()) return;
   const target = event.target;
   if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) return;
@@ -3881,37 +3808,29 @@ function handleShortcut(event) {
     showPill();
   }
 }
-// AI-GENERATED END
-/*
-File: src/03h-aim.js
-Created At: 2026-09-10 18:00:00 +07:00
-Created By: AI
-AI Agent: Claude Code
-Model: claude-opus-5
-*/
 // @ts-check
-// AI-GENERATED START — di chuot qua mot muc bat ky: ve mui ten tu muc do len dung vi tri cua no tren minimap
+// di chuột qua một mục bất kỳ: vẽ mũi tên từ mục đó lên đúng vị trí của nó trên minimap
 //
-// Van de: moi hang trong moi tab deu co gio va so dong, nhung do la CON SO. Nguoi doc phai tu dich
-// "10:02:50" ra "khoang giua log" moi biet no nam o dau trong ca phien. Minimap ngay tren dau da la
-// truc thoi gian roi — chi thieu mot duong noi giua hai cai.
+// Vấn đề: mỗi hàng trong mỗi tab đều có giờ và số dòng, nhưng đó là CON SỐ. Người đọc phải tự dịch
+// "10:02:50" ra "khoảng giữa log" mới biết nó nằm ở đâu trong cả phiên. Minimap ngay trên đầu đã là
+// trục thời gian rồi — chỉ thiếu một đường nối giữa hai cái.
 //
-// Ve bang MOT lop SVG phu len ca panel (pointer-events:none) chu khong chen the vao tung hang: nhu vay
-// khong renderer nao phai biet den chuyen nay, va tab moi them sau nay tu dong co luon.
+// Vẽ bằng MỘT lớp SVG phủ lên cả panel (pointer-events:none) chứ không chèn thẻ vào từng hàng: như vậy
+// không renderer nào phải biết đến chuyện này, và tab mới thêm sau này tự động có luôn.
 
 const AIM_SELECTOR = '[data-aim],[data-lines],[data-jump],[data-bucket],[data-group],[data-call],' +
   '[data-saw],[data-apifail],[data-jscreen],[data-jtap],[data-jload],[data-tracefail]';
-// Mot nhom loi co the co hang tram dong. Ve het thi minimap thanh mot mang do dac, nhin khong ra gi;
-// 60 vach da du day de thay "rai deu" hay "dom mot cho".
+// Một nhóm lỗi có thể có hàng trăm dòng. Vẽ hết thì minimap thành một mảng đỏ đặc, nhìn không ra gì;
+// 60 vạch đã đủ dày để thấy "rải đều" hay "dồn một chỗ".
 const AIM_MAX_TICKS = 60;
 
-// Cung mot cach doc nhu handleLensClick — mot hang tro toi nhung dong nao thi mui ten chi toi dung
-// nhung dong do. Tach ra ham rieng de test goi duoc ma khong can DOM that.
+// Cùng một cách đọc như handleLensClick — một hàng trỏ tới những dòng nào thì mũi tên chỉ tới đúng
+// những dòng đó. Tách ra hàm riêng để test gọi được mà không cần DOM thật.
 function aimIndicesFor(el) {
   const view = getView();
   const data = el.dataset;
-  // data-aim di truoc data-jump: co nhung hang tro toi mot KHOANG (khoang lang co dau va cuoi) trong
-  // khi cu bam thi chi nhay toi mot dong. Mui ten phai danh dau ca khoang do.
+  // data-aim đi trước data-jump: có những hàng trỏ tới một KHOẢNG (khoảng lặng có đầu và cuối) trong
+  // khi cứ bấm thì chỉ nhảy tới một dòng. Mũi tên phải đánh dấu cả khoảng đó.
   if (data.aim != null) return data.aim.split(',').map(Number).filter((index) => !Number.isNaN(index));
   if (data.lines != null) return data.lines.split(',').map(Number).filter((index) => !Number.isNaN(index));
   if (data.jump != null) return [Number(data.jump)];
@@ -3957,8 +3876,8 @@ function ensureAimLayer() {
   if (lensState.el.aim && lensState.el.aim.parentNode === panel) return lensState.el.aim;
   const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
   svg.setAttribute('class', 'fll-aim');
-  // Khong dat viewBox: khong co viewBox thi mot don vi cua SVG = mot px CSS, nen toa do lay tu
-  // getBoundingClientRect dung thang duoc, khong phai quy doi.
+  // Không đặt viewBox: không có viewBox thì một đơn vị của SVG = một px CSS, nên toạ độ lấy từ
+  // getBoundingClientRect dùng thẳng được, không phải quy đổi.
   svg.innerHTML = '<g class="fll-aim-ticks"></g><path class="fll-aim-line"></path>' +
     '<polygon class="fll-aim-head"></polygon>';
   panel.appendChild(svg);
@@ -3972,7 +3891,7 @@ function hideAim() {
   if (previous && previous.classList) previous.classList.remove('fll-aimed');
   if (lensState.el.aim) lensState.el.aim.classList.remove('on');
   if (lensState.el.mapText) lensState.el.mapText.classList.remove('aiming');
-  // Tra dong chu giua nhan minimap ve dung trang thai bo loc hien tai.
+  // Trả dòng chữ giữa nhãn minimap về đúng trạng thái bộ lọc hiện tại.
   if (lensState.data && lensState.el.mapText) updateMinimapRange();
 }
 
@@ -3991,7 +3910,7 @@ function drawAim(el) {
   const panelRect = panel.getBoundingClientRect();
   const mapRect = map.getBoundingClientRect();
   const itemRect = el.getBoundingClientRect();
-  // Hang bi cuon khuat len tren minimap thi mui ten se dam nguoc — thoi khong ve.
+  // Hàng bị cuộn khuất lên trên minimap thì mũi tên sẽ đâm ngược — thôi không vẽ.
   if (itemRect.top < mapRect.bottom + 4 || itemRect.bottom > panelRect.bottom) {
     svg.classList.remove('on');
     return;
@@ -4000,8 +3919,8 @@ function drawAim(el) {
   const mapTop = mapRect.top - panelRect.top;
   const endX = minimapClientXFromTs(timed[0].ts) - panelRect.left;
   const endY = mapRect.bottom - panelRect.top;
-  // Bat dau tu mep TRAI cua hang chu khong phai tam: hang rong ca panel, lay tam thi duong ke moc ra
-  // tu giua mot dong chu, nhin nhu khong dinh vao dau ca.
+  // Bắt đầu từ mép TRÁI của hàng chứ không phải tâm: hàng rộng cả panel, lấy tâm thì đường kẻ mọc ra
+  // từ giữa một dòng chữ, nhìn như không dính vào đâu cả.
   const startX = Math.min(itemRect.left + 18, itemRect.right - 8) - panelRect.left;
   const startY = itemRect.top - panelRect.top;
   const lift = Math.max(16, (startY - endY) * 0.45);
@@ -4011,8 +3930,8 @@ function drawAim(el) {
     ' C' + startX.toFixed(1) + ' ' + (startY - lift).toFixed(1) +
     ',' + endX.toFixed(1) + ' ' + (endY + lift).toFixed(1) +
     ',' + endX.toFixed(1) + ' ' + endY.toFixed(1));
-  // Mui ten quay len va nam BEN TRONG minimap. Truoc do no cham o mep duoi minimap nen de len dong
-  // nhan gio ngay ben duoi (dong nhan chi cao ~14px) — thay khi chup man hinh.
+  // Mũi tên quay lên và nằm BÊN TRONG minimap. Trước đó nó chạm ở mép dưới minimap nên đè lên dòng
+  // nhãn giờ ngay bên dưới (dòng nhãn chỉ cao ~14px) — thấy khi chụp màn hình.
   svg.querySelector('.fll-aim-head').setAttribute('points',
     endX.toFixed(1) + ',' + (endY - 9).toFixed(1) + ' ' +
     (endX - 4.5).toFixed(1) + ',' + (endY - 1).toFixed(1) + ' ' +
@@ -4020,7 +3939,7 @@ function drawAim(el) {
   svg.querySelector('.fll-aim-ticks').innerHTML = timed.slice(0, AIM_MAX_TICKS)
     .map((entry, index) => {
       const x = minimapClientXFromTs(entry.ts) - panelRect.left;
-      // Vach dau tien la cai mui ten dang chi toi: to va dam hon nhung vach con lai.
+      // Vạch đầu tiên là cái mũi tên đang chỉ tới: to và đậm hơn những vạch còn lại.
       const width = index === 0 ? 3 : 2;
       return '<rect class="' + (index === 0 ? 'fll-aim-first' : '') + '" x="' +
         (x - width / 2).toFixed(1) + '" y="' + mapTop.toFixed(1) +
@@ -4047,26 +3966,18 @@ function handleLensHover(event) {
   drawAim(hit);
 }
 
-// Cuon thi hang di chuyen ma chuot khong doi -> mouseover khong ban lai. Ve lai theo su kien cuon
-// (bat o pha capture vi 'scroll' khong noi bot len).
+// Cuộn thì hàng di chuyển mà chuột không đổi -> mouseover không bắn lại. Vẽ lại theo sự kiện cuộn
+// (bắt ở pha capture vì 'scroll' không nổi bọt lên).
 function handleAimScroll() {
   if (lensState.aimEl) drawAim(lensState.aimEl);
 }
-// AI-GENERATED END
-/*
-File: src/03i-sections.js
-Created At: 2026-09-10 18:00:00 +07:00
-Created By: AI
-AI Agent: Claude Code
-Model: claude-opus-5
-*/
 // @ts-check
-// AI-GENERATED START — bien moi tieu de muc (.fll-sec) thanh mot muc dong/mo duoc, nho trang thai qua phien
+// biến mỗi tiêu đề mục (.fll-sec) thành một mục đóng/mở được, nhớ trạng thái qua phiên
 //
-// Lam BANG CACH GOM LAI SAU KHI VE, khong sua tung renderer: cac renderer noi chuoi
-// "<div class=fll-sec>Ten</div>" roi den noi dung, tuc muc chi la mot moc phang chu khong phai mot
-// khoi bao ngoai. Neu doi sang khoi bao ngoai thi phai sua hon 20 cho va moi tab them sau nay lai
-// phai nho lam theo. Gom o day thi chi mot cho biet chuyen nay, va tab moi tu dong co.
+// Làm BẰNG CÁCH GOM LẠI SAU KHI VẼ, không sửa từng renderer: các renderer nối chuỗi
+// "<div class=fll-sec>Tên</div>" rồi đến nội dung, tức mục chỉ là một mốc phẳng chứ không phải một
+// khối bao ngoài. Nếu đổi sang khối bao ngoài thì phải sửa hơn 20 chỗ và mỗi tab thêm sau này lại
+// phải nhớ làm theo. Gom ở đây thì chỉ một chỗ biết chuyện này, và tab mới tự động có.
 
 const SECTION_OPEN_KEY = 'fll.openSections';
 
@@ -4080,7 +3991,7 @@ function loadOpenSections() {
     const raw = JSON.parse(localStorage.getItem(SECTION_OPEN_KEY));
     if (Array.isArray(raw)) raw.forEach((key) => openSectionKeys.add(String(key)));
   } catch (error) {
-    // Rieng tu / du lieu cu hong: coi nhu chua mo muc nao, mac dinh van la dong het.
+    // Riêng tư / dữ liệu cũ hỏng: coi như chưa mở mục nào, mặc định vẫn là đóng hết.
   }
   return openSectionKeys;
 }
@@ -4089,12 +4000,12 @@ function persistOpenSections() {
   try {
     localStorage.setItem(SECTION_OPEN_KEY, JSON.stringify(Array.from(loadOpenSections())));
   } catch (error) {
-    // Khong luu duoc thi phien nay van dong/mo binh thuong, chi khong nho sang lan sau.
+    // Không lưu được thì phiên này vẫn đóng/mở bình thường, chỉ không nhớ sang lần sau.
   }
 }
 
-// Khoa gom ca ten tab: hai tab co the co muc trung ten (vi du "Phiên app"), mo o tab nay khong co
-// nghia la mo o tab kia.
+// Khoá gồm cả tên tab: hai tab có thể có mục trùng tên (ví dụ "Phiên app"), mở ở tab này không có
+// nghĩa là mở ở tab kia.
 function sectionKey(tabId, title) {
   return tabId + '::' + title;
 }
@@ -4110,8 +4021,8 @@ function setSectionOpen(key, isOpen) {
   persistOpenSections();
 }
 
-// Bo qua the khong phai element (children chi tra ve element) va the .fll-sec long trong khoi khac —
-// chi quet dung cap con truc tiep cua vung than, dung noi cac renderer dat tieu de muc.
+// Bỏ qua thẻ không phải element (children chỉ trả về element) và thẻ .fll-sec lồng trong khối khác —
+// chỉ quét đúng cấp con trực tiếp của vùng thân, đúng nơi các renderer đặt tiêu đề mục.
 function collapsifySections(container, tabId) {
   if (!container || !container.children) return;
   const nodes = Array.from(container.children);
@@ -4121,8 +4032,8 @@ function collapsifySections(container, tabId) {
       if (bodyOfCurrentSection) bodyOfCurrentSection.appendChild(node);
       return;
     }
-    // Lay data-sec chu khong lay textContent: textContent con dinh ca badge ("Phiên app3 phiên"),
-    // ma badge doi theo tung log — dung no lam khoa thi mo o log nay, sang log khac lai thay dong.
+    // Lấy data-sec chứ không lấy textContent: textContent còn dính cả badge ("Phiên app3 phiên"),
+    // mà badge đổi theo từng log — dùng nó làm khoá thì mở ở log này, sang log khác lại thấy đóng.
     const title = node.getAttribute('data-sec') || (node.textContent || '').trim();
     const key = sectionKey(tabId, title);
     const wrap = document.createElement('div');
@@ -4137,17 +4048,64 @@ function collapsifySections(container, tabId) {
     bodyOfCurrentSection.className = 'fll-secb';
     wrap.appendChild(bodyOfCurrentSection);
   });
-  // Chen o tim SAU khi da chuyen het noi dung vao than muc — luc gom o tren than con dang rong.
+  // Chèn ô tìm SAU khi đã chuyển hết nội dung vào thân mục — lúc gom ở trên thân còn đang rỗng.
+  // Cắt bớt TRƯỚC ô tìm: ô tìm đọc số hàng đang hiện để viết đúng câu "tìm trong N mục đang hiện".
+  Array.from(container.querySelectorAll('.fll-secb')).forEach(capSectionRows);
   Array.from(container.querySelectorAll('.fll-secb')).forEach(addSectionSearch);
 }
 
-// Mot muc co bao nhieu hang thi moi dang co o tim. Duoi nguong nay thi liec mat la thay het.
+// Cắt bớt hàng thừa của mục dài, SAU KHI VẼ — cùng cách đã dùng cho ô đóng/mở và ô tìm nhanh.
+//
+// Vì sao không cắt trong từng renderer: cắt ở đó thì TỔNG bị mất luôn. Đó là lỗi thật đã có:
+// extractDurations cắt còn 80 hàng TRƯỚC khi trả về, nên badge ghi "80" trong khi log có 160 con số,
+// mà chữ ngay dưới lại ghi "MỌI con số thời lượng". Cắt ở đây thì renderer trả về đủ, badge đúng, và
+// phần bị giấu vẫn còn trong DOM để ô tìm và nút "Hiện thêm" chạm tới.
+const SECTION_MAX_ROWS = 12;
+
+// Mục tự quản lý phân trang (danh sách nhóm lỗi, danh sách mốc) đã có nút "Hiện thêm" riêng đọc theo
+// dữ liệu đầy đủ — cắt thêm một lần nữa ở đây là cắt chồng lên phân trang của nó.
+function hasOwnPaging(sectionBody) {
+  return !!sectionBody.querySelector('[data-act="moreIssues"], [data-act="moreTimeline"]');
+}
+
+function capSectionRows(sectionBody) {
+  if (hasOwnPaging(sectionBody)) return;
+  const container = sectionRowContainer(sectionBody);
+  const rows = sectionRows(container, null);
+  if (rows.length <= SECTION_MAX_ROWS) return;
+  rows.slice(SECTION_MAX_ROWS).forEach((node) => {
+    node.hidden = true;
+    node.setAttribute('data-capped', '1');
+  });
+  const button = document.createElement('button');
+  button.className = 'fll-btn fll-secmore';
+  button.setAttribute('data-act', 'moreSection');
+  button.textContent = 'Hiện thêm — còn ' + (rows.length - SECTION_MAX_ROWS) + ' mục';
+  sectionBody.appendChild(button);
+}
+
+// Bỏ hẳn giới hạn của mục đó (không bung từng nấc): một mục dài nhất cũng chỉ vài chục hàng, mà bấm
+// hai ba lần mới thấy hết thì khó chịu hơn là cuộn.
+function expandSection(button) {
+  const sectionBody = button.parentElement;
+  if (!sectionBody) return;
+  Array.from(sectionBody.querySelectorAll('[data-capped]')).forEach((node) => {
+    node.hidden = false;
+    node.removeAttribute('data-capped');
+  });
+  button.remove();
+  // Ô tìm vừa được nới rộng phạm vi: viết lại câu mô tả cho khỏi nói dối.
+  const box = sectionBody.querySelector('.fll-secq');
+  if (box) refreshSectionSearchScope(box);
+}
+
+// Một mục có bao nhiêu hàng thì mới đáng có ô tìm. Dưới ngưỡng này thì liếc mắt là thấy hết.
 const SECTION_SEARCH_MIN_ROWS = 6;
 
-// Hang cua mot muc khong phai luc nao cung la con truc tiep cua than muc: nhieu danh sach duoc boc
-// trong DUNG MOT the (.fll-rank, .fll-lvkey, #fll-issue-list), luc do dem con truc tiep ra 1 va o tim
-// se khong bao gio duoc chen. Neu than muc chi co mot the con ma the do lai co nhieu con thi chinh
-// no moi la cho chua hang.
+// Hàng của một mục không phải lúc nào cũng là con trực tiếp của thân mục: nhiều danh sách được bọc
+// trong ĐÚNG MỘT thẻ (.fll-rank, .fll-lvkey, #fll-issue-list), lúc đó đếm con trực tiếp ra 1 và ô tìm
+// sẽ không bao giờ được chèn. Nếu thân mục chỉ có một thẻ con mà thẻ đó lại có nhiều con thì chính
+// nó mới là chỗ chứa hàng.
 function sectionRowContainer(sectionBody) {
   const kids = Array.from(sectionBody.children).filter((node) => node.classList &&
     !node.classList.contains('fll-hint') && !node.classList.contains('fll-secq') &&
@@ -4159,19 +4117,19 @@ function sectionRowContainer(sectionBody) {
 function sectionRows(container, box) {
   return Array.from(container.children).filter((node) => node !== box && node.classList &&
     !node.classList.contains('fll-hint') && !node.classList.contains('fll-secq') &&
-    !node.classList.contains('fll-secq-note'));
+    !node.classList.contains('fll-secmore') && !node.classList.contains('fll-secq-note'));
 }
 
-// Chen o tim vao ngay trong muc, SAU KHI VE, thay vi sua tung renderer. Do that: moi o tim kieu cu
-// (#fll-q, #fll-httpq, #fll-modq, #fll-tlq) deu phai sua o hai file — them mot truong tabUiState, mot
-// nhanh trong handleLensInput, mot the input, mot id container. Nhan len ~20 muc la ~80 cho sua va moi
-// muc them sau nay lai phai nho lam theo. Lam o day thi mot cho biet, moi muc du dai deu tu co.
+// Chèn ô tìm vào ngay trong mục, SAU KHI VẼ, thay vì sửa từng renderer. Đo thật: mỗi ô tìm kiểu cũ
+// (#fll-q, #fll-httpq, #fll-modq, #fll-tlq) đều phải sửa ở hai file — thêm một trường tabUiState, một
+// nhánh trong handleLensInput, một thẻ input, một id container. Nhân lên ~20 mục là ~80 chỗ sửa và mỗi
+// mục thêm sau này lại phải nhớ làm theo. Làm ở đây thì một chỗ biết, mọi mục đủ dài đều tự có.
 //
-// Danh doi: o nay loc tren DOM DA VE, nen muc nao phan trang (danh sach nhom loi) thi no chi tim trong
-// trang dang hien. Vi vay muc nao DA co o tim rieng (tim tren toan bo du lieu) thi bo qua, khong chen.
-// Nhieu muc chi ve mot phan (bang xep hang cat con 8 hang, danh sach nhom co phan trang) trong khi
-// badge tren tieu de ghi TONG. O tim chi tim duoc phan da ve, nen no phai noi ro dieu do — neu khong
-// se ra canh "muc ghi 64 module, go ten mot module co that, bao khong khop".
+// Đánh đổi: ô này lọc trên DOM ĐÃ VẼ, nên mục nào phân trang (danh sách nhóm lỗi) thì nó chỉ tìm trong
+// trang đang hiện. Vì vậy mục nào ĐÃ có ô tìm riêng (tìm trên toàn bộ dữ liệu) thì bỏ qua, không chèn.
+// Nhiều mục chỉ vẽ một phần (danh sách nhóm có phân trang) trong khi
+// badge trên tiêu đề ghi TỔNG. Ô tìm chỉ tìm được phần đã vẽ, nên nó phải nói rõ điều đó — nếu không
+// sẽ ra cảnh "mục ghi 64 module, gõ tên một module có thật, báo không khớp".
 function sectionShownTotal(sectionBody) {
   const header = sectionBody.parentElement && sectionBody.parentElement.querySelector('.fll-secbdg');
   const badge = header ? parseInt(header.textContent, 10) : NaN;
@@ -4181,29 +4139,43 @@ function sectionShownTotal(sectionBody) {
 function addSectionSearch(sectionBody) {
   if (sectionBody.querySelector('input')) return;
   const container = sectionRowContainer(sectionBody);
-  const shown = sectionRows(container, null).length;
-  if (shown < SECTION_SEARCH_MIN_ROWS) return;
-  const total = sectionShownTotal(sectionBody);
+  if (sectionRows(container, null).length < SECTION_SEARCH_MIN_ROWS) return;
   const box = document.createElement('input');
   box.className = 'fll-in fll-secq';
-  box.setAttribute('placeholder', total > shown
-    ? 'Tìm trong ' + shown + ' mục đang hiện (mục có ' + total + ')...'
-    : 'Tìm nhanh trong mục này...');
   sectionBody.insertBefore(box, sectionBody.firstChild);
+  refreshSectionSearchScope(box);
 }
 
-// Loc ngay tren DOM: khong ve lai gi ca nen khong mat tieu diem, khong can debounce.
+// Phạm vi của ô tìm = số hàng ô tìm CHẠM TỚI ĐƯỢC. Hàng bị capSectionRows giấu đi vẫn chạm tới được
+// (chúng nằm trong DOM, chỉ đang hidden) — còn hàng chưa hề được vẽ (mục tự phân trang) thì không.
+// Câu chữ phải nói đúng điều đó, nếu không sẽ ra cảnh "mục ghi 64 module, gõ tên một module có thật,
+// báo không khớp".
+function refreshSectionSearchScope(box) {
+  const sectionBody = box.parentElement;
+  if (!sectionBody) return;
+  const reach = sectionRows(sectionRowContainer(sectionBody), box).length;
+  const total = sectionShownTotal(sectionBody);
+  box.setAttribute('placeholder', total > reach
+    ? 'Tìm trong ' + reach + ' mục đã vẽ (mục có ' + total + ')...'
+    : 'Tìm nhanh trong mục này...');
+}
+
+// Lọc ngay trên DOM: không vẽ lại gì cả nên không mất tiêu điểm, không cần debounce.
 function filterSectionRows(box) {
   const sectionBody = box.parentElement;
   const container = sectionRowContainer(sectionBody);
   const query = box.value.trim().toLowerCase();
   const rows = sectionRows(container, box);
+  const more = sectionBody.querySelector('.fll-secmore');
   let shown = 0;
   rows.forEach((node) => {
     const hit = !query || (node.textContent || '').toLowerCase().indexOf(query) >= 0;
-    node.hidden = !hit;
+    // Đang gõ tìm thì bỏ qua giới hạn cắt: gõ đúng tên một hàng bị cắt mà vẫn "không mục nào khớp"
+    // là kiểu sai khó chịu nhất. Xoá ô tìm thì trả lại trạng thái cắt cũ.
+    node.hidden = query ? !hit : !!node.getAttribute('data-capped');
     if (hit) shown += 1;
   });
+  if (more) more.hidden = !!query;
   let note = sectionBody.querySelector('.fll-secq-note');
   if (!query) {
     if (note) note.remove();
@@ -4215,11 +4187,11 @@ function filterSectionRows(box) {
     sectionBody.insertBefore(note, box.nextSibling);
   }
   const total = sectionShownTotal(sectionBody);
-  const chuaVe = total > rows.length ? ' — mục có ' + total + ', ô này chỉ tìm trong phần đang hiện' : '';
+  const chuaVe = total > rows.length ? ' — mục có ' + total + ', ô này chỉ tìm trong phần đã vẽ' : '';
   note.textContent = (shown ? 'Khớp ' + shown + '/' + rows.length : 'Không mục nào khớp') + chuaVe + '.';
 }
 
-// Dong/mo TAI CHO, khong ve lai ca tab: ve lai se mat vi tri cuon va lam mat luon o tim dang go do.
+// Đóng/mở TẠI CHỖ, không vẽ lại cả tab: vẽ lại sẽ mất vị trí cuộn và làm mất luôn ô tìm đang gõ dở.
 function toggleSection(header) {
   const wrap = header.parentElement;
   if (!wrap || !wrap.classList.contains('fll-secw')) return;
@@ -4229,8 +4201,8 @@ function toggleSection(header) {
   hideAim();
 }
 
-// Mo muc dang chua phan tu nay ra roi moi cuon toi. Khong co buoc nay thi cac loi tat ("bấm thẻ phiên
-// app o Tong quan") se cuon toi mot cho dang bi dong, tuc khong thay gi.
+// Mở mục đang chứa phần tử này ra rồi mới cuộn tới. Không có bước này thì các lối tắt ("bấm thẻ phiên
+// app ở Tổng quan") sẽ cuộn tới một chỗ đang bị đóng, tức không thấy gì.
 function revealElement(el) {
   let node = el;
   while (node && node !== lensState.el.body) {
@@ -4242,28 +4214,20 @@ function revealElement(el) {
     node = node.parentElement;
   }
 }
-// AI-GENERATED END
-/*
-File: src/03j-tooltip.js
-Created At: 2026-09-10 23:00:00 +07:00
-Created By: AI
-AI Agent: Claude Code
-Model: claude-opus-5
-*/
 // @ts-check
-// AI-GENERATED START — tooltip tu ve, thay cho thuoc tinh title="" cua trinh duyet
+// tooltip tự vẽ, thay cho thuộc tính title="" của trình duyệt
 //
-// Vi sao phai tu ve: do tre truoc khi hien title="" do HE DIEU HANH quyet dinh, khong co CSS hay JS
-// nao doi duoc. Panel nay day chu giai — moi hang, moi chip, moi tieu de muc deu co mot cai — nen luot
-// chuot qua la tooltip nhay lien tuc va che mat phan giao dien phia sau. Doi sang data-tip roi tu ve
-// thi kiem soat duoc ba thu: cho bao lau moi hien, rong toi da bao nhieu, va hien o dau.
+// Vì sao phải tự vẽ: độ trễ trước khi hiện title="" do HỆ ĐIỀU HÀNH quyết định, không có CSS hay JS
+// nào đổi được. Panel này đầy chú giải — mỗi hàng, mỗi chip, mỗi tiêu đề mục đều có một cái — nên lướt
+// chuột qua là tooltip nhảy liên tục và che mất phần giao diện phía sau. Đổi sang data-tip rồi tự vẽ
+// thì kiểm soát được ba thứ: chờ bao lâu mới hiện, rộng tối đa bao nhiêu, và hiện ở đâu.
 //
-// Dat trong #fll-root chu khong trong .fll-panel: panel co overflow:hidden nen tooltip sat mep panel
-// se bi cat mat mot nua.
+// Đặt trong #fll-root chứ không trong .fll-panel: panel có overflow:hidden nên tooltip sát mép panel
+// sẽ bị cắt mất một nửa.
 
 const TOOLTIP_DELAY_MS = 600;
-// Lech xuong duoi va sang phai con tro. Chuot thuong di tu tren xuong / tu trai sang, nen huong nay
-// che vao cho nguoi dung VUA roi khoi, khong che cho ho dang nhin toi.
+// Lệch xuống dưới và sang phải con trỏ. Chuột thường đi từ trên xuống / từ trái sang, nên hướng này
+// che vào chỗ người dùng VỪA rời khỏi, không che chỗ họ đang nhìn tới.
 const TOOLTIP_OFFSET_X = 14;
 const TOOLTIP_OFFSET_Y = 18;
 const TOOLTIP_MARGIN = 8;
@@ -4294,7 +4258,7 @@ function hideTooltip() {
   if (lensState.el.tip) lensState.el.tip.hidden = true;
 }
 
-// Do xong moi dat: phai hien ra thi moi biet no rong cao bao nhieu de con lat len / day vao trong man.
+// Đo xong mới đặt: phải hiện ra thì mới biết nó rộng cao bao nhiêu để còn lật lên / đẩy vào trong màn.
 function placeTooltip(el, clientX, clientY) {
   const text = el.getAttribute('data-tip');
   if (!text || !el.isConnected) return;
@@ -4309,8 +4273,8 @@ function placeTooltip(el, clientX, clientY) {
   if (left + box.width > window.innerWidth - TOOLTIP_MARGIN) {
     left = Math.max(TOOLTIP_MARGIN, window.innerWidth - TOOLTIP_MARGIN - box.width);
   }
-  // Khong du cho ben duoi thi lat len TREN con tro, chu khong ep sat day man hinh — ep sat day thi no
-  // nam de len chinh cai dang tro toi.
+  // Không đủ chỗ bên dưới thì lật lên TRÊN con trỏ, chứ không ép sát đáy màn hình — ép sát đáy thì nó
+  // nằm đè lên chính cái đang trỏ tới.
   if (top + box.height > window.innerHeight - TOOLTIP_MARGIN) {
     top = Math.max(TOOLTIP_MARGIN, clientY - TOOLTIP_OFFSET_Y - box.height);
   }
@@ -4332,22 +4296,14 @@ function handleLensTooltip(event) {
     if (lensState.tipEl === hit) placeTooltip(hit, clientX, clientY);
   }, TOOLTIP_DELAY_MS);
 }
-// AI-GENERATED END
-/*
-File: src/04-sheet.js
-Created At: 2026-09-08 16:00:00 +07:00
-Created By: AI
-AI Agent: Claude Code
-Model: claude-opus-5
-*/
 // @ts-check
-// AI-GENERATED START — tam truot phu len than panel: xem payload JSON va gom cac dong cung mot ID
+// tấm trượt phủ lên thân panel: xem payload JSON và gom các dòng cùng một ID
 
 const SHEET_MAX_RAW_LENGTH = 20000;
 
-// Tam truot tung phu tu duoi header xuong (top:52px co dinh trong CSS) nen no che luon minimap —
-// dung luc doc payload lai la luc can nhin "dong nay nam cho nao trong log" nhat. Do bang JS thay vi
-// dat so co dinh vi chieu cao phan tren khong co dinh: thanh bo loc co luc hien co luc an.
+// Tấm trượt từng phủ từ dưới header xuống (top:52px cố định trong CSS) nên nó che luôn minimap —
+// đúng lúc đọc payload lại là lúc cần nhìn "dòng này nằm chỗ nào trong log" nhất. Đo bằng JS thay vì
+// đặt số cố định vì chiều cao phần trên không cố định: thanh bộ lọc có lúc hiện có lúc ẩn.
 function positionSheetBelowTimeline() {
   const sheet = lensState.el.sheet;
   const body = lensState.el.body;
@@ -4378,7 +4334,7 @@ function closeSheet() {
   lensState.el.sheet = null;
 }
 
-// Mot khoi co the vua bi cat vua bi che, nen tra ve danh sach nhan chu khong phai mot nhan.
+// Một khối có thể vừa bị cắt vừa bị che, nên trả về danh sách nhãn chứ không phải một nhãn.
 function payloadSectionTags(section) {
   const tags = [];
   if (section.isTruncated) {
@@ -4393,8 +4349,8 @@ function payloadSectionTags(section) {
   return tags;
 }
 
-// To mau bang cach quet token roi escape TUNG manh — escape truoc rooi mau sau se an ca the <i>,
-// con mau truoc escape sau thi the bi bien thanh chu.
+// Tô màu bằng cách quét token rồi escape TỪNG mảnh — escape trước rồi tô màu sau sẽ ăn cả thẻ <i>,
+// còn tô màu trước escape sau thì thẻ bị biến thành chữ.
 const JSON_TOKEN_RE =
   /("(?:\\.|[^"\\])*")(\s*:)?|\b(true|false|null)\b|(-?\d+(?:\.\d+)?(?:[eE][-+]?\d+)?)/g;
 
@@ -4436,13 +4392,13 @@ function renderPayloadSection(section, index) {
     '">' + highlightJson(text) + '</pre></div>';
 }
 
-// Mot request HTTP nam o hai dong log khac nhau va moi dong mang truong khac nhau
-// (--header/--encrypted o dong request, --status o dong response), nen mo chung mot tam truot
-// roi doi qua lai bang chip: khoi phai dong ra mo vao de so request voi response.
+// Một request HTTP nằm ở hai dòng log khác nhau và mỗi dòng mang trường khác nhau
+// (--header/--encrypted ở dòng request, --status ở dòng response), nên mở chung một tấm trượt
+// rồi đổi qua lại bằng chip: khỏi phải đóng ra mở vào để so request với response.
 const WRAP_STORAGE_KEY = 'fll.payloadWrap';
 
-// Mac dinh BAT: pretty-print chi ngan dong o cau truc, con mot gia tri dai (chu ky, chuoi base64)
-// van la mot dong dai vai nghin ky tu — cuon ngang de doc thu do rat met.
+// Mặc định BẬT: pretty-print chỉ ngắt dòng ở cấu trúc, còn một giá trị dài (chữ ký, chuỗi base64)
+// vẫn là một dòng dài vài nghìn ký tự — cuộn ngang để đọc thứ đó rất mệt.
 const payloadSheetState = { reqIndex: null, resIndex: null, side: 'req', isWrapped: loadPayloadWrap() };
 
 function loadPayloadWrap() {
@@ -4457,14 +4413,14 @@ function persistPayloadWrap() {
   try {
     localStorage.setItem(WRAP_STORAGE_KEY, payloadSheetState.isWrapped ? '1' : '0');
   } catch (error) {
-    // Rieng tu / het dung luong: lua chon van co hieu luc trong phien nay.
+    // Riêng tư / hết dung lượng: lựa chọn vẫn có hiệu lực trong phiên này.
   }
 }
 
 function togglePayloadWrap(button) {
   payloadSheetState.isWrapped = !payloadSheetState.isWrapped;
   persistPayloadWrap();
-  // Doi class tai cho thay vi ve lai: giu nguyen vi tri cuon nguoi dung dang doc do.
+  // Đổi class tại chỗ thay vì vẽ lại: giữ nguyên vị trí cuộn người dùng đang đọc dở.
   const sheet = lensState.el.panel && lensState.el.panel.querySelector('.fll-sheet');
   if (sheet) {
     sheet.querySelectorAll('.fll-code').forEach((block) => {
@@ -4474,12 +4430,12 @@ function togglePayloadWrap(button) {
   button.className = 'fll-chip' + (payloadSheetState.isWrapped ? ' on' : '');
 }
 
-// Nut "Nhay toi dong" nam tren thanh cong cu dau tam truot, khong phai duoi cung: payload JSON dai
-// toi 10KB nen truoc day phai cuon het ca khoi du lieu moi thay no. Thanh nay con dinh lai khi cuon
-// (position:sticky) de doc giua chung van bam duoc.
-// Hai hang co chu dich, khong nhoi tat ca vao mot hang: do that tren panel 480px cho thay nhoi chung
-// thi tong be ngang cac nut vuot khung 61px va tu vo thanh hai hang loi lom.
-// Hang tren la tab Request/Response, hang duoi la hanh dong. Ca khoi dinh lai khi cuon.
+// Nút "Nhảy tới dòng" nằm trên thanh công cụ đầu tấm trượt, không phải dưới cùng: payload JSON dài
+// tới 10KB nên trước đây phải cuộn hết cả khối dữ liệu mới thấy nó. Thanh này còn dính lại khi cuộn
+// (position:sticky) để đọc giữa chừng vẫn bấm được.
+// Hai hàng có chủ đích, không nhồi tất cả vào một hàng: đo thật trên panel 480px cho thấy nhồi chung
+// thì tổng bề ngang các nút vượt khung 61px và tự vỡ thành hai hàng lồi lõm.
+// Hàng trên là tab Request/Response, hàng dưới là hành động. Cả khối dính lại khi cuộn.
 function renderPayloadToolbar(tabsHtml, domIndex, lineNo) {
   const jump = domIndex == null ? '' :
     '<button class="fll-btn fll-mini pri" data-jump="' + domIndex + '" ' +
@@ -4507,7 +4463,7 @@ function formatBytes(count) {
   return (count / 1024).toFixed(count < 10240 ? 1 : 0) + ' KB';
 }
 
-// Do tren nguyen van cua CAC TRUONG payload, khong tinh phan "[Module: HTTP] [URL: ...]" dau dong.
+// Đo trên nguyên văn của CÁC TRƯỜNG payload, không tính phần "[Module: HTTP] [URL: ...]" đầu dòng.
 function payloadBytes(domIndex) {
   const entry = lensState.data.entries[domIndex];
   if (!entry) return 0;
@@ -4540,7 +4496,7 @@ function switchPayloadSide(side) {
   renderPayloadSheet(payloadSheetState.reqIndex, payloadSheetState.resIndex, side);
 }
 
-// Duong vao cho MOT dong don le (tam truot correlation), khong co cap request/response.
+// Đường vào cho MỘT dòng đơn lẻ (tấm trượt correlation), không có cặp request/response.
 function renderJsonSheet(domIndex) {
   const rendered = renderPayloadBody(domIndex, '');
   if (!rendered) return;
@@ -4572,19 +4528,11 @@ function renderCorrelationSheet(value) {
     '<button class="fll-btn pri" data-act="browseCorrelation" data-value="' + escapeHtml(value) + '">' +
     'Duyệt bằng n / p</button></div><div class="fll-tl">' + rows + '</div>');
 }
-// AI-GENERATED END
-/*
-File: src/04-tabs.js
-Created At: 2026-09-08 16:00:00 +07:00
-Created By: AI
-AI Agent: Claude Code
-Model: claude-opus-5
-*/
 // @ts-check
-// AI-GENERATED START — noi dung 6 tab: Tong quan, Van de, HTTP, Cham, Loc, Dien bien
+// nội dung 5 tab: Tổng quan, Vấn đề, Cấu hình, Lọc, Diễn biến
 
-// Dung log that co 262 nhom sau khi gom; ve het mot luot la mot chuoi HTML rat lon va phai
-// dung lai moi lan go phim trong o tim. Ve theo lo, con lai bam "Hien them".
+// Dùng log thật có 262 nhóm sau khi gom; vẽ hết một lượt là một chuỗi HTML rất lớn và phải
+// dựng lại mỗi lần gõ phím trong ô tìm. Vẽ theo lô, còn lại bấm "Hiện thêm".
 const ISSUE_PAGE_SIZE = 50;
 
 const TIMELINE_PAGE_SIZE = 80;
@@ -4593,8 +4541,8 @@ const tabUiState = { issueLevel: 'all', issueQuery: '', httpOnlyBad: false, http
   issueLimit: ISSUE_PAGE_SIZE, templateName: '', tlKinds: new Set(), tlQuery: '',
   tlLimit: TIMELINE_PAGE_SIZE, showNoise: false };
 
-// Moi thu trong tabUiState deu la trang thai cua MOT feedback dang mo. Sang feedback khac ma con sot
-// thi danh sach da bi loc san bang cau tim cua log truoc, ma thanh bo loc khong he bao gi.
+// Mọi thứ trong tabUiState đều là trạng thái của MỘT feedback đang mở. Sang feedback khác mà còn sót
+// thì danh sách đã bị lọc sẵn bằng câu tìm của log trước, mà thanh bộ lọc không hề báo gì.
 function resetTabUiState() {
   tabUiState.issueLevel = 'all';
   tabUiState.issueQuery = '';
@@ -4625,10 +4573,11 @@ function renderSparkline(indices, color) {
     .join('') + '</div>';
 }
 
-function renderRankList(rows, dataAttr, limit) {
-  const visible = rows.slice(0, limit);
-  const peak = Math.max(1, ...visible.map((row) => row.count));
-  return '<div class="fll-rank">' + visible
+// Vẽ HẾT hàng: việc cắt bớt để capSectionRows() làm sau khi vẽ, nhờ vậy badge trên tiêu đề vẫn là
+// tổng thật và ô tìm nhanh vẫn chạm tới được phần bị giấu. Hàng đã sort giảm dần nên peak là hàng đầu.
+function renderRankList(rows, dataAttr) {
+  const peak = Math.max(1, ...rows.map((row) => row.count));
+  return '<div class="fll-rank">' + rows
     .map((row) =>
       '<div class="fll-rk" ' + dataAttr + '="' + escapeHtml(row.key) + '">' +
       '<u style="width:' + ((row.count / peak) * 100).toFixed(1) + '%"></u>' +
@@ -4636,19 +4585,19 @@ function renderRankList(rows, dataAttr, limit) {
     .join('') + '</div>';
 }
 
-// The thong ke hien so chinh xac; chi badge tren tab moi rut gon kieu 4.1k.
-// Khi dang loc thi kem theo tong cua ca file (47/958) de khong ai giat minh "warning cua toi dau mat roi".
+// Thẻ thống kê hiện số chính xác; chỉ badge trên tab mới rút gọn kiểu 4.1k.
+// Khi đang lọc thì kèm theo tổng của cả file (47/958) để không ai giật mình "warning của tôi đâu mất rồi".
 function statCard(value, label, color, attrs, total) {
   const suffix = total != null && total !== value ? '<em>/' + total + '</em>' : '';
   return '<button class="fll-stat" ' + attrs + '><b' + (color ? ' style="color:' + color + '"' : '') + '>' +
     value + suffix + '</b><span>' + escapeHtml(label) + '</span></button>';
 }
 
-// Tieu de mot muc. data-sec giu ten GOC: collapsifySections() lay thuoc tinh nay lam khoa nho trang
-// thai dong/mo, khong duoc lay textContent vi trong do co ca badge — badge doi theo tung log, lay no
-// vao khoa thi mo mot muc o log nay, sang log khac lai thay muc do dang dong.
-// Badge la thu duy nhat nhin thay khi muc dang thu lai, nen no phai tra loi duoc "trong nay co gi".
-// tone 'act' = dang co bo loc bat, dung mau accent giong chip bo loc.
+// Tiêu đề một mục. data-sec giữ tên GỐC: collapsifySections() lấy thuộc tính này làm khoá nhớ trạng
+// thái đóng/mở, không được lấy textContent vì trong đó có cả badge — badge đổi theo từng log, lấy nó
+// vào khoá thì mở một mục ở log này, sang log khác lại thấy mục đó đang đóng.
+// Badge là thứ duy nhất nhìn thấy khi mục đang thu lại, nên nó phải trả lời được "trong này có gì".
+// tone 'act' = đang có bộ lọc bật, dùng màu accent giống chip bộ lọc.
 function secTitle(title, badge, tone) {
   const chip = badge == null || badge === '' ? ''
     : '<i class="fll-secbdg' + (tone ? ' ' + tone : '') + '">' + escapeHtml(String(badge)) + '</i>';
@@ -4669,9 +4618,9 @@ function renderWindowChips(includeAllChip) {
 
 /* ---------------------------------------------------------------- Tổng quan */
 
-// Log duoc chup dung luc user bam gui feedback, nen mep phai cua truc thoi gian chinh la thoi diem xay ra van de.
-// Mot log production that (autoId 45490371) dai 4222 dong hoa ra la 2111 dong dau lap lai y het.
-// Khong bao thi tool dem gap doi moi thu ma khong ai nhan ra — "loi nay 4 lan" that ra la 2 lan.
+// Log được chụp đúng lúc user bấm gửi feedback, nên mép phải của trục thời gian chính là thời điểm xảy ra vấn đề.
+// Một log production thật (autoId 45490371) dài 4222 dòng hoá ra là 2111 dòng đầu lặp lại y hệt.
+// Không báo thì tool đếm gấp đôi mọi thứ mà không ai nhận ra — "lỗi này 4 lần" thật ra là 2 lần.
 function renderDuplicateBanner(data) {
   const block = data.duplicate;
   if (!block) return '';
@@ -4691,8 +4640,8 @@ function renderDuplicateBanner(data) {
     '</div></div>';
 }
 
-// Muc nay tra loi cau dau tien cua buoc TAI HIEN: may gi, iOS may, ban nao, noi vao dau.
-// Doc tu header request HTTP vi do la nguon duy nhat con song tren log production (xem 02i).
+// Mục này trả lời câu đầu tiên của bước TÁI HIỆN: máy gì, iOS mấy, bản nào, nối vào đâu.
+// Đọc từ header request HTTP vì đó là nguồn duy nhất còn sống trên log production (xem 02i).
 function renderEnvironmentSection(data) {
   const env = data.environment;
   if (!env.available) return '';
@@ -4712,7 +4661,7 @@ function renderEnvironmentSection(data) {
   ].filter((row) => row[1]);
   if (!rows.length) return '';
 
-  // Ban build va host la HAI chuyen khac nhau — chi noi ra su that quan sat duoc, khong ket luan ho.
+  // Bản build và host là HAI chuyện khác nhau — chỉ nói ra sự thật quan sát được, không kết luận hộ.
   const mixed = env.mixedBuild
     ? '<div class="fll-note" style="margin-top:8px"><span>&#9888;</span><div>Bản <b>' +
       escapeHtml(env.flavor) + '</b> nhưng mọi host trong log đều không có dấu hiệu uat/dev. ' +
@@ -4735,7 +4684,7 @@ function renderFeedbackBanner() {
   const bits = [context.Feature, context.ScreenID, context.MiniApp].filter(Boolean);
   const device = [context['Device OS'], context['App Info'], context.Network].filter(Boolean).join(' · ');
 
-  // Thiet bi/phien ban chi de trong tooltip: dong nay bi cat giua chu thi doc cang kho hon la khong co.
+  // Thiết bị/phiên bản chỉ để trong tooltip: dòng này bị cắt giữa chừng thì đọc càng khó hơn là không có.
   return '<div class="fll-focus">' +
     '<div class="fll-focus-t">User gửi lúc <b>' + formatClock(data.lastTs) + '</b>' +
     (context['Entry Point'] ? ' từ <b>' + escapeHtml(context['Entry Point']) + '</b>' : '') + '</div>' +
@@ -4759,8 +4708,8 @@ function renderSummaryTab() {
   const isScoped = data !== full;
   const errorGroups = data.groups.filter((group) => group.level === 'ERROR' && !isGroupMuted(group));
 
-  // Khong lap lai "dang loc N dong" o day: thanh bo loc ngay phia tren da noi roi,
-  // va moi the thong ke deu tu hien dang scope/tong.
+  // Không lặp lại "đang lọc N dòng" ở đây: thanh bộ lọc ngay phía trên đã nói rồi,
+  // và mỗi thẻ thống kê đều tự hiện dạng scope/tổng.
   let html = renderFeedbackBanner() +
     '<div class="fll-stats">' +
     statCard(data.scopedEntries.length, 'dòng log', '', 'data-act="noop"',
@@ -4769,9 +4718,9 @@ function renderSummaryTab() {
       isScoped ? full.levels.ERROR : null) +
     statCard(data.levels.WARNING, 'WARNING', LEVEL_COLOR.WARNING, 'data-level="WARNING"',
       isScoped ? full.levels.WARNING : null) +
-    // Bam vao day phai ra dung CHO LOC theo phien (tab Loc), khong phai tab Dien bien — truoc day
-    // no dan sang Dien bien trong khi cho chon phien lai nam o Loc. Mot phien thi khong co gi de
-    // chon, de nut bam duoc chi lam nguoi dung bam hut.
+    // Bấm vào đây phải ra đúng CHỖ LỌC theo phiên (tab Lọc), không phải tab Diễn biến — trước đây
+    // nó dẫn sang Diễn biến trong khi chỗ chọn phiên lại nằm ở Lọc. Một phiên thì không có gì để
+    // chọn, để nút bấm được chỉ làm người dùng bấm hụt.
     statCard(full.sessionCount, 'phiên app', '#3ddc97',
       full.sessionCount > 1 ? 'data-act="gotoSessions"' : 'data-act="noop"') +
     statCard(data.gaps.filter((gap) => gap.cause !== 'background').length,
@@ -4786,7 +4735,7 @@ function renderSummaryTab() {
       isScoped ? full.badHttpCalls.length : null) +
     '</div>';
 
-  // Bang nay phai dung TREN moi con so, vi neu log bi noi doi thi moi con so ben duoi deu gap doi.
+  // Băng này phải đứng TRÊN mọi con số, vì nếu log bị nối đôi thì mọi con số bên dưới đều gấp đôi.
   html += renderDuplicateBanner(full);
 
   if (full.outOfOrder > 0) {
@@ -4815,8 +4764,8 @@ function renderSummaryTab() {
       ' nhóm vấn đề</button>';
   }
 
-  // Popup/bottom sheet dat gia nhat nen nam ngay tab dau, khong phai giau sau vai lan bam:
-  // chung deu ghi o muc INFO nen phan "Loi noi bat" ngay tren khong bao gio nhac toi.
+  // Popup/bottom sheet đắt giá nhất nên nằm ngay tab đầu, không phải giấu sau vài lần bấm:
+  // chúng đều ghi ở mức INFO nên phần "Lỗi nổi bật" ngay trên không bao giờ nhắc tới.
   if (data.journey.saw.length) {
     html += secTitle('User đã nhìn thấy gì', data.journey.saw.length, 'warn') +
       '<div class="fll-hint" style="margin-bottom:8px">Popup và bottom sheet thật sự hiện lên màn hình. ' +
@@ -4825,15 +4774,15 @@ function renderSummaryTab() {
   }
   if (data.journey.taps.length) {
     html += secTitle('Chạm nhiều nhất', data.journey.taps.length) +
-      renderRankList(data.journey.taps, 'data-jtap', 6);
+      renderRankList(data.journey.taps, 'data-jtap');
   }
 
   html += renderEnvironmentSection(full);
   html += renderSlowSections();
   html += secTitle('Module nói nhiều nhất', data.modules.length) +
-    renderRankList(data.modules, 'data-module', 8);
+    renderRankList(data.modules, 'data-module');
   if (data.events.length) {
-    html += secTitle('Tracker event', data.events.length) + renderRankList(data.events, 'data-event', 6) +
+    html += secTitle('Tracker event', data.events.length) + renderRankList(data.events, 'data-event') +
       '<div class="fll-hint" style="margin-top:6px">Tên event thô, kể cả loại chưa dựng thành thao tác ' +
       'được — bấm để lọc thẳng ra những dòng đó.</div>';
   }
@@ -4864,7 +4813,7 @@ function renderIssueList() {
   const view = getView();
   const query = tabUiState.issueQuery.toLowerCase();
   const groups = view.groups.filter((group) => {
-    // Nhieu do luong co khoi rieng ben duoi, khong tron vao day.
+    // Nhiễu đo lường có khối riêng bên dưới, không trộn vào đây.
     if (group.noiseLabel) return false;
     if (isGroupMuted(group) && !lensState.isShowingMuted) return false;
     if (tabUiState.issueLevel !== 'all' && group.level !== tabUiState.issueLevel) return false;
@@ -4914,11 +4863,11 @@ function renderIssuesTab() {
     renderHttpSection();
 }
 
-// Do tren 50 feedback PRODUCTION that: 1267/2488 dong ERROR (51%) khong phai loi user gap ma la loi
-// cua chinh lop do luong, va 24/49 log co qua nua so dong ERROR la loai nay. De chung lan trong danh
-// sach thi nguoi doc mat mot nua thoi gian vao thu khong lien quan.
-// Tach ra chu KHONG tu dong tat tieng: tat tieng la quyet dinh cua nguoi doc, va doi khi chinh lop
-// do luong hong lai la manh moi.
+// Đo trên 50 feedback PRODUCTION thật: 1267/2488 dòng ERROR (51%) không phải lỗi user gặp mà là lỗi
+// của chính lớp đo lường, và 24/49 log có quá nửa số dòng ERROR là loại này. Để chúng lẫn trong danh
+// sách thì người đọc mất một nửa thời gian vào thứ không liên quan.
+// Tách ra chứ KHÔNG tự động tắt tiếng: tắt tiếng là quyết định của người đọc, và đôi khi chính lớp
+// đo lường hỏng lại là manh mối.
 function renderTelemetryNoiseSection(data) {
   const noise = data.groups.filter((group) => group.noiseLabel);
   if (!noise.length) return '';
@@ -4946,21 +4895,44 @@ function renderTelemetryNoiseSection(data) {
       : '');
 }
 
-// Dat TRUOC danh sach nhom chu ky vi day la loai loi ma danh sach do khong the thay: Grafana ghi o
-// muc INFO. Mot log co the khong co dong Grafana nao — luc do phai noi thang la khong co, chu de
-// trong thi nguoi doc tuong la "khong co loi".
+// Đặt TRƯỚC danh sách nhóm chữ ký vì đây là loại lỗi mà danh sách đó không thể thấy: Grafana ghi ở
+// mức INFO. Một log có thể không có dòng Grafana nào — lúc đó phải nói thẳng là không có, chứ để
+// trống thì người đọc tưởng là "không có lỗi".
+// "Log này không có X" là một khẳng định về CẢ LOG, mà các renderer lại đọc view đang lọc: lọc còn
+// ERROR xong thì tab Cấu hình in "log này không có dòng cấu hình nào đọc được" trong khi cả log có 34
+// khoá. Repo đã áp luật này cho hide() của tab (src/05-boot.js) — đây là áp nốt cho CÂU CHỮ.
+//
+// countFull trả về số lượng trong lensState.data (đầy đủ). Rỗng thật thì câu "log này không có" mới
+// được phép; view rỗng mà data có thì đổi sang câu khác hẳn, kèm nút bỏ lọc.
+function emptyBecauseOfFilter(countFull, whatIsMissing) {
+  if (!countFull) {
+    return '<div class="fll-empty">Log này không có ' + whatIsMissing + '.</div>';
+  }
+  return '<div class="fll-empty">Bộ lọc hiện tại không còn ' + whatIsMissing + ' nào — ' +
+    'cả log có <b>' + countFull + '</b>. ' +
+    '<button class="fll-chip" data-act="clearFilters">Xoá bộ lọc</button></div>';
+}
+
 function renderTraceFailSection(data) {
   const trace = data.traceIssues;
   if (!trace.available) {
+    // Cùng một luật với tab Cấu hình: chỉ được nói "log này không có" khi CẢ LOG không có.
+    const full = lensState.data ? lensState.data.traceIssues : trace;
+    if (full !== trace && full.available) {
+      return secTitle('Lỗi từ Grafana trace', 'bị lọc hết', 'warn') +
+        '<div class="fll-hint" style="margin-bottom:4px">Bộ lọc hiện tại không còn dòng Grafana trace ' +
+        'nào, nhưng cả log có <b>' + full.lineCount + '</b> dòng. ' +
+        '<button class="fll-chip" data-act="clearFilters">Xoá bộ lọc</button></div>';
+    }
     return secTitle('Lỗi từ Grafana trace', 'không có dòng nào') +
       '<div class="fll-hint" style="margin-bottom:4px">Log này <b>không có dòng Grafana trace nào</b>. ' +
       'Những dòng đó chỉ được ghi khi máy gửi feedback bật Debug Tool, nên vắng mặt là bình thường — ' +
       'chỉ là ở log này không có thêm nguồn lỗi nào ngoài các nhóm chữ ký bên dưới.</div>';
   }
-  // Co dong Grafana nhung KHONG co dong nao di qua co debug (startTrace/traceFail) thi khong duoc noi
-  // "khong luong nao bao loi": nhung dong dang co chi la log thuong cua lop Grafana, con duong ghi
-  // traceFail chua bao gio duoc mo. README da canh bao dung nham available voi hasGated — va truoc day
-  // hasGated tinh ra roi khong renderer nao doc.
+  // Có dòng Grafana nhưng KHÔNG có dòng nào đi qua cờ debug (startTrace/traceFail) thì không được nói
+  // "không luồng nào báo lỗi": những dòng đang có chỉ là log thường của lớp Grafana, còn đường ghi
+  // traceFail chưa bao giờ được mở. README đã cảnh báo đừng nhầm available với hasGated — và trước đây
+  // hasGated tính ra rồi không renderer nào đọc.
   if (!trace.hasGated) {
     return secTitle('Lỗi từ Grafana trace', 'không kết luận được', 'warn') +
       '<div class="fll-hint" style="margin-bottom:4px">Log có <b>' + trace.lineCount + '</b> dòng của lớp ' +
@@ -5009,8 +4981,8 @@ function findCorrelationForEntry(entry) {
   return entry.correlationIds.find((item) => lensState.data.correlationValueSet.has(item.value)) || null;
 }
 
-// Tim ca trong payload chu khong chi trong URL: phan lon luc can la dan theo mot cmdId /
-// request_id nhin thay o dong khac, ma gia tri do chi nam trong body.
+// Tìm cả trong payload chứ không chỉ trong URL: phần lớn lúc cần là dò theo một cmdId /
+// request_id nhìn thấy ở dòng khác, mà giá trị đó chỉ nằm trong body.
 function httpCallMatches(call, query, entries) {
   if (!query) return true;
   const head = (call.method + ' ' + call.url + ' ' + (call.status || '') + ' ' +
@@ -5032,8 +5004,8 @@ function renderHttpCall(call, data) {
     statusClass += ' bad';
     if (call.errorCode != null && call.errorCode !== 0) statusText = 'e' + call.errorCode;
   }
-  // Hai dau co payload khac nhau: --header / --encrypted nam o dong request, --status o dong response.
-  // Truoc day chi mo duoc dong response nen phan header khong bao gio xem duoc tu day.
+  // Hai đầu có payload khác nhau: --header / --encrypted nằm ở dòng request, --status ở dòng response.
+  // Trước đây chỉ mở được dòng response nên phần header không bao giờ xem được từ đây.
   const payloadIndex = call.resIndex != null ? call.resIndex : call.reqIndex;
   const correlation = findCorrelationForEntry(data.entries[payloadIndex]);
   const payloadButton = '<button class="fll-ico fll-mini" data-act="payload" data-req="' +
@@ -5064,8 +5036,8 @@ function renderHttpList() {
   return count + calls.map((call) => renderHttpCall(call, data)).join('');
 }
 
-// Khong con la mot tab: "call nao hong" va "loi gi da no" la cung mot cau hoi, truoc phai mo hai tab
-// moi ghep lai duoc. Nay la hai muc canh nhau trong tab Van de.
+// Không còn là một tab: "call nào hỏng" và "lỗi gì đã nổ" là cùng một câu hỏi, trước phải mở hai tab
+// mới ghép lại được. Nay là hai mục cạnh nhau trong tab Vấn đề.
 function renderHttpSection() {
   const data = getView();
   return secTitle('Call HTTP', data.badHttpCalls.length
@@ -5085,13 +5057,16 @@ function renderHttpSection() {
     renderTrackerFailSection(data);
 }
 
-// Nguon thu hai cho cung cau hoi "call nao hong": ops_receive_be do chinh app ghi, co san
-// status/error_code/duration. Khong tron vao bang tren vi hai ben dem theo hai cach khac nhau
-// (bang tren ghep dong [Method:] req/res, day khu trung theo trace_id) — de canh nhau moi doi chieu duoc.
+// Nguồn thứ hai cho cùng câu hỏi "call nào hỏng": ops_receive_be do chính app ghi, có sẵn
+// status/error_code/duration. Không trộn vào bảng trên vì hai bên đếm theo hai cách khác nhau
+// (bảng trên ghép dòng [Method:] req/res, đây khử trùng theo trace_id) — để cạnh nhau mới đối chiếu được.
 function renderTrackerFailSection(data) {
   const journey = data.journey;
   if (!journey.fails.length) return '';
-  return secTitle('Call BE fail — theo tracker', journey.fails.length, 'err') +
+  // Badge phải nói rõ đơn vị: fails là số NHÓM chữ ký, apiFail là số LẦN fail thật. Hai số lệch nhau
+  // nhiều (đo trên log thật: 12 nhóm / 25 lần) nên ghi một số trơn sẽ bị đọc nhầm thành số kia.
+  return secTitle('Call BE fail — theo tracker',
+    journey.fails.length + ' nhóm · ' + journey.apiFail + ' lần', 'err') +
     '<div class="fll-hint" style="margin-bottom:8px">Lấy từ <code>ops_receive_be</code> có ' +
     '<code>status=fail</code>. Đây là nguồn khác với bảng trên (bảng đó đọc dòng <code>[Method:]</code>) ' +
     'nên hai bên lệch nhau là bình thường: log này có <b>' + journey.apiTotal + '</b> call theo tracker ' +
@@ -5101,8 +5076,8 @@ function renderTrackerFailSection(data) {
 
 /* --------------------------------------------------------------------- Chậm */
 
-// Khac han muc "O lau nhat tren man": day la thoi gian TAI man, so co san trong log chu khong phai
-// so tinh ra. Dat truoc vi no tra loi thang cau "man nao tai lau", con bang duoi la moi con so tho.
+// Khác hẳn mục "Ở lâu nhất trên màn": đây là thời gian TẢI màn, số có sẵn trong log chứ không phải
+// số tính ra. Đặt trước vì nó trả lời thẳng câu "màn nào tải lâu", còn bảng dưới là mọi con số thô.
 function renderScreenLoadSection(view) {
   const rows = view.journey.screenLoads;
   if (!rows.length) return '';
@@ -5111,7 +5086,7 @@ function renderScreenLoadSection(view) {
     '<div class="fll-hint" style="margin-bottom:8px">Số <b>có sẵn trong log</b> — trường ' +
     '<code>duration</code> của <code>auto_screen_displayed</code> (lúc <code>state=load</code>) và ' +
     '<code>auto_load_progress_tracked</code>. Hiện lần chậm nhất; ngoặc là số lần đo và trung bình.</div>' +
-    '<div class="fll-rank">' + rows.slice(0, 8)
+    '<div class="fll-rank">' + rows
       .map((row) => {
         const color = row.worstMs >= 3000 ? LEVEL_COLOR.ERROR
           : row.worstMs >= 1000 ? LEVEL_COLOR.WARNING : LEVEL_COLOR.INFO;
@@ -5124,9 +5099,9 @@ function renderScreenLoadSection(view) {
       .join('') + '</div>';
 }
 
-// Khong con la mot tab: ba muc nay deu la "so rut tu log" y het cac muc khac cua Tong quan, tach ra
-// mot tab rieng chi bat nguoi doc nhay qua lai. Tu khi moi muc tu thu lai duoc thi mot tab nhieu muc
-// khong con dat cho nua.
+// Không còn là một tab: ba mục này đều là "số rút từ log" y hệt các mục khác của Tổng quan, tách ra
+// một tab riêng chỉ bắt người đọc nhảy qua lại. Từ khi mỗi mục tự thu lại được thì một tab nhiều mục
+// không còn đắt chỗ nữa.
 function renderSlowSections() {
   const view = getView();
   const rows = view.durations;
@@ -5151,11 +5126,11 @@ function renderSlowSections() {
     .join('');
 }
 
-/* ----------------------------------------- manh dung chung cho hanh trinh user */
+/* ----------------------------------------- mảnh dùng chung cho hành trình user */
 
-// Ba manh duoi day khong con tab rieng: chung nam trong tab da co dung chu de cua chung —
-// "user thay gi" + "cham nhieu nhat" o Tong quan, "call BE fail" o HTTP, "o lau tren man" o Cham.
-// Ban than dong thoi gian thi tron thang vao tab Dien bien.
+// Ba mảnh dưới đây không còn tab riêng: chúng nằm trong tab đã có đúng chủ đề của chúng —
+// "user thấy gì" + "chạm nhiều nhất" ở Tổng quan, "call BE fail" ở Vấn đề, "ở lâu trên màn" ở phần Chậm.
+// Bản thân dòng thời gian thì trộn thẳng vào tab Diễn biến.
 function renderSawCard(row, rowIndex) {
   return '<div class="fll-grp err" data-saw="' + rowIndex + '">' +
     '<div class="fll-grp-top">' +
@@ -5183,7 +5158,7 @@ function renderScreenDwellSection(view) {
     'lần vào. Số <b>tính ra</b> từ khoảng cách tới bước màn hình kế tiếp chứ không có sẵn trong log — ' +
     'nên khoảng cách vắt qua hai phiên app, hoặc dài quá ' + MAX_PLAUSIBLE_DURATION_MS / 60000 +
     ' phút (app nằm dưới nền chứ không phải người dùng ngồi nhìn), đều bị bỏ.</div>' +
-    '<div class="fll-rank">' + screens.slice(0, 8)
+    '<div class="fll-rank">' + screens
       .map((row) => '<div class="fll-rk" data-jscreen="' + escapeHtml(row.key) + '" data-tip="' +
         row.count + ' lần vào, lần lâu nhất ' + formatDuration(row.maxMs) + '">' +
         '<u style="width:' + ((row.ms / peak) * 100).toFixed(1) + '%"></u>' +
@@ -5197,7 +5172,7 @@ function renderScreenDwellSection(view) {
 
 function renderModuleChips() {
   const query = tabUiState.moduleQuery.toLowerCase();
-  // Dem theo cac dieu kien KHAC, bo qua chinh dieu kien module: co the doi module dang chon.
+  // Đếm theo các điều kiện KHÁC, bỏ qua chính điều kiện module: có thể đổi module đang chọn.
   const tally = tallyFacetCandidates('modules', (entry) => entry.module);
   lensState.filter.modules.forEach((name) => {
     if (!tally.has(name)) tally.set(name, 0);
@@ -5206,7 +5181,7 @@ function renderModuleChips() {
     .filter((row) => !query || row.key.toLowerCase().indexOf(query) >= 0)
     .sort((a, b) => b.count - a.count);
   if (!modules.length) return '<div class="fll-hint">Không có module nào khớp.</div>';
-  return modules.slice(0, 60)
+  return modules
     .map((row) => '<button class="fll-chip' + (lensState.filter.modules.has(row.key) ? ' on' : '') +
       '" data-act="tglModule" data-value="' + escapeHtml(row.key) + '">' + escapeHtml(row.key) +
       ' <em>' + row.count + '</em></button>')
@@ -5221,8 +5196,8 @@ function renderSessionChips() {
     renderSessionChipRow();
 }
 
-// Chi rieng day chip, khong kem tieu de muc: tab Dien bien khong chia muc nen phai dat thang chip vao
-// hang cong cu, con tab Loc thi boc them tieu de o tren.
+// Chỉ riêng dãy chip, không kèm tiêu đề mục: tab Diễn biến không chia mục nên phải đặt thẳng chip vào
+// hàng công cụ, còn tab Lọc thì bọc thêm tiêu đề ở trên.
 function renderSessionChipRow() {
   const sessions = lensState.data.sessions;
   if (sessions.length < 2) return '';
@@ -5247,7 +5222,7 @@ function renderCorrelationList() {
   return secTitle('Gom theo ID', buckets.length) +
     '<div class="fll-hint" style="margin-bottom:8px">Một ID xuất hiện ở nhiều dòng là một request đi qua ' +
     'nhiều lớp. Bấm để xem trọn chuỗi.</div><div class="fll-rank">' +
-    buckets.slice(0, 12)
+    buckets
       .map((bucket) => '<div class="fll-rk" data-act="correlate" data-value="' + escapeHtml(bucket.value) + '">' +
         '<u style="width:' + ((bucket.indices.length / buckets[0].indices.length) * 100).toFixed(1) + '%"></u>' +
         '<span>' + escapeHtml(bucket.key) + ' · ' + escapeHtml(bucket.value.slice(-16)) + '</span>' +
@@ -5255,8 +5230,8 @@ function renderCorrelationList() {
       .join('') + '</div>';
 }
 
-// Mau bo loc dung chung dinh dang voi permalink, chi khac la nam trong localStorage
-// va khong keo theo tab/dong dang dung — nhung thu do vo nghia o feedback khac.
+// Mẫu bộ lọc dùng chung định dạng với permalink, chỉ khác là nằm trong localStorage
+// và không kéo theo tab/dòng đang đứng — những thứ đó vô nghĩa ở feedback khác.
 function renderTemplateSection() {
   const templates = lensState.filterTemplates;
   const canSave = hasAnyFilterFacet();
@@ -5289,8 +5264,8 @@ function renderFilterTab() {
   const data = lensState.data;
   const filter = lensState.filter;
   const result = getFilterResult();
-  // Chip dem kieu faceted: bo qua chinh dieu kien cua no, neu khong thi chon ERROR xong
-  // chip WARNING ve 0 va khong con duong noi rong lai.
+  // Chip đếm kiểu faceted: bỏ qua chính điều kiện của nó, nếu không thì chọn ERROR xong
+  // chip WARNING về 0 và không còn đường nới rộng lại.
   const levelTally = tallyFacetCandidates('levels', (entry) => entry.level);
 
   const hasWindow = filter.timeFrom !== null || filter.timeTo !== null;
@@ -5345,13 +5320,13 @@ function renderFilterTab() {
 
 /* ---------------------------------------------------------------- Diễn biến */
 
-// Truoc day day la tab "Timeline" chi co 3 loai moc cua APP (khoi dong / khoang lang / nhom loi):
-// 29 moc, tab mong nhat trong ca panel. Buoc tuong tac cua user tung nam o mot tab rieng — nhung ca hai
-// deu la "sap theo timestamp that roi ve .fll-tl", tuc cung mot thu voi hai nguon khac nhau, va phai
-// nhay qua lai giua hai tab moi ghep duoc cau "user bam gi -> app dung im -> loi gi". Tron lam mot.
-// Truoc day loai moc chi phan biet bang MAU cua mot cham tron 7px o le trai. Mau khong tu noi ra
-// nghia: nguoi doc phai nho "hong la cham, xanh la man hinh" — khong ai nho. Nay moi loai co mot bieu
-// tuong + mot cai ten, va co ca hang chu giai ngay tren danh sach.
+// Trước đây đây là tab "Timeline" chỉ có 3 loại mốc của APP (khởi động / khoảng lặng / nhóm lỗi):
+// 29 mốc, tab mỏng nhất trong cả panel. Bước tương tác của user từng nằm ở một tab riêng — nhưng cả hai
+// đều là "sắp theo timestamp thật rồi vẽ .fll-tl", tức cùng một thứ với hai nguồn khác nhau, và phải
+// nhảy qua lại giữa hai tab mới ghép được câu "user bấm gì -> app đứng im -> lỗi gì". Trộn làm một.
+// Trước đây loại mốc chỉ phân biệt bằng MÀU của một chấm tròn 7px ở lề trái. Màu không tự nói ra
+// nghĩa: người đọc phải nhớ "hồng là chạm, xanh là màn hình" — không ai nhớ. Nay mỗi loại có một biểu
+// tượng + một cái tên, và có cả hàng chú giải ngay trên danh sách.
 const TIMELINE_KINDS = {
   boot: { icon: '\uD83D\uDE80', label: 'App khởi động', short: 'Khởi động' },
   gap: { icon: '\uD83D\uDCA4', label: 'Khoảng lặng, không có log', short: 'Lặng' },
@@ -5364,10 +5339,10 @@ const TIMELINE_KINDS = {
   'jr-fail': { icon: '\u26A0\uFE0F', label: 'Call BE fail', short: 'Call fail' },
 };
 
-// Truoc day day la sau nhom tho (App / Man hinh / Cham / User thay / API fail) trong khi moc thi co
-// tam loai — "App" gom ca khoi dong, khoang lang va nhom loi vao mot cho. Nay chip chinh la tung loai
-// moc, mang dung bieu tuong cua no, va chon duoc nhieu loai cung luc. Hang chu giai rieng bo di:
-// chip da vua la chu giai vua la bo loc.
+// Trước đây đây là sáu nhóm thô (App / Màn hình / Chạm / User thấy / API fail) trong khi mốc thì có
+// tám loại — "App" gom cả khởi động, khoảng lặng và nhóm lỗi vào một chỗ. Nay chip chính là từng loại
+// mốc, mang đúng biểu tượng của nó, và chọn được nhiều loại cùng lúc. Hàng chú giải riêng bỏ đi:
+// chip đã vừa là chú giải vừa là bộ lọc.
 const TIMELINE_KIND_ORDER = ['boot', 'gap', 'gap-bg', 'err', 'jr-screen', 'jr-move', 'jr-tap',
   'jr-saw', 'jr-fail'];
 
@@ -5387,11 +5362,11 @@ function buildTimelineEvents(data) {
     }
   });
 
-  // Khoang lang la mot KHOANG, khong phai mot diem. Truoc day hang nay hien gio cua dong TRUOC khoang
-  // lang nhung bam (va mui ten) lai tro toi dong SAU no — hai dau cach nhau ca tieng dong ho, nen nhin
-  // vao thay giao dien tu mau thuan. Nay hien ca hai moc, va mui ten danh dau ca hai dau tren minimap.
+  // Khoảng lặng là một KHOẢNG, không phải một điểm. Trước đây hàng này hiện giờ của dòng TRƯỚC khoảng
+  // lặng nhưng bấm (và mũi tên) lại trỏ tới dòng SAU nó — hai đầu cách nhau cả tiếng đồng hồ, nên nhìn
+  // vào thấy giao diện tự mâu thuẫn. Nay hiện cả hai mốc, và mũi tên đánh dấu cả hai đầu trên minimap.
   data.gaps.forEach((gap) => {
-    // Xuong nen va treo la HAI chuyen khac han nhau; goi chung mot ten thi doc log thanh doan mo.
+    // Xuống nền và treo là HAI chuyện khác hẳn nhau; gọi chung một tên thì đọc log thành đoán mò.
     const isBackground = gap.cause === 'background';
     events.push({ ts: gap.before.ts, tsEnd: gap.after.ts, kind: isBackground ? 'gap-bg' : 'gap',
       title: (isBackground ? 'App xuống nền ' : 'Khoảng lặng ') + formatDuration(gap.ms),
@@ -5408,8 +5383,8 @@ function buildTimelineEvents(data) {
       detail: group.sample.slice(0, 90), index: group.indices[0] });
   });
 
-  // "Doi luong" (feature_source) di chung nhom voi man hinh: no cung la chuyen dich chuyen, va tach
-  // ra thanh chip thu bay thi hang chip bat dau cuon ngang.
+  // "Đổi luồng" (feature_source) đi chung nhóm với màn hình: nó cũng là chuyện dịch chuyển, và tách
+  // ra thành chip thứ bảy thì hàng chip bắt đầu cuộn ngang.
   data.journey.steps.forEach((step) => {
     events.push({ ts: step.ts, kind: 'jr-' + step.kind,
       title: step.label, detail: [step.detail, step.note].filter(Boolean).join(' · '),
@@ -5437,12 +5412,12 @@ function renderTimelineTab() {
         ' <em>' + row.count + '</em></button>')
       .join('') + '</div>';
 
-  // Loc theo phien ngay tai day. Truoc do muon xem rieng mot phien phai sang tab Loc roi quay lai —
-  // ma dong thoi gian chinh la cho de y "phien nay khac phien kia cho nao" nhat.
+  // Lọc theo phiên ngay tại đây. Trước đó muốn xem riêng một phiên phải sang tab Lọc rồi quay lại —
+  // mà dòng thời gian chính là chỗ để ý "phiên này khác phiên kia chỗ nào" nhất.
   const sessionRow = renderSessionChipRow();
   if (sessionRow) header += '<div style="margin-bottom:9px">' + sessionRow + '</div>';
 
-  // Chip nguong khoang lang chi co nghia khi moc khoang lang dang hien.
+  // Chip ngưỡng khoảng lặng chỉ có nghĩa khi mốc khoảng lặng đang hiện.
   if (!picked.size || picked.has('gap')) {
     header += '<div class="fll-row" style="margin-bottom:9px">' +
       [1000, 2000, 5000, 10000]
@@ -5451,8 +5426,8 @@ function renderTimelineTab() {
         .join('') + '</div>';
   }
 
-  // Bon con so o dau doan nay da nam san tren chip va tren phu de panel. Giu lai mot cau — cai duy
-  // nhat khong nhin ra duoc tu giao dien.
+  // Bốn con số ở đầu đoạn này đã nằm sẵn trên chip và trên phụ đề panel. Giữ lại một câu — cái duy
+  // nhất không nhìn ra được từ giao diện.
   header += '<div class="fll-hint" style="margin:0 0 10px" data-tip="Bước tương tác đọc từ event ' +
     'MoMoTracker, đều ghi ở mức INFO nên tab Vấn đề không đếm chúng.">Sắp theo thời gian thật, ' +
     'không theo thứ tự dòng. Bước giống hệt nhau cách nhau dưới 1s gộp thành <b>N&times;</b> — ' +
@@ -5467,8 +5442,8 @@ function renderTimelineTab() {
   return header + '<div id="fll-tl-list">' + renderTimelineList() + '</div>';
 }
 
-// Tach rieng de o tim chi ve lai danh sach, khong dung toi chip va chu giai o tren — go mot phim ma
-// ve lai ca tab thi mat luon tieu diem trong o dang go.
+// Tách riêng để ô tìm chỉ vẽ lại danh sách, không đụng tới chip và chú giải ở trên — gõ một phím mà
+// vẽ lại cả tab thì mất luôn tiêu điểm trong ô đang gõ.
 function renderTimelineList() {
   const data = getView();
   const all = buildTimelineEvents(data);
@@ -5509,14 +5484,14 @@ function renderTimelineList() {
 }
 /* ---------------------------------------------------------------- Cấu hình */
 
-// Mot dong config co the dai 5000 ky tu. Hang chi hien mot doan; muon xem het thi bam "JSON" de
-// mo tam truot dung san (no da biet cat khoi JSON ra khoi dong log va to mau).
+// Một dòng config có thể dài 5000 ký tự. Hàng chỉ hiện một đoạn; muốn xem hết thì bấm "JSON" để
+// mở tấm trượt dựng sẵn (nó đã biết cắt khối JSON ra khỏi dòng log và tô màu).
 function renderConfigValue(item, value, isLatest) {
   const json = value.hasJson
     ? '<button class="fll-btn fll-cfg-js" data-act="json" data-value="' + value.domIndex + '">JSON</button>'
     : '';
-  // data-lines chu khong phai data-jump: mot gia tri co the duoc ghi lai nhieu lan, bam vao phai
-  // duyet duoc ca chum bang n/p o thanh duoi chu khong dung lai o dong dau tien.
+  // data-lines chứ không phải data-jump: một giá trị có thể được ghi lại nhiều lần, bấm vào phải
+  // duyệt được cả chùm bằng n/p ở thanh dưới chứ không dừng lại ở dòng đầu tiên.
   return '<div class="fll-cfg-val' + (isLatest ? ' last' : '') +
     '" data-lines="' + value.indices.join(',') + '" data-label="' + escapeHtml(item.key) + '">' +
     '<div class="fll-cfg-vm">' + escapeHtml(value.time.slice(0, 8)) + ' · dòng ' + value.lineNo +
@@ -5526,10 +5501,10 @@ function renderConfigValue(item, value, isLatest) {
     (value.value.length > 260 ? '…' : '') + '</div>' + json + '</div>';
 }
 
-// Mot dong config co the dai 5000 ky tu. Hang chi hien mot doan; muon xem het thi bam "JSON" de
-// mo tam truot dung san (no da biet cat khoi JSON ra khoi dong log va to mau).
-// Khoa nao co nhieu gia tri khac nhau thi bay het ra (toi da 4 gia tri gan nhat) — chinh cho lech
-// nhau moi la thu can nhin, gap lai chi con "gia tri cuoi" thi mat luon.
+// Một dòng config có thể dài 5000 ký tự. Hàng chỉ hiện một đoạn; muốn xem hết thì bấm "JSON" để
+// mở tấm trượt dựng sẵn (nó đã biết cắt khối JSON ra khỏi dòng log và tô màu).
+// Khoá nào có nhiều giá trị khác nhau thì bày hết ra (tối đa 4 giá trị gần nhất) — chính chỗ lệch
+// nhau mới là thứ cần nhìn, gấp lại chỉ còn "giá trị cuối" thì mất luôn.
 function renderConfigRow(item) {
   const many = item.values.length > 1
     ? '<i class="fll-cfg-chg" data-tip="Khoá này ghi ra ' + item.values.length + ' giá trị khác nhau. ' +
@@ -5542,7 +5517,7 @@ function renderConfigRow(item) {
   const values = shown
     .map((value, index) => renderConfigValue(item, value, index === shown.length - 1))
     .join('');
-  // Ban than tieu de khoa cung bam duoc: duyet HET moi dong cua khoa do, ke ca cac gia tri cu.
+  // Bản thân tiêu đề khoá cũng bấm được: duyệt HẾT mọi dòng của khoá đó, kể cả các giá trị cũ.
   return '<div class="fll-cfg' + (item.changed ? ' chg' : '') + '">' +
     '<div class="fll-cfg-hd" data-lines="' + item.indices.join(',') + '" data-label="' +
     escapeHtml(item.key) + '" data-tip="Bấm để duyệt cả ' + item.count + ' dòng của khoá này">' +
@@ -5562,8 +5537,8 @@ function renderConfigSection(source, rows) {
     rows.map(renderConfigRow).join('');
 }
 
-// Cac call nay nam o module HTTP nen vong quet cau hinh co y bo qua. Dung lai hang cua tab HTTP
-// (co san nut xem payload) thay vi ve kieu rieng — cung mot thu thi phai nhin giong nhau.
+// Các call này nằm ở module HTTP nên vòng quét cấu hình cố ý bỏ qua. Dùng lại hàng của tab HTTP
+// (có sẵn nút xem payload) thay vì vẽ kiểu riêng — cùng một thứ thì phải nhìn giống nhau.
 function renderConfigCallSection(cfg, view) {
   if (!cfg.calls.length) return '';
   return secTitle('Call BE xin cấu hình', cfg.calls.length) +
@@ -5575,12 +5550,12 @@ function renderConfigCallSection(cfg, view) {
 function renderConfigTab() {
   const view = getView();
   const cfg = view.configs;
-  // Doan nay tung dai bon cau, giai thich bang loi nhung thu chinh giao dien da noi. Nay mot dong;
-  // phan can canh bao (nhieu gia tri khong chac la cau hinh doi) nam trong title cua chinh cai nhan do.
+  // Đoạn này từng dài bốn câu, giải thích bằng lời những thứ chính giao diện đã nói. Nay một dòng;
+  // phần cần cảnh báo (nhiều giá trị không chắc là cấu hình đổi) nằm trong chú giải của chính cái nhãn đó.
   const header = '<div class="fll-hint" style="margin-bottom:10px">Cấu hình app <b>nhận được</b> ' +
     'hoặc <b>áp dụng</b>, gom theo khóa. Bấm một dòng để nhảy tới dòng log.</div>';
   if (!cfg.hasAny) {
-    return header + '<div class="fll-empty">Log này không có dòng cấu hình nào đọc được.</div>';
+    return header + emptyBecauseOfFilter(lensState.data.configs.total, 'dòng cấu hình nào đọc được');
   }
   const summary = '<div class="fll-stats">' +
     statCard(cfg.total, 'khóa cấu hình', LEVEL_COLOR.INFO, 'data-act="noop"') +
@@ -5591,44 +5566,35 @@ function renderConfigTab() {
     CONFIG_SOURCE_ORDER.map((source) => renderConfigSection(source, cfg.bySource[source])).join('') +
     renderConfigCallSection(cfg, view);
 }
-
-// AI-GENERATED END
-/*
-File: src/05-boot.js
-Created At: 2026-09-08 16:00:00 +07:00
-Created By: AI
-AI Agent: Claude Code
-Model: claude-opus-5
-*/
 // @ts-check
-// AI-GENERATED START — gan panel vao trang, dieu phoi tab, uy quyen su kien, tu quet lai khi doi tab log
+// gắn panel vào trang, điều phối tab, uỷ quyền sự kiện, tự quét lại khi đổi tab log
 
 const ROOT_ID = 'fll-root';
 const TAB_DEFS = [
-  // Tab Cham cu nam trong day: ba muc cua no cung la "so rut tu log" nhu moi muc khac o Tong quan.
+  // Tab Chậm cũ nằm trong đây: ba mục của nó cũng là "số rút từ log" như mọi mục khác ở Tổng quan.
   { id: 'sum', label: 'Tổng quan' },
-  // Tab HTTP cu nam trong day: "call nao hong" va "loi gi da no" la cung mot cau hoi.
+  // Tab HTTP cũ nằm trong đây: "call nào hỏng" và "lỗi gì đã nổ" là cùng một câu hỏi.
   { id: 'iss', label: 'Vấn đề', badge: countUnmutedErrorGroups, danger: true },
-  // Tab duy nhat co the tu an: log nao khong co dong cau hinh nao thi tab bien mat thay vi hien
-  // mot tab rong. Panel chi rong 480px, moi tab thua deu an vao cho cua tab con lai.
+  // Tab duy nhất có thể tự ẩn: log nào không có dòng cấu hình nào thì tab biến mất thay vì hiện
+  // một tab rỗng. Panel chỉ rộng 480px, mỗi tab thừa đều ăn vào chỗ của tab còn lại.
   { id: 'cfg', label: 'Cấu hình', badge: (data) => data.configs.total || null,
     hide: (data) => !data.configs.hasAny },
   { id: 'flt', label: 'Lọc', badge: () => getActiveFilterFacets().length || null, tone: 'act' },
   { id: 'tl', label: 'Diễn biến' },
 ];
 
-// Chay lai ca file (reload extension khi tab dang mo) = sinh mot the he closure moi.
-// The he cu van con listener keydown tren document va interval dang chay: no se bat phim
-// roi thao tac len panel cua the he moi. Vi vay moi lan khoi dong phai don the he truoc qua bien global nay.
+// Chạy lại cả file (reload extension khi tab đang mở) = sinh một thế hệ closure mới.
+// Thế hệ cũ vẫn còn listener keydown trên document và interval đang chạy: nó sẽ bắt phím
+// rồi thao tác lên panel của thế hệ mới. Vì vậy mỗi lần khởi động phải dọn thế hệ trước qua biến global này.
 const LENS_GLOBAL_KEY = '__feedbackLogLens';
 
-// Con duong don qua window[LENS_GLOBAL_KEY] chi hoat dong khi hai the he dung chung mot window.
-// Moc thu hai nay di qua DOM nen khong phu thuoc dieu do: instance nao khoi dong sau se ghi ten minh
-// len the html; instance cu doc thay ten khac thi tu rut lui, neu khong luoi an toan "root bi go thi
-// gan lai" cua no se dung dai root cu ve moi 2 giay.
-// CHUA XAC MINH: co truong hop nao con lai khien hai the he KHONG chung window hay khong. Moc nay ra doi
-// tu thoi con ban bookmarklet chay o page world; ban bookmarklet da bo, nhung chua kiem duoc reload
-// extension luc tab dang mo thi the he cu nam o dau, nen giu lai.
+// Con đường dọn qua window[LENS_GLOBAL_KEY] chỉ hoạt động khi hai thế hệ dùng chung một window.
+// Mốc thứ hai này đi qua DOM nên không phụ thuộc điều đó: instance nào khởi động sau sẽ ghi tên mình
+// lên thẻ html; instance cũ đọc thấy tên khác thì tự rút lui, nếu không lưới an toàn "root bị gỡ thì
+// gắn lại" của nó sẽ dựng dậy root cũ về mỗi 2 giây.
+// CHƯA XÁC MINH: có trường hợp nào còn lại khiến hai thế hệ KHÔNG chung window hay không. Mốc này ra đời
+// từ thời còn bản bookmarklet chạy ở page world; bản bookmarklet đã bỏ, nhưng chưa kiểm được reload
+// extension lúc tab đang mở thì thế hệ cũ nằm ở đâu, nên giữ lại.
 const LENS_OWNER_ATTR = 'data-fll-owner';
 const lensInstanceId = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 
@@ -5640,18 +5606,18 @@ function isLensOwner() {
   return document.documentElement.getAttribute(LENS_OWNER_ATTR) === lensInstanceId;
 }
 
-// WebAdmin la SPA React: bam tu danh sach sang feedback detail KHONG tai lai tai lieu,
-// nen content script (chay o document_idle) khong bao gio chay lai. Ban dau dung waitForLogRows
-// poll 30 giay roi bo cuoc — ngoi o trang danh sach lau hon the la mat luon co hoi gan.
-// Thay bang mot watcher thuong tru: gan khi bang log xuat hien, thao khi roi khoi trang detail.
+// WebAdmin là SPA React: bấm từ danh sách sang feedback detail KHÔNG tải lại tài liệu,
+// nên content script (chạy ở document_idle) không bao giờ chạy lại. Ban đầu dùng waitForLogRows
+// poll 30 giây rồi bỏ cuộc — ngồi ở trang danh sách lâu hơn thế là mất luôn cơ hội gắn.
+// Thay bằng một watcher thường trú: gắn khi bảng log xuất hiện, tháo khi rời khỏi trang detail.
 const PAGE_WATCH_INTERVAL_MS = 1000;
-// O loc noi dung cho lau hon vi no keo theo ca luot quet 4085 dong; hai o kia chi ve lai mot manh.
+// Ô lọc nội dung chờ lâu hơn vì nó kéo theo cả lượt quét 4085 dòng; hai ô kia chỉ vẽ lại một mảnh.
 const FILTER_INPUT_DEBOUNCE_MS = 180;
 const LIST_INPUT_DEBOUNCE_MS = 120;
 
 let pageWatcher = null;
 let lastRowCount = 0;
-// Moi o tim mot timer rieng: dung chung mot bien thi go o nay se huy mat cap nhat dang cho cua o kia.
+// Mỗi ô tìm một timer riêng: dùng chung một biến thì gõ ô này sẽ huỷ mất cập nhật đang chờ của ô kia.
 const inputTimers = {};
 
 function debounceInput(key, delayMs, run) {
@@ -5674,15 +5640,15 @@ function disposePreviousInstance() {
   if (leftover) leftover.remove();
 }
 
-// Phai go dung root CUA CHINH instance nay, khong duoc lay getElementById: khi mot instance khac
-// da tiep quan thi id do dang tro toi panel cua no.
-// shouldRestorePage=false khi minh rut lui vi nguoi khac tiep quan — luc ay class loc tren bang log
-// la cua chu moi, dung dong vao.
+// Phải gỡ đúng root CỦA CHÍNH instance này, không được lấy getElementById: khi một instance khác
+// đã tiếp quản thì id đó đang trỏ tới panel của nó.
+// shouldRestorePage=false khi mình rút lui vì người khác tiếp quản — lúc ấy class lọc trên bảng log
+// là của chủ mới, đừng động vào.
 function disposeSelf(shouldRestorePage) {
   window.removeEventListener('keydown', handleShortcut, LENS_KEY_LISTENER_OPTIONS);
   if (pageWatcher) clearInterval(pageWatcher);
   pageWatcher = null;
-  // Timer con treo se chay tren panel da bi go, phai don.
+  // Timer còn treo sẽ chạy trên panel đã bị gỡ, phải dọn.
   clearInputTimers();
   if (lensState.el.root) lensState.el.root.remove();
   if (shouldRestorePage) {
@@ -5695,22 +5661,46 @@ function registerInstance() {
   window[LENS_GLOBAL_KEY] = { dispose: function dispose() { disposeSelf(true); } };
 }
 
+// timeFrom/timeTo là mốc TUYỆT ĐỐI, mà trang admin là SPA: bấm sang feedback khác thì log đổi nội
+// dung nhưng bộ lọc còn nguyên. Đo thật: ở log 1 bấm "2 phút cuối" rồi sang log 2 -> bảng log còn
+// 0/7107 dòng, chip ghi một khoảng giờ không hề tồn tại trong log 2.
+//
+// Hai đường xử lý, khác nhau ở chỗ có biết người dùng MUỐN gì không:
+//   - đang bật preset ("N cuối") -> tính lại theo lastTs mới, ý định vẫn đúng trên log mới;
+//   - khoảng tự kéo tay -> không đoán được, chỉ giữ nếu nó còn giao với log mới, không thì bỏ hẳn.
+// Trường hợp log dài thêm (vẫn là log cũ, chỉ có dòng mới) thì khoảng cũ vẫn giao nên được giữ.
+function retargetTimeWindow(data) {
+  const filter = lensState.filter;
+  if (filter.timeFrom === null && filter.timeTo === null) return;
+  if (filter.windowPreset) {
+    filter.timeTo = data.lastTs;
+    filter.timeFrom = Math.max(data.firstTs, data.lastTs - filter.windowPreset);
+    return;
+  }
+  const from = filter.timeFrom !== null ? filter.timeFrom : data.firstTs;
+  const to = filter.timeTo !== null ? filter.timeTo : data.lastTs;
+  if (from <= data.lastTs && to >= data.firstTs) return;
+  filter.timeFrom = null;
+  filter.timeTo = null;
+}
+
 function scanLog() {
   const data = attachInsights(analyzeLog(lensState.gapThresholdMs));
   data.gapThresholdLabel = lensState.gapThresholdMs / 1000 + 's';
   lensState.data = data;
   lensState.view = data;
-  // Ket qua loc cu tro toi mang entries cu (va DOM cu), phai bo di de lan ve tab sau tinh lai.
+  // Kết quả lọc cũ trỏ tới mảng entries cũ (và DOM cũ), phải bỏ đi để lần vẽ tab sau tính lại.
   lensState.lastFilterResult = null;
   lensState.forcedVisibleIndices.clear();
   lensState.el.lastHit = null;
   lensState.isFiltering = false;
   lensState.visibleCount = data.entries.length;
-  // Sang log khac thi khoang dang phong to khong con nghia gi.
+  // Sang log khác thì khoảng đang phóng to không còn nghĩa gì.
   lensState.mapZoom = null;
   lensState.mapZoomStack = [];
-  // Doi sang log khac (trang admin thay noi dung ma khong tai lai) co the lam tab dang mo bien mat.
-  // Khong bat lai thi than panel ve tab do trong khi tren thanh tab khong con nut nao sang.
+  retargetTimeWindow(data);
+  // Đổi sang log khác (trang admin thay nội dung mà không tải lại) có thể làm tab đang mở biến mất.
+  // Không bắt lại thì thân panel vẽ tab đó trong khi trên thanh tab không còn nút nào sáng.
   const current = TAB_DEFS.find((tab) => tab.id === lensState.tab);
   if (current && current.hide && current.hide(data)) lensState.tab = 'sum';
   return data;
@@ -5724,7 +5714,7 @@ function renderTab() {
   else if (lensState.tab === 'cfg') body.innerHTML = renderConfigTab();
   else if (lensState.tab === 'flt') body.innerHTML = renderFilterTab();
   else body.innerHTML = renderTimelineTab();
-  // Muc dang tro toi vua bi thay the -> mui ten tro vao hu khong, don truoc khi gom muc.
+  // Mục đang trỏ tới vừa bị thay thế -> mũi tên trỏ vào hư không, dọn trước khi gom mục.
   hideAim();
   hideTooltip();
   collapsifySections(body, lensState.tab);
@@ -5733,14 +5723,14 @@ function renderTab() {
   refreshFilterBar();
 }
 
-// Go trong o tim thi moi con so trong tab deu doi theo (chip dem faceted, danh sach ID, trang thai
-// nut luu mau). Truoc day khong ve lai vi so mat con tro — nhung nhu the ca tab dung yen o trang thai cu,
-// nguoi dung thay "1 bo loc dang bat" ma phan Mau bo loc van bao chua co dieu kien nao.
-// Ve lai het roi tra lai tieu diem + vi tri con tro + vi tri cuon.
+// Gõ trong ô tìm thì mọi con số trong tab đều đổi theo (chip đếm faceted, danh sách ID, trạng thái
+// nút lưu mẫu). Trước đây không vẽ lại vì sợ mất con trỏ — nhưng như thế cả tab đứng yên ở trạng thái cũ,
+// người dùng thấy "1 bộ lọc đang bật" mà phần Mẫu bộ lọc vẫn báo chưa có điều kiện nào.
+// Vẽ lại hết rồi trả lại tiêu điểm + vị trí con trỏ + vị trí cuộn.
 function renderTabPreservingFocus() {
   const body = lensState.el.body;
-  // selectionStart/setSelectionRange chi co tren o nhap. Kiem bang typeof roi moi dung, con ep kieu
-  // o day la de trinh kiem kieu biet dieu do — khong doi hanh vi luc chay.
+  // selectionStart/setSelectionRange chỉ có trên ô nhập. Kiểm bằng typeof rồi mới dùng, còn ép kiểu
+  // ở đây là để trình kiểm kiểu biết điều đó — không đổi hành vi lúc chạy.
   const active = /** @type {HTMLInputElement | null} */ (document.activeElement);
   const activeId = active && active.id;
   const hasSelection = active && typeof active.selectionStart === 'number';
@@ -5762,9 +5752,9 @@ function renderTabPreservingFocus() {
 
 function renderTabBar() {
   lensState.el.tabs.innerHTML = TAB_DEFS
-    // Truyen data DAY DU chu khong phai view dang loc: loc xuong con 3 dong thi trong tap do khong con
-    // dong cau hinh nao, va tab Cau hinh se BIEN MAT giua chung — thay khi chup man hinh. Tab co hay
-    // khong la tinh chat cua ca log, con noi dung ben trong moi chay theo bo loc.
+    // Truyền data ĐẦY ĐỦ chứ không phải view đang lọc: lọc xuống còn 3 dòng thì trong tập đó không còn
+    // dòng cấu hình nào, và tab Cấu hình sẽ BIẾN MẤT giữa chừng — thấy khi chụp màn hình. Tab có hay
+    // không là tính chất của cả log, còn nội dung bên trong mới chạy theo bộ lọc.
     .filter((tab) => !(tab.hide && tab.hide(lensState.data)))
     .map((tab) => {
       const count = tab.badge ? tab.badge(getView()) : null;
@@ -5784,8 +5774,8 @@ function switchTab(tabId) {
 
 function refreshHeader() {
   const data = lensState.data;
-  // Phai tru phan "app xuong nen" y het the thong ke o Tong quan. Do tren log that 9363 dong: phu de
-  // ghi 34 trong khi the ghi 28 — hai con so cho cung mot thu, nguoi doc khong biet tin cai nao.
+  // Phải trừ phần "app xuống nền" y hệt thẻ thống kê ở Tổng quan. Đo trên log thật 9363 dòng: phụ đề
+  // ghi 34 trong khi thẻ ghi 28 — hai con số cho cùng một thứ, người đọc không biết tin cái nào.
   const gaps = data.gaps.filter((gap) => gap.cause !== 'background');
   const background = data.gaps.length - gaps.length;
   lensState.el.sub.textContent = data.entries.length + ' dòng · ' + data.sessionCount + ' phiên · ' +
@@ -5793,10 +5783,10 @@ function refreshHeader() {
     (background ? ' · ' + background + ' lần xuống nền' : '');
 }
 
-// Dem con cua container (O(1)) thay vi querySelectorAll ca tai lieu 8000+ node moi 2 giay.
-// PHAI dung dung ham nay cho ca gia tri khoi tao lan moi lan kiem: container con 2 div dem
-// ngoai cac dong log (4087 vs 4085), lay hai nguon khac nhau la tick dau tien se rescan oan
-// va xoa sach trang thai loc trong khi DOM van dang bi loc.
+// Đếm con của container (O(1)) thay vì querySelectorAll cả tài liệu 8000+ node mỗi 2 giây.
+// PHẢI dùng đúng hàm này cho cả giá trị khởi tạo lẫn mỗi lần kiểm: container còn 2 div đệm
+// ngoài các dòng log (4087 vs 4085), lấy hai nguồn khác nhau là tick đầu tiên sẽ rescan oan
+// và xoá sạch trạng thái lọc trong khi DOM vẫn đang bị lọc.
 function countLogRows() {
   const container = lensState.data && lensState.data.container;
   return container && container.isConnected
@@ -5808,13 +5798,13 @@ function rescan() {
   scanLog();
   renderMinimap();
   refreshHeader();
-  // Bang log vua duoc dung lai: ap lai bo loc dang bat de DOM va state khong lech nhau.
+  // Bảng log vừa được dựng lại: áp lại bộ lọc đang bật để DOM và state không lệch nhau.
   applyFilter(false);
   renderTab();
 }
 
-// Co y KHONG go listener phim va KHONG dung pageWatcher: chung la duong de Alt+L mo lai
-// ma khong phai reload trang. Co isDismissed nen watcher se khong tu gan lai tren feedback nay.
+// Cố ý KHÔNG gỡ listener phím và KHÔNG dừng pageWatcher: chúng là đường để Alt+L mở lại
+// mà không phải reload trang. Cờ isDismissed nên watcher sẽ không tự gắn lại trên feedback này.
 function closeLens() {
   const root = document.getElementById(ROOT_ID);
   if (root) root.remove();
@@ -5826,15 +5816,15 @@ function closeLens() {
   lensState.isDismissed = true;
 }
 
-// Roi khoi trang detail (SPA doi route): thao panel nhung giu watcher va phim tat,
-// de vao feedback khac la gan lai. Bo loc dat cho feedback cu phai xoa — giu lai la du lieu
-// feedback moi hien ra thieu ma nguoi dung khong biet. Rieng danh sach tat tieng thi giu.
+// Rời khỏi trang detail (SPA đổi route): tháo panel nhưng giữ watcher và phím tắt,
+// để vào feedback khác là gắn lại. Bộ lọc đặt cho feedback cũ phải xoá — giữ lại là dữ liệu
+// feedback mới hiện ra thiếu mà người dùng không biết. Riêng danh sách tắt tiếng thì giữ.
 function detachLens() {
   clearInputTimers();
   if (lensState.el.root) lensState.el.root.remove();
-  // Tra bang log ve nguyen trang TRUOC khi bo data: SPA co the dung lai chinh container do cho feedback
-  // ke tiep. Con sot .fll-filtering/.fll-keep thi feedback moi chi hien vai chuc dong trong khi panel
-  // bao "khong co bo loc nao" — dung kieu sai ma nguoi dung khong biet.
+  // Trả bảng log về nguyên trạng TRƯỚC khi bỏ data: SPA có thể dùng lại chính container đó cho feedback
+  // kế tiếp. Còn sót .fll-filtering/.fll-keep thì feedback mới chỉ hiện vài chục dòng trong khi panel
+  // báo "không có bộ lọc nào" — đúng kiểu sai mà người dùng không biết.
   setLogFilteringMode(false);
   document.querySelectorAll('.fll-keep, .fll-drop, .fll-hit')
     .forEach((el) => el.classList.remove('fll-keep', 'fll-drop', 'fll-hit'));
@@ -5852,13 +5842,14 @@ function detachLens() {
   lensState.filter.text = '';
   lensState.filter.timeFrom = null;
   lensState.filter.timeTo = null;
+  lensState.filter.windowPreset = null;
   lensState.filter.session = null;
   lensState.filter.skipDuplicate = false;
   lensState.mapZoom = null;
   lensState.mapZoomStack = [];
-  // tabUiState cung la trang thai cua MOT feedback: o tim nhom loi, o tim HTTP, chip loai moc, che do
-  // xem nhom da tat tieng. De sot thi sang feedback sau nguoi dung thay danh sach da bi loc san bang
-  // mot cau tim cua log truoc — cung mot loai loi voi viec de sot bo loc.
+  // tabUiState cũng là trạng thái của MỘT feedback: ô tìm nhóm lỗi, ô tìm HTTP, chip loại mốc, chế độ
+  // xem nhóm đã tắt tiếng. Để sót thì sang feedback sau người dùng thấy danh sách đã bị lọc sẵn bằng
+  // một câu tìm của log trước — cùng một loại lỗi với việc để sót bộ lọc.
   resetTabUiState();
   lensState.isShowingMuted = false;
   lensState.isDismissed = false;
@@ -5870,7 +5861,7 @@ function tickPageWatcher() {
     if (!lensState.isDismissed && hasLogRows()) startLens(!lensState.wasPanelOpen);
     return;
   }
-  // Mot instance moi hon da tiep quan: rut lui han.
+  // Một instance mới hơn đã tiếp quản: rút lui hẳn.
   if (!isLensOwner()) {
     disposeSelf(false);
     return;
@@ -5879,7 +5870,7 @@ function tickPageWatcher() {
     detachLens();
     return;
   }
-  // Luoi an toan: trang admin tung go #fll-root khoi body khi xu ly phim. Neu bi go thi gan lai.
+  // Lưới an toàn: trang admin từng gỡ #fll-root khỏi body khi xử lý phím. Nếu bị gỡ thì gắn lại.
   if (!lensState.el.root.isConnected) document.body.appendChild(lensState.el.root);
   const current = countLogRows();
   if (current === lastRowCount || !current) return;
@@ -5944,10 +5935,10 @@ function mountPanel() {
   lensState.el.map.addEventListener('mousedown', handleMinimapMouseDown);
   lensState.el.map.addEventListener('mousemove', handleMinimapHover);
   lensState.el.map.addEventListener('dblclick', handleMinimapDoubleClick);
-  // Gan o PANEL chu khong o than: nhu vay cac hang trong tam truot (.fll-sheet) cung duoc ve mui ten.
+  // Gắn ở PANEL chứ không ở thân: như vậy các hàng trong tấm trượt (.fll-sheet) cũng được vẽ mũi tên.
   panel.addEventListener('mouseover', handleLensHover);
   panel.addEventListener('mouseleave', hideAim);
-  // 'scroll' khong noi bot len, phai bat o pha capture moi thay duoc cuon cua than va cua tam truot.
+  // 'scroll' không nổi bọt lên, phải bắt ở pha capture mới thấy được cuộn của thân và của tấm trượt.
   panel.addEventListener('scroll', handleAimScroll, true);
 
   applyPanelGeometry(panel);
@@ -5959,29 +5950,29 @@ function mountPanel() {
   renderFooter();
 }
 
-/* ---------------------------------------------------------- uy quyen click */
+/* ---------------------------------------------------------- uỷ quyền click */
 
 function handleLensClick(event) {
   const hit = event.target.closest('[data-act],[data-tab],[data-lines],[data-jump],[data-group],' +
     '[data-module],[data-level],[data-call],[data-bucket],[data-event],[data-saw],[data-apifail],' +
     '[data-jscreen],[data-jtap],[data-tracefail],[data-jload]');
   if (!hit) return;
-  // groups/httpCalls doc theo view (dang loc thi la cua tap dang hien, dung nhu tab vua ve);
-  // correlations van lay tu data vi chuoi mot request phai xem tron ven.
+  // groups/httpCalls đọc theo view (đang lọc thì là của tập đang hiện, đúng như tab vừa vẽ);
+  // correlations vẫn lấy từ data vì chuỗi một request phải xem trọn vẹn.
   const data = lensState.data;
   const view = getView();
   const value = hit.getAttribute('data-value');
 
   if (hit.dataset.tab) return switchTab(hit.dataset.tab);
-  // data-lines = "hang nay ung voi tung nay dong log". Phai xet TRUOC data-jump: nhay mot dong thi
-  // thanh duoi khong co gi de duyet, nguoi dung ket o dong dau tien cua nhom.
+  // data-lines = "hàng này ứng với từng này dòng log". Phải xét TRƯỚC data-jump: nhảy một dòng thì
+  // thanh dưới không có gì để duyệt, người dùng kẹt ở dòng đầu tiên của nhóm.
   if (hit.dataset.lines) {
     const indices = hit.dataset.lines.split(',').map(Number).filter((index) => !Number.isNaN(index));
     return setMatches(indices, hit.getAttribute('data-label') || (indices.length + ' dòng'));
   }
   if (hit.dataset.jump) return jumpToIndex(Number(hit.dataset.jump));
   if (hit.dataset.bucket) {
-    // Vua keo chon khoang xong: cu click di kem mouseup khong duoc bien thanh lenh nhay dong.
+    // Vừa kéo chọn khoảng xong: cú click đi kèm mouseup không được biến thành lệnh nhảy dòng.
     if (lensState.suppressMapClick) return undefined;
     const index = Number(hit.dataset.bucket);
     return index >= 0 ? jumpToIndex(index) : undefined;
@@ -6106,6 +6097,10 @@ function handleLensClick(event) {
     lensState.isShowingMuted = !lensState.isShowingMuted;
     return renderTab();
   }
+  if (action === 'moreSection') {
+    expandSection(hit);
+    return;
+  }
   if (action === 'moreIssues') {
     tabUiState.issueLimit += ISSUE_PAGE_SIZE;
     const list = document.getElementById('fll-issue-list');
@@ -6114,7 +6109,7 @@ function handleLensClick(event) {
   }
   if (action === 'mapZoomIn') {
     const range = getVisibleTimeRange();
-    // Nho nac dang dung truoc khi phong sau, de con lui tung nac. Nac dau tien la null = ca log.
+    // Nhớ nấc đang đứng trước khi phóng sâu, để còn lùi từng nấc. Nấc đầu tiên là null = cả log.
     lensState.mapZoomStack.push(lensState.mapZoom);
     lensState.mapZoom = { from: range.from, to: range.to };
     renderMinimap();
@@ -6148,8 +6143,8 @@ function handleLensClick(event) {
   if (action === 'next') return moveMatch(1);
   if (action === 'gotoIssues') {
     switchTab('iss');
-    // Muc mac dinh dang thu lai. Bam "47 ERROR" ma sang tab chi thay may dong tieu de thi coi nhu
-    // khong di den dau — mo san dung muc chua danh sach loi.
+    // Mục mặc định đang thu lại. Bấm "47 ERROR" mà sang tab chỉ thấy mấy dòng tiêu đề thì coi như
+    // không đi đến đâu — mở sẵn đúng mục chứa danh sách lỗi.
     const first = lensState.el.body && lensState.el.body.querySelector('[data-group]');
     if (first) revealElement(first);
     return undefined;
@@ -6166,10 +6161,10 @@ function handleLensClick(event) {
   if (action === 'gotoTimeline') return switchTab('tl');
   if (action === 'gotoSessions') {
     switchTab('flt');
-    // Tab Loc co 9 muc; nhay thang toi muc Phien app thay vi de nguoi dung tu do tim.
+    // Tab Lọc có 9 mục; nhảy thẳng tới mục Phiên app thay vì để người dùng tự dò tìm.
     const chip = lensState.el.body && lensState.el.body.querySelector('[data-act="setSession"]');
     if (chip) {
-      // Muc mac dinh dang thu lai: khong mo ra thi cuon toi cung khong thay gi.
+      // Mục mặc định đang thu lại: không mở ra thì cuộn tới cũng không thấy gì.
       revealElement(chip);
       chip.scrollIntoView({ block: 'center' });
     }
@@ -6180,7 +6175,7 @@ function handleLensClick(event) {
     return renderTab();
   }
   if (action === 'tlKind') {
-    // Chon duoc nhieu loai cung luc: "chi xem chạm + popup" la cau hay hoi nhat khi doc lai mot ca loi.
+    // Chọn được nhiều loại cùng lúc: "chỉ xem chạm + popup" là câu hay hỏi nhất khi đọc lại một ca lỗi.
     toggleSetValue(tabUiState.tlKinds, value);
     tabUiState.tlLimit = TIMELINE_PAGE_SIZE;
     return renderTab();
@@ -6233,8 +6228,8 @@ function handleLensClick(event) {
     return renderTab();
   }
   if (action === 'copySummary') {
-    // Tom tat luon doc data DAY DU, khong doc view dang loc: ticket phai mo ta ca log chu khong phai
-    // mo ta cai lat cat nguoi doc dang mo.
+    // Tóm tắt luôn đọc data ĐẦY ĐỦ, không đọc view đang lọc: ticket phải mô tả cả log chứ không phải
+    // mô tả cái lát cắt người đọc đang mở.
     return copyTextToClipboard(buildTicketSummary(lensState.data), hit, 'Đã copy tóm tắt');
   }
   if (action === 'copyVisible') return copyVisibleLines(hit);
@@ -6246,9 +6241,9 @@ function toggleSetValue(set, value) {
   else set.add(value);
 }
 
-// Doi nhan nut roi tra lai. Phai co ca nhanh HONG: navigator.clipboard tu choi khi tab khong duoc lay
-// net (hoac trinh duyet chan), luc do promise reject va truoc day nut dung im — nguoi dung tuong da
-// copy xong roi di dan, dan ra thu cu.
+// Đổi nhãn nút rồi trả lại. Phải có cả nhánh HỎNG: navigator.clipboard từ chối khi tab không được lấy
+// nét (hoặc trình duyệt chặn), lúc đó promise reject và trước đây nút đứng im — người dùng tưởng đã
+// copy xong rồi đi dán, dán ra thứ cũ.
 function copyTextToClipboard(text, button, doneLabel) {
   const original = button.textContent;
   const show = (label) => {
@@ -6274,16 +6269,16 @@ function copyVisibleLines(button) {
   copyTextToClipboard(text, button, 'Đã copy ' + text.split('\n').length + ' dòng');
 }
 
-/* ----------------------------------------------------- uy quyen go phim */
+/* ----------------------------------------------------- uỷ quyền gõ phím */
 
 function handleLensInput(event) {
   const target = event.target;
-  // O tim cua tung muc: loc thang tren DOM da ve, khong ve lai gi nen khong can debounce.
+  // Ô tìm của từng mục: lọc thẳng trên DOM đã vẽ, không vẽ lại gì nên không cần debounce.
   if (target.classList && target.classList.contains('fll-secq')) {
     filterSectionRows(target);
     return;
   }
-  // Ve lai toi 50 the nhom, moi the mot sparkline 26 cot — do duoc 2 khung hinh roi neu chay moi phim.
+  // Vẽ lại tới 50 thẻ nhóm, mỗi thẻ một sparkline 26 cột — đo được 2 khung hình rơi nếu chạy mỗi phím.
   if (target.id === 'fll-q') {
     tabUiState.issueQuery = target.value;
     debounceInput('issueQuery', LIST_INPUT_DEBOUNCE_MS, () => {
@@ -6292,12 +6287,12 @@ function handleLensInput(event) {
     });
     return;
   }
-  // Giu ten mau nguoi dung dang go: sua bo loc se ve lai tab, khong giu thi ten bay mat.
+  // Giữ tên mẫu người dùng đang gõ: sửa bộ lọc sẽ vẽ lại tab, không giữ thì tên bay mất.
   if (target.id === 'fll-tplname') {
     tabUiState.templateName = target.value;
     return;
   }
-  // Quet ca payload cua moi request nen nang hon o tim nhom; van chi ve lai danh sach HTTP.
+  // Quét cả payload của mọi request nên nặng hơn ô tìm nhóm; vẫn chỉ vẽ lại danh sách HTTP.
   if (target.id === 'fll-httpq') {
     tabUiState.httpQuery = target.value;
     debounceInput('httpQuery', LIST_INPUT_DEBOUNCE_MS, () => {
@@ -6308,7 +6303,7 @@ function handleLensInput(event) {
   }
   if (target.id === 'fll-tlq') {
     tabUiState.tlQuery = target.value;
-    // Go lai tu dau thi tra ve trang dau, khong thi dang o "da hien 240 moc" ma loc con 3.
+    // Gõ lại từ đầu thì trả về trang đầu, không thì đang ở "đã hiện 240 mốc" mà lọc còn 3.
     tabUiState.tlLimit = TIMELINE_PAGE_SIZE;
     debounceInput('tlQuery', LIST_INPUT_DEBOUNCE_MS, () => {
       const list = document.getElementById('fll-tl-list');
@@ -6324,7 +6319,7 @@ function handleLensInput(event) {
     });
     return;
   }
-  // Duong nang nhat: quet 4085 dong, ghi class len bang log roi ve lai ca tab. De cho lau hon.
+  // Đường nặng nhất: quét 4085 dòng, ghi class lên bảng log rồi vẽ lại cả tab. Để chờ lâu hơn.
   if (target.id === 'fll-re') {
     lensState.filter.text = target.value;
     debounceInput('filterText', FILTER_INPUT_DEBOUNCE_MS, () => {
@@ -6337,8 +6332,8 @@ function handleLensInput(event) {
 /* -------------------------------------------------------------------- boot */
 
 function startLens(startMinimized) {
-  // Nhan quyen TRUOC khi don: neu don xong moi nhan, nhip watcher cua instance cu cham vao dung khe ho
-  // do se tuong root cua no bi go oan va dung lai ngay.
+  // Nhận quyền TRƯỚC khi dọn: nếu dọn xong mới nhận, nhịp watcher của instance cũ chạm vào đúng khe hở
+  // đó sẽ tưởng root của nó bị gỡ oan và dựng lại ngay.
   claimLensOwnership();
   disposePreviousInstance();
   registerInstance();
@@ -6351,8 +6346,8 @@ function startLens(startMinimized) {
   lensState.filterTemplates = loadFilterTemplates();
 
   scanLog();
-  // Mo bang link chia se thi luon bung panel, ke ca khi dang chay duoi dang extension (mac dinh thu gon):
-  // nguoi nhan link chi thay mot cai pill trong khi bang log da bi loc se tuong la khong co gi xay ra.
+  // Mở bằng link chia sẻ thì luôn bung panel, kể cả khi đang chạy dưới dạng extension (mặc định thu gọn):
+  // người nhận link chỉ thấy một cái pill trong khi bảng log đã bị lọc sẽ tưởng là không có gì xảy ra.
   const isRestoredFromLink = applyPermalinkFromHash();
   if (startMinimized && !isRestoredFromLink) showPill();
   else mountPanel();
@@ -6361,8 +6356,8 @@ function startLens(startMinimized) {
   root.addEventListener('input', handleLensInput);
   root.addEventListener('mouseover', handleLensTooltip);
   root.addEventListener('mouseleave', hideTooltip);
-  // Bam vao dau la dang lam viec khac, khong con doi doc chu giai nua. 'scroll' bat o pha capture vi
-  // no khong noi bot len.
+  // Bấm vào đâu là đang làm việc khác, không còn đợi đọc chú giải nữa. 'scroll' bắt ở pha capture vì
+  // nó không nổi bọt lên.
   root.addEventListener('mousedown', hideTooltip);
   root.addEventListener('scroll', hideTooltip, true);
   window.addEventListener('keydown', handleShortcut, LENS_KEY_LISTENER_OPTIONS);
@@ -6373,8 +6368,7 @@ function startLens(startMinimized) {
 }
 
 if (hasLogRows()) startLens(false);
-// Chay ca khi chua gan duoc: dieu huong trong SPA khong tai lai tai lieu, watcher nay la thu duy nhat
-// biet duoc "vua vao mot feedback detail moi".
+// Chạy cả khi chưa gắn được: điều hướng trong SPA không tải lại tài liệu, watcher này là thứ duy nhất
+// biết được "vừa vào một feedback detail mới".
 startPageWatcher();
-// AI-GENERATED END
 })();

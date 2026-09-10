@@ -1,13 +1,6 @@
-/*
-File: src/01-analyzer.js
-Created At: 2026-09-08 16:00:00 +07:00
-Created By: AI
-AI Agent: Claude Code
-Model: claude-opus-5
-*/
 // @ts-check
-// AI-GENERATED START — doc DOM log cua trang feedback admin, parse thanh entry co cau truc + thong ke
-// Cac file src/*.js duoc build.sh noi lai va boc trong MOT IIFE nen dung chung scope. Dat ten khong trung nhau.
+// đọc DOM log của trang feedback admin, parse thành entry có cấu trúc + thống kê
+// Các file src/*.js được build.sh nối lại và bọc trong MỘT IIFE nên dùng chung scope. Đặt tên không trùng nhau.
 
 const LEVEL_ALIAS = { WARN: 'WARNING', VERBOSE: 'DEBUG', TRACE: 'DEBUG', FATAL: 'ERROR' };
 const LEVEL_ORDER = ['ERROR', 'WARNING', 'INFO', 'DEBUG'];
@@ -30,20 +23,20 @@ const RE_URL = /\[URL: (\S+?)\]/;
 const RE_STATUS = /--status: (\d+)/;
 const RE_ERRCODE = /"errorCode"\s*:\s*"?(-?\d+)|errorCode=(-?\d+)/;
 const RE_BATCH = /LOGGER: END OF BATCH/;
-// Trang thai app nam ghep trong dong MQTT: "... - appState: BACKGROUND - isReady: false".
-// Day la cho DUY NHAT trong log noi ra app dang o nen hay dang mo — khong co dong lifecycle rieng
-// (da tim: didEnterBackground / willEnterForeground / onPause deu 0 lan tren ca ba log).
+// Trạng thái app nằm ghép trong dòng MQTT: "... - appState: BACKGROUND - isReady: false".
+// Đây là chỗ DUY NHẤT trong log nói ra app đang ở nền hay đang mở — không có dòng lifecycle riêng
+// (đã tìm: didEnterBackground / willEnterForeground / onPause đều 0 lần trên cả ba log).
 const RE_APP_STATE = /appState[:= ]+([A-Z]+)/;
-// Ba moc deu ghi dung mot lan moi lan process khoi dong, deu o muc INFO va deu khong bi bat ky co
-// debug nao chan (da doc source app). Do tren 50 feedback production that: "MomoDatabase init OK"
-// co mat o 44/50 log — 6 log con lai can moc du phong, vi file log bi xoay vong thi dong khoi dong
-// la dong bi cat dau tien.
+// Ba mốc đều ghi đúng một lần mỗi lần process khởi động, đều ở mức INFO và đều không bị bất kỳ cờ
+// debug nào chặn (đã đọc source app). Đo trên 50 feedback production thật: "MomoDatabase init OK"
+// có mặt ở 44/50 log — 6 log còn lại cần mốc dự phòng, vì file log bị xoay vòng thì dòng khởi động
+// là dòng bị cắt đầu tiên.
 //
-// NHUNG ca ba moc deu no trong CUNG mot lan khoi dong, cach nhau vai tram ms. Dem moi moc la mot phien
-// thi mot lan mo app thanh ba phien — bug that, nguoi dung bat duoc. Do tren ba log that:
-//   - khoang cach GIUA ba moc cua cung mot lan khoi dong: 369, 382, 470, 916, 1000, 1119, 1829, 2078ms
-//   - khoang cach giua HAI lan khoi dong that: 75 440ms va 163 029ms
-// Hai nhom cach nhau 36 lan, nen nguong 5s nam giua khoang trong do, khong sat mep nao.
+// NHƯNG cả ba mốc đều nổ trong CÙNG một lần khởi động, cách nhau vài trăm ms. Đếm mỗi mốc là một phiên
+// thì một lần mở app thành ba phiên — bug thật, người dùng bắt được. Đo trên ba log thật:
+//   - khoảng cách GIỮA ba mốc của cùng một lần khởi động: 369, 382, 470, 916, 1000, 1119, 1829, 2078ms
+//   - khoảng cách giữa HAI lần khởi động thật: 75 440ms và 163 029ms
+// Hai nhóm cách nhau 36 lần, nên ngưỡng 5s nằm giữa khoảng trống đó, không sát mép nào.
 const SESSION_MARKERS = [
   { kind: 'db', re: /MomoDatabase init OK/ },
   { kind: 'sync', re: /@@ appSync >> syncStartApp/ },
@@ -62,7 +55,7 @@ function getLogRowElements() {
   return Array.from(document.querySelectorAll(ROW_SELECTOR));
 }
 
-// Log khong scroll theo window ma theo mot div long ben trong, phai tim dung no de nhay dong.
+// Log không scroll theo window mà theo một div lồng bên trong, phải tìm đúng nó để nhảy dòng.
 function getLogScrollContainer(rowEl) {
   let node = rowEl ? rowEl.parentElement : null;
   while (node && node !== document.body) {
@@ -83,9 +76,9 @@ function parseModules(body) {
   return names;
 }
 
-// Gom cac dong cung ban chat ve mot chu ky: bo timestamp, con tro, object id, uuid, appId, moi con so.
-// errorCode duoc giu nguyen (lookbehind) vi day la tin hieu phan biet loi that su.
-// Do trên log that: 958 dong WARNING gom con 252 nhom (truoc khi bo <ptr>/<appId>/so nho la 411).
+// Gom các dòng cùng bản chất về một chữ ký: bỏ timestamp, con trỏ, object id, uuid, appId, mọi con số.
+// errorCode được giữ nguyên (lookbehind) vì đây là tín hiệu phân biệt lỗi thật sự.
+// Đo trên log thật: 958 dòng WARNING gom còn 252 nhóm (trước khi bỏ <ptr>/<appId>/số nhỏ là 411).
 function normalizeSignature(text) {
   return text
     .replace(/\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}[:.]\d{3}/g, '<ts>')
@@ -113,7 +106,7 @@ function parseHttpFields(body) {
     host = parsed.host;
     path = parsed.pathname + (parsed.search ? '?...' : '');
   } catch (error) {
-    // URL tuong doi hoac bi cat giua chung: giu nguyen chuoi goc.
+    // URL tương đối hoặc bị cắt giữa chừng: giữ nguyên chuỗi gốc.
   }
 
   let direction = 'other';
@@ -131,20 +124,20 @@ function parseHttpFields(body) {
   };
 }
 
-// params cua MoMoTracker khong phai JSON ma la map "k=v, k=v": parseKeyValueMap (02-insights) da xu ly
-// dung dau phay nam trong gia tri (bundle_sof=1,2) va map long nhau (last_component={...}).
-// Do tren log that: 940/940 dong co "| params: {" deu parse ra map, khong dong nao that bai.
-// indexOf chan truoc vi dai da so dong khong he co params, khong can chay regex.
+// params của MoMoTracker không phải JSON mà là map "k=v, k=v": parseKeyValueMap (02-insights) đã xử lý
+// đúng dấu phẩy nằm trong giá trị (bundle_sof=1,2) và map lồng nhau (last_component={...}).
+// Đo trên log thật: 940/940 dòng có "| params: {" đều parse ra map, không dòng nào thất bại.
+// indexOf chặn trước vì đại đa số dòng không hề có params, không cần chạy regex.
 function parseEventParams(message) {
   if (message.indexOf('| params: {') < 0) return null;
   const hit = RE_EVENT_PARAMS.exec(message);
   return hit ? parseKeyValueMap(hit[1]) : null;
 }
 
-// Grafana ghi tham so duoi dang TraceParameter(k=v, k=v) — cung mot dinh dang k=v voi params cua
-// tracker, chi khac cap bao ngoai. Boc lai thanh {k=v} de dung chung parseKeyValueMap, huong luon
-// ca phan noi lai manh bi dau phay xe doi. Do tren hai log that (mot UAT, mot prod): 3904/3904 dong
-// TraceParameter parse ra map co truong flow.
+// Grafana ghi tham số dưới dạng TraceParameter(k=v, k=v) — cùng một định dạng k=v với params của
+// tracker, chỉ khác cặp bao ngoài. Bọc lại thành {k=v} để dùng chung parseKeyValueMap, hưởng luôn
+// cả phần nối lại mảnh bị dấu phẩy xẻ đôi. Đo trên hai log thật (một UAT, một prod): 3904/3904 dòng
+// TraceParameter parse ra map có trường flow.
 function parseTraceParameter(message) {
   const hit = RE_TRACE_PARAM.exec(message);
   return hit ? parseKeyValueMap('{' + hit[1] + '}') : null;
@@ -159,6 +152,10 @@ function parseEntry(rawText, domIndex, lineNo, el) {
     kind: 'log',
     level: '',
     ts: null,
+    // Mốc dùng RIÊNG cho cửa sổ thời gian: dòng không có giờ thừa hưởng giờ của dòng có giờ gần nhất
+    // phía trên. Không nhập vào ts vì ts đi vào khoảng lặng, minimap, phiên app — thêm giờ giả vào đó
+    // là đổi số liệu, còn ở đây chỉ là để dòng tiếp nối không bị cửa sổ thời gian cắt mất.
+    windowTs: null,
     time: '',
     modules: [],
     module: '',
@@ -173,12 +170,12 @@ function parseEntry(rawText, domIndex, lineNo, el) {
     signature: '',
     http: null,
     session: 1,
-    // Dat true cho dong DAU TIEN cua moi chum moc khoi dong. Tab Dien bien doc co nay chu khong
-    // do lai regex, neu khong mot lan mo app se ve ra ba moc "App khoi dong" chong nhau.
+    // Đặt true cho dòng ĐẦU TIÊN của mỗi chùm mốc khởi động. Tab Diễn biến đọc cờ này chứ không
+    // dò lại regex, nếu không một lần mở app sẽ vẽ ra ba mốc "App khởi động" chồng nhau.
     isSessionStart: false,
-    // Nam trong khoi bi lap lai nguyen xi (xem src/02h-duplicate.js).
+    // Nằm trong khối bị lặp lại nguyên xi (xem src/02h-duplicate.js).
     isDuplicate: false,
-    // 'FOREGROUND' | 'BACKGROUND' | '' — doc tu dong MQTT, xem RE_APP_STATE.
+    // 'FOREGROUND' | 'BACKGROUND' | '' — đọc từ dòng MQTT, xem RE_APP_STATE.
     appState: '',
   };
 
@@ -213,7 +210,7 @@ function parseEntry(rawText, domIndex, lineNo, el) {
     entry.eventParams = parseEventParams(entry.message);
   }
 
-  // indexOf chan truoc: chi dong Grafana moi mang trace, chay regex tren moi dong la vo ich.
+  // indexOf chặn trước: chỉ dòng Grafana mới mang trace, chạy regex trên mọi dòng là vô ích.
   if (entry.message.indexOf('@@ grafana >> ') >= 0) {
     const traceVerb = RE_TRACE_VERB.exec(entry.message);
     if (traceVerb) {
@@ -226,8 +223,8 @@ function parseEntry(rawText, domIndex, lineNo, el) {
   if (appState) entry.appState = appState[1];
 
   entry.http = parseHttpFields(body);
-  // Chi ERROR/WARNING moi vao buildIssueGroups. Tinh chu ky cho ca 4085 dong la lang phi nang nhat
-  // luc khoi dong: 7 luot replace tren nhung dong payload HTTP dai toi 10KB ma khong ai dung den.
+  // Chỉ ERROR/WARNING mới vào buildIssueGroups. Tính chữ ký cho cả 4085 dòng là lãng phí nặng nhất
+  // lúc khởi động: 7 lượt replace trên những dòng payload HTTP dài tới 10KB mà không ai dùng đến.
   if (entry.level === 'ERROR' || entry.level === 'WARNING') {
     entry.signature = normalizeSignature(entry.message).slice(0, SIGNATURE_MAX_LENGTH);
   }
@@ -257,8 +254,8 @@ function buildIssueGroups(entries) {
         module: entry.module,
         signature: entry.signature,
         sample: entry.message,
-        // Loi cua chinh lop do luong, khong phai loi user gap. Danh dau ngay luc gom de tab Van de
-        // tach rieng ra — do tren 50 feedback production: 1267/2488 dong ERROR (51%) la loai nay.
+        // Lỗi của chính lớp đo lường, không phải lỗi user gặp. Đánh dấu ngay lúc gom để tab Vấn đề
+        // tách riêng ra — đo trên 50 feedback production: 1267/2488 dòng ERROR (51%) là loại này.
         noiseLabel: telemetryNoiseLabel(entry.message),
         indices: [],
         firstTs: entry.ts,
@@ -278,65 +275,111 @@ function buildIssueGroups(entries) {
   });
 }
 
-// Ghep response voi request gan nhat cung URL. Request khong co response => nghi treo/timeout.
-function buildHttpCalls(entries) {
-  const calls = [];
-  const pendingByUrl = new Map();
-  entries.forEach((entry) => {
-    if (!entry.http) return;
-    const http = entry.http;
-    if (http.direction !== 'res') {
-      const call = {
-        reqIndex: entry.domIndex,
-        resIndex: null,
-        ts: entry.ts,
-        time: entry.time,
-        method: http.method,
-        url: http.url,
-        host: http.host,
-        path: http.path,
-        status: http.status,
-        errorCode: http.errorCode,
-        duration: null,
-      };
-      calls.push(call);
-      pendingByUrl.set(http.url, call);
-      return;
-    }
-    const pending = pendingByUrl.get(http.url);
-    if (pending && pending.resIndex === null) {
-      pending.resIndex = entry.domIndex;
-      pending.status = http.status;
-      pending.errorCode = http.errorCode;
-      pending.duration = entry.ts && pending.ts ? entry.ts - pending.ts : null;
-      pendingByUrl.delete(http.url);
-      return;
-    }
-    calls.push({
-      reqIndex: null,
-      resIndex: entry.domIndex,
-      ts: entry.ts,
-      time: entry.time,
-      method: http.method,
-      url: http.url,
-      host: http.host,
-      path: http.path,
-      status: http.status,
-      errorCode: http.errorCode,
-      duration: null,
-    });
-  });
-  return calls;
+// Ghép request với response theo CÙNG MỘT URL, FIFO theo thứ tự dòng, có cửa sổ lùi một dòng.
+//
+// Vì sao cần cửa sổ lùi: logger ghi theo lô nên dòng ResponsePayload có thể nằm TRƯỚC dòng
+// RequestPayload của chính nó. Đo trên ba log thật: 0 / 3 / 16 cặp nằm ngược, và MỌI cặp ngược quan
+// sát được đều lệch đúng MỘT dòng (Δdòng = -1, Δts = 0 hoặc -2ms) — hai dòng ra trong cùng một lần
+// flush. Vì vậy HTTP_PAIR_LOOKAHEAD = 1.
+//
+// Bản cũ ghép response với request đứng trước nó theo dòng nên hỏng cả hai đầu: request thật bị báo
+// "không có response" (=> vào badHttpCalls, vào thẻ "HTTP bất thường", vào ticket), rồi chính
+// response đó lại sinh thêm một hàng "call ma". Đo trên log production: 94 dòng request và 94 dòng
+// response mà ra 104 call, 10 cái báo thiếu response. Sau khi sửa: 94 call, 0 cái thiếu response.
+//
+// ĐÃ THỬ và bỏ: ghép theo trục THỜI GIAN thay vì thứ tự dòng. Trục thời gian nhiễu hơn nhiều — trên
+// log uat1 có một cặp request/response nằm đúng thứ tự dòng mà timestamp lệch NGƯỢC 728ms, chặn theo
+// ts thì cặp đó bị xẻ đôi. Thứ tự dòng sai ít hơn, và sai theo một kiểu duy nhất (lệch một dòng).
+//
+// CHƯA XÁC MINH: giả định một URL trả về theo đúng thứ tự gọi. Dòng HTTP trong log chỉ có [Method:]
+// và [URL:], không có trường nào nối request với response, nên không có cách nào chắc hơn.
+const HTTP_PAIR_LOOKAHEAD = 1;
+
+function makeHttpCall(entry) {
+  const http = entry.http;
+  return {
+    reqIndex: null,
+    resIndex: null,
+    ts: entry.ts,
+    time: entry.time,
+    method: http.method,
+    url: http.url,
+    host: http.host,
+    path: http.path,
+    status: http.status,
+    errorCode: http.errorCode,
+    duration: null,
+  };
 }
 
-// Gap phai tinh tren truc thoi gian da sort: logger flush theo lo nen thu tu dong khong phai thu tu thoi gian.
-// Cua so xe dich cho phep giua moc doi trang thai va hai dau khoang lang.
+function pairHttpSides(reqs, ress, calls) {
+  const open = [];
+  let next = 0;
+  ress.forEach((res) => {
+    // Mở mọi request nằm trước response này (cộng cửa sổ lùi), rồi lấy cái chờ lâu nhất.
+    while (next < reqs.length && reqs[next].domIndex <= res.domIndex + HTTP_PAIR_LOOKAHEAD) {
+      open.push(reqs[next]);
+      next += 1;
+    }
+    const req = open.shift();
+    if (!req) {
+      // Response mồ côi: request của nó nằm ngoài log (log bị cắt đầu) hoặc đang bị bộ lọc giấu đi.
+      // Đo trên log uat1: 52 dòng request / 58 dòng response, 6 response đầu file không có request.
+      const orphan = makeHttpCall(res);
+      orphan.resIndex = res.domIndex;
+      calls.push(orphan);
+      return;
+    }
+    const call = makeHttpCall(req);
+    call.reqIndex = req.domIndex;
+    call.resIndex = res.domIndex;
+    call.status = res.http.status;
+    call.errorCode = res.http.errorCode;
+    // Lệch âm (response ghi trước request) thì để trống chứ không báo số âm: không biết call chạy bao
+    // lâu thì hàng đó hiện giờ thay vì hiện một con số sai.
+    const delta = res.ts && req.ts ? res.ts - req.ts : -1;
+    call.duration = delta >= 0 ? delta : null;
+    calls.push(call);
+  });
+  open.concat(reqs.slice(next)).forEach((req) => {
+    const call = makeHttpCall(req);
+    call.reqIndex = req.domIndex;
+    calls.push(call);
+  });
+}
+
+function buildHttpCalls(entries) {
+  const byUrl = new Map();
+  entries.forEach((entry) => {
+    if (!entry.http) return;
+    let pair = byUrl.get(entry.http.url);
+    if (!pair) {
+      pair = { reqs: [], ress: [] };
+      byUrl.set(entry.http.url, pair);
+    }
+    // direction 'other' (không có cả RequestPayload lẫn ResponsePayload) tính là phía request, giữ
+    // nguyên như bản cũ. Đo trên ba log thật: 0 dòng rơi vào nhánh này.
+    (entry.http.direction === 'res' ? pair.ress : pair.reqs).push(entry);
+  });
+  const calls = [];
+  // entries đi vào theo thứ tự dòng nên reqs/ress đã sẵn thứ tự, không cần sort lại.
+  byUrl.forEach((pair) => pairHttpSides(pair.reqs, pair.ress, calls));
+  // Trả về theo thứ tự dòng của đầu sớm nhất: danh sách call trên panel đọc từ trên xuống.
+  return calls.sort((a, b) => httpCallAnchor(a) - httpCallAnchor(b));
+}
+
+function httpCallAnchor(call) {
+  return call.reqIndex != null ? call.reqIndex : call.resIndex;
+}
+
+// Gap phải tính trên trục thời gian đã sort: logger flush theo lô nên thứ tự dòng không phải thứ tự thời gian.
+// Cửa sổ xê dịch cho phép giữa mốc đổi trạng thái và hai đầu khoảng lặng.
 const GAP_STATE_TOLERANCE_MS = 2000;
 
-// Danh dau khoang lang nao la do APP XUONG NEN chu khong phai app treo. Truoc day tool bao hai truong
-// hop nhu nhau — do la false positive lon nhat cua tinh nang khoang lang: "user bam Home" bi doc thanh
-// "app dung im". Do tren log that (33112319): 22 khoang lang, dung 2 cai dai nhat (142.7s va 231.8s)
-// la app o nen, 20 cai con lai khong co moc doi trang thai nao.
+// Đánh dấu khoảng lặng nào là do APP XUỐNG NỀN chứ không phải app treo. Trước đây tool báo hai trường
+// hợp như nhau — đó là false positive lớn nhất của tính năng khoảng lặng: "user bấm Home" bị đọc thành
+// "app đứng im". Đo trên log thật (33112319): 22 khoảng lặng, đúng 2 cái dài nhất (142.7s và 231.8s)
+// là app ở nền, 20 cái còn lại không có mốc đổi trạng thái nào.
 function markBackgroundGaps(gaps, timed) {
   const marks = [];
   let last = '';
@@ -347,11 +390,11 @@ function markBackgroundGaps(gaps, timed) {
   });
   if (!marks.length) return;
   gaps.forEach((gap) => {
-    // Phai co CA HAI dau: xuong nen trong long khoang lang, va tro lai o cuoi khoang. Chi thay mot
-    // dau thi khong ket luan — co the la app xuong nen roi bi giet han.
-    // Noi long CA hai dau bang GAP_STATE_TOLERANCE_MS. Do that: moc xuong nen nam SOM HON gap.before
-    // vai chuc ms, vi ba module MQTT cung ghi mot luc va dong cuoi truoc khoang lang la dong thu ba,
-    // con moc doi trang thai la dong thu nhat. Chan cung "moc >= gap.before.ts" thi truot het.
+    // Phải có CẢ HAI đầu: xuống nền trong lòng khoảng lặng, và trở lại ở cuối khoảng. Chỉ thấy một
+    // đầu thì không kết luận — có thể là app xuống nền rồi bị giết hẳn.
+    // Nới lỏng CẢ hai đầu bằng GAP_STATE_TOLERANCE_MS. Đo thật: mốc xuống nền nằm SỚM HƠN gap.before
+    // vài chục ms, vì ba module MQTT cùng ghi một lúc và dòng cuối trước khoảng lặng là dòng thứ ba,
+    // còn mốc đổi trạng thái là dòng thứ nhất. Chặn cứng "mốc >= gap.before.ts" thì trượt hết.
     const down = marks.find((mark) => mark.state === 'BACKGROUND' &&
       mark.ts >= gap.before.ts - GAP_STATE_TOLERANCE_MS && mark.ts <= gap.after.ts);
     if (!down) return;
@@ -365,11 +408,11 @@ function markBackgroundGaps(gaps, timed) {
 }
 
 function buildGaps(entries, gapThresholdMs) {
-  // Bo dong thuoc khoi lap: log bi noi doi thi moi moc thoi gian xuat hien hai lan, hai dong lien tiep
-  // sau khi sort cach nhau 0ms nen KHONG con khoang lang nao duoc nhan ra. Do that tren log
-  // production bi noi doi: 0 khoang lang truoc khi bo, dung so that sau khi bo. Khoi lap khong the
-  // tao ra hay xoa di mot khoang im lang co that — no chi che mat, nen bo la dung ca khi nguoi dung
-  // chua bat "bo khoi lap".
+  // Bỏ dòng thuộc khối lặp: log bị nối đôi thì mọi mốc thời gian xuất hiện hai lần, hai dòng liên tiếp
+  // sau khi sort cách nhau 0ms nên KHÔNG còn khoảng lặng nào được nhận ra. Đo thật trên log
+  // production bị nối đôi: 0 khoảng lặng trước khi bỏ, đúng số thật sau khi bỏ. Khối lặp không thể
+  // tạo ra hay xoá đi một khoảng im lặng có thật — nó chỉ che mất, nên bỏ là đúng cả khi người dùng
+  // chưa bật "bỏ khối lặp".
   const timed = entries.filter((entry) => entry.ts && !entry.isDuplicate).slice()
     .sort((a, b) => a.ts - b.ts);
   const gaps = [];
@@ -395,11 +438,11 @@ function analyzeLog(gapThresholdMs) {
     return parseEntry(text, index, Number.isNaN(parsedLineNo) ? index + 1 : parsedLineNo, el);
   });
 
-  // Mot lan khoi dong = mot CHUM moc, khong phai mot moc. Sang phien moi khi: cach moc truoc qua
-  // SESSION_BURST_MS, HOAC gap lai dung loai moc da thay trong chum nay — mot process khong the ghi
-  // "MomoDatabase init OK" hai lan, nen moc trung loai chac chan la lan khoi dong khac. Ve dieu kien
-  // thu hai: dung tren bon chum quan sat duoc (moi chum dung mot moc moi loai), CHUA XAC MINH duoc
-  // rang khong log nao lap lai mot loai moc giua chung mot lan chay.
+  // Một lần khởi động = một CHÙM mốc, không phải một mốc. Sang phiên mới khi: cách mốc trước quá
+  // SESSION_BURST_MS, HOẶC gặp lại đúng loại mốc đã thấy trong chùm này — một process không thể ghi
+  // "MomoDatabase init OK" hai lần, nên mốc trùng loại chắc chắn là lần khởi động khác. Về điều kiện
+  // thứ hai: đúng trên bốn chùm quan sát được (mỗi chùm đúng một mốc mỗi loại), CHƯA XÁC MINH được
+  // rằng không log nào lặp lại một loại mốc giữa chừng một lần chạy.
   let sessionCount = 0;
   let lastMarkerTs = 0;
   let burstKinds = new Set();
@@ -421,18 +464,25 @@ function analyzeLog(gapThresholdMs) {
   let outOfOrder = 0;
   let previousTs = 0;
   entries.forEach((entry) => {
-    if (!entry.ts) return;
+    // Đo trên ba log thật: 240 / 180 / 85 dòng không có giờ (dòng tiếp nối của stack trace, dòng
+    // trống, dòng "END OF BATCH"). Trước đây cửa sổ thời gian loại thẳng chúng, nên bật cửa sổ quanh
+    // đúng lúc lỗi nổ ra thì chính phần stack trace nhiều dòng của lỗi đó bị giấu đi.
+    if (!entry.ts) {
+      entry.windowTs = previousTs || null;
+      return;
+    }
     if (previousTs && entry.ts < previousTs) outOfOrder += 1;
     previousTs = entry.ts;
+    entry.windowTs = entry.ts;
   });
 
-  // Danh dau khoi lap TRUOC khi tinh thong ke: bo loc "bo khoi lap" doc co nay.
+  // Đánh dấu khối lặp TRƯỚC khi tính thống kê: bộ lọc "bỏ khối lặp" đọc cờ này.
   const duplicate = markDuplicateEntries(entries);
 
   const timeline = buildGaps(entries, gapThresholdMs);
 
-  // Phan phu thuoc tap dong (levels/groups/http/modules/...) nam trong deriveStats, dung chung voi
-  // luc tinh lai theo bo loc. Phan con lai la thuoc tinh cua ca file, khong bao gio scope.
+  // Phần phụ thuộc tập dòng (levels/groups/http/modules/...) nằm trong deriveStats, dùng chung với
+  // lúc tính lại theo bộ lọc. Phần còn lại là thuộc tính của cả file, không bao giờ scope.
   return Object.assign({
     rowEls,
     entries,
@@ -446,4 +496,3 @@ function analyzeLog(gapThresholdMs) {
     lastTs: timeline.timed.length ? timeline.timed[timeline.timed.length - 1].ts : 0,
   }, deriveStats(entries, timeline.gaps));
 }
-// AI-GENERATED END

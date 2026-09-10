@@ -1,24 +1,17 @@
-/*
-File: src/03g-panel.js
-Created At: 2026-09-08 16:00:00 +07:00
-Created By: AI
-AI Agent: Claude Code
-Model: claude-opus-5
-*/
 // @ts-check
-// AI-GENERATED START — keo tha panel, doi kich thuoc, nho lai vi tri
-// Tach ra tu src/03-shell.js (992 dong / 67 ham). Cac file src/*.js duoc build.sh noi lai
-// theo thu tu ten file va boc trong MOT IIFE nen van dung chung scope — tach chi de doc,
-// khong doi cach chung goi nhau.
+// kéo thả panel, đổi kích thước, nhớ lại vị trí
+// Tách ra từ src/03-shell.js (992 dòng / 67 hàm). Các file src/*.js được build.sh nối lại
+// theo thứ tự tên file và bọc trong MỘT IIFE nên vẫn dùng chung scope — tách chỉ để đọc,
+// không đổi cách chúng gọi nhau.
 
-/* ------------------------------------------------- keo tha va doi kich thuoc */
+/* ------------------------------------------------- kéo thả và đổi kích thước */
 
 function clampValue(value, min, max) {
   return Math.max(min, Math.min(Math.max(min, max), value));
 }
 
-// Panel mac dinh neo phai (top/right/bottom trong CSS) nen chieu cao la ngam.
-// Khi keo di hoac keo goc thi ghim han sang left/top/width/height de hai chieu deu chinh duoc.
+// Panel mặc định neo phải (top/right/bottom trong CSS) nên chiều cao là ngầm.
+// Khi kéo đi hoặc kéo góc thì ghim hẳn sang left/top/width/height để hai chiều đều chỉnh được.
 function isPanelRightAnchored(panel) {
   return !panel.style.left || panel.style.left === 'auto';
 }
@@ -46,8 +39,8 @@ function applyPanelGeometry(panel) {
   panel.style.height = geometry.height + 'px';
 }
 
-// mousemove/mouseup chi duoc gan trong luc keo roi go ngay, khong gan thuong tru:
-// mountPanel() chay lai moi lan mo tu pill, gan thuong tru se cong don listener.
+// mousemove/mouseup chỉ được gắn trong lúc kéo rồi gỡ ngay, không gắn thường trú:
+// mountPanel() chạy lại mỗi lần mở từ pill, gắn thường trú sẽ cộng dồn listener.
 function enableDragAndResize(panel, header, edgeGrip, cornerGrip) {
   let mode = null;
   let origin = null;
@@ -63,7 +56,7 @@ function enableDragAndResize(panel, header, edgeGrip, cornerGrip) {
       grabX: event.clientX - rect.left,
       grabY: event.clientY - rect.top,
       wasRightAnchored: isPanelRightAnchored(panel),
-      // Khai bao han o day thay vi gan them sau: gan them thi go sai ten mot chu la im lang hong.
+      // Khai báo hẳn ở đây thay vì gán thêm sau: gán thêm thì gõ sai tên một chữ là im lặng hỏng.
       /** @type {number | undefined} */
       committedLeft: undefined,
     };
@@ -83,7 +76,7 @@ function enableDragAndResize(panel, header, edgeGrip, cornerGrip) {
     event.preventDefault();
   }
 
-  // mousemove ban day hon tan so khung hinh, nen gom lai mot lan cap nhat moi frame.
+  // mousemove bắn dày hơn tần số khung hình, nên gom lại một lần cập nhật mỗi frame.
   function handleMove(event) {
     if (!mode) return;
     pendingEvent = event;
@@ -98,9 +91,9 @@ function enableDragAndResize(panel, header, edgeGrip, cornerGrip) {
     if (!mode || !event) return;
 
     if (mode === 'move') {
-      // Di chuyen bang transform chu khong phai left/top: transform duoc compositor xu ly,
-      // khong bat trinh duyet layout lai va ve lai vung panel (kem bong mo 70px) moi khung hinh.
-      // Chot lai thanh left/top luc tha tay.
+      // Di chuyển bằng transform chứ không phải left/top: transform được compositor xử lý,
+      // không bắt trình duyệt layout lại và vẽ lại vùng panel (kèm bóng mờ 70px) mỗi khung hình.
+      // Chốt lại thành left/top lúc thả tay.
       const left = clampValue(event.clientX - origin.grabX, VIEWPORT_MARGIN - origin.rect.width + 140,
         window.innerWidth - 140);
       const top = clampValue(event.clientY - origin.grabY, 0, window.innerHeight - 60);
@@ -119,7 +112,7 @@ function enableDragAndResize(panel, header, edgeGrip, cornerGrip) {
       return;
     }
 
-    // 'edge': keo mep trai, giu nguyen mep phai o ca hai kieu neo.
+    // 'edge': kéo mép trái, giữ nguyên mép phải ở cả hai kiểu neo.
     const width = clampValue(origin.rect.width + (origin.x - event.clientX), PANEL_MIN_WIDTH,
       origin.rect.right - VIEWPORT_MARGIN);
     panel.style.width = width + 'px';
@@ -130,8 +123,8 @@ function enableDragAndResize(panel, header, edgeGrip, cornerGrip) {
     window.removeEventListener('mousemove', handleMove);
     window.removeEventListener('mouseup', handleUp);
     if (!mode) return;
-    // Chot transform thanh vi tri that truoc khi do lai kich thuoc, khong thi getBoundingClientRect
-    // van dang cong them phan dich chuyen.
+    // Chốt transform thành vị trí thật trước khi đo lại kích thước, không thì getBoundingClientRect
+    // vẫn đang cộng thêm phần dịch chuyển.
     if (mode === 'move' && origin.committedLeft !== undefined) {
       panel.style.transform = '';
       panel.style.left = origin.committedLeft + 'px';
@@ -152,16 +145,16 @@ function enableDragAndResize(panel, header, edgeGrip, cornerGrip) {
   cornerGrip.addEventListener('mousedown', (event) => beginInteraction('corner', event));
 }
 
-/* ------------------------------------------------------------- phim tat */
+/* ------------------------------------------------------------- phím tắt */
 
-// Esc chi thu ve pill, khong huy panel: neu huy thi khong con gi de bam mo lai.
-// Nut "x" moi dong han, va Alt+L la duong quay lai — listener nay co y giu song sau khi dong.
+// Esc chỉ thu về pill, không huỷ panel: nếu huỷ thì không còn gì để bấm mở lại.
+// Nút "x" mới đóng hẳn, và Alt+L là đường quay lại — listener này cố ý giữ sống sau khi đóng.
 //
-// Da do tren trang that: khi trang admin nhan duoc Escape, chinh no goi removeChild go #fll-root
-// ra khoi body (khong phai code o day — bay Element.prototype.remove khong bat duoc gi).
-// Vi vay listener gan o capture phase tren window va chan lan truyen voi nhung phim minh xu ly,
-// de trang khong bao gio thay Escape khi panel dang mo. LENS_KEY_LISTENER_OPTIONS phai dung
-// y het nhau luc them va luc go, neu khac thi removeEventListener khong an.
+// Đã đo trên trang thật: khi trang admin nhận được Escape, chính nó gọi removeChild gỡ #fll-root
+// ra khỏi body (không phải code ở đây — bẫy Element.prototype.remove không bắt được gì).
+// Vì vậy listener gắn ở capture phase trên window và chặn lan truyền với những phím mình xử lý,
+// để trang không bao giờ thấy Escape khi panel đang mở. LENS_KEY_LISTENER_OPTIONS phải đúng
+// y hệt nhau lúc thêm và lúc gỡ, nếu khác thì removeEventListener không ăn.
 const LENS_KEY_LISTENER_OPTIONS = true;
 
 function isLensMounted() {
@@ -169,7 +162,7 @@ function isLensMounted() {
 }
 
 function handleShortcut(event) {
-  // Instance cu (world khac) khong duoc gianh phim voi instance dang lam chu.
+  // Instance cũ (world khác) không được giành phím với instance đang làm chủ.
   if (!isLensOwner()) return;
   const target = event.target;
   if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) return;
@@ -195,4 +188,3 @@ function handleShortcut(event) {
     showPill();
   }
 }
-// AI-GENERATED END

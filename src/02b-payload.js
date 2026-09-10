@@ -1,16 +1,9 @@
-/*
-File: src/02b-payload.js
-Created At: 2026-09-08 16:00:00 +07:00
-Created By: AI
-AI Agent: Claude Code
-Model: claude-opus-5
-*/
 // @ts-check
-// AI-GENERATED START — tach khoi JSON trong dong log, va lop k=v dung chung cho ca tracker lan Grafana
-// Tach ra tu src/02-insights.js (946 dong). Cac file src/*.js duoc build.sh noi lai theo thu tu
-// ten file va boc trong MOT IIFE nen van dung chung scope — tach chi de doc.
+// tách khối JSON trong dòng log, và lớp k=v dùng chung cho cả tracker lẫn Grafana
+// Tách ra từ src/02-insights.js (946 dòng). Các file src/*.js được build.sh nối lại theo thứ tự
+// tên file và bọc trong MỘT IIFE nên vẫn dùng chung scope — tách chỉ để đọc.
 
-// Tra ve ca vi tri bat dau/ket thuc: nguoi goi con phai doc tiep phan dang sau khoi JSON nay.
+// Trả về cả vị trí bắt đầu/kết thúc: người gọi còn phải đọc tiếp phần đằng sau khối JSON này.
 function extractJsonBlock(text) {
   const start = text.search(/[{[]/);
   if (start < 0) return null;
@@ -37,22 +30,22 @@ function extractJsonBlock(text) {
   return null;
 }
 
-// Logger cua app cat bot message qua dai ("... exceeds 10000 characters."), nen khoi JSON khong
-// bao gio dong lai va JSON.parse chiu thua. Nhung phan da co van la du lieu doc duoc: cat den diem
-// an toan gan nhat roi tu dong not cac ngoac con mo.
+// Logger của app cắt bớt message quá dài ("... exceeds 10000 characters."), nên khối JSON không
+// bao giờ đóng lại và JSON.parse chịu thua. Nhưng phần đã có vẫn là dữ liệu đọc được: cắt đến điểm
+// an toàn gần nhất rồi tự đóng nốt các ngoặc còn mở.
 //
-// "Diem an toan" = vi tri ma cat o do van con la JSON hop le: ngay sau mot GIA TRI hoan chinh,
-// ngay sau dau mo ngoac, hoac ngay TRUOC mot dau phay. Co y KHONG nhan diem an toan sau mot so
-// chua co dau phan cach dang sau: 1788464400000 bi cat thanh 1788 van parse duoc nhung la so SAI —
-// tha bo han con hon dua ra mot con so bia.
-// Nhan luon cum **** la mot 'gia tri': cho bi che van la du lieu that, de repairMaskedJson don sau.
+// "Điểm an toàn" = vị trí mà cắt ở đó vẫn còn là JSON hợp lệ: ngay sau một GIÁ TRỊ hoàn chỉnh,
+// ngay sau dấu mở ngoặc, hoặc ngay TRƯỚC một dấu phẩy. Cố ý KHÔNG nhận điểm an toàn sau một số
+// chưa có dấu phân cách đằng sau: 1788464400000 bị cắt thành 1788 vẫn parse được nhưng là số SAI —
+// thà bỏ hẳn còn hơn đưa ra một con số bịa.
+// Nhận luôn cụm **** là một 'giá trị': chỗ bị che vẫn là dữ liệu thật, để repairMaskedJson dọn sau.
 const JSON_LITERAL_RE = /^(-?\d+(\.\d+)?([eE][-+]?\d+)?|true|false|null|\*{2,})$/;
 
 function findSafeJsonCut(text, start) {
   const frames = [];
   let safeCut = -1;
-  // Gan trong closure markSafe() ben duoi nen phai noi ro kieu: neu de tu suy tu `null`
-  // thi TypeScript thu hep con `never` va bao loi o cho doc lai.
+  // Gán trong closure markSafe() bên dưới nên phải nói rõ kiểu: nếu để tự suy từ `null`
+  // thì TypeScript thu hẹp còn `never` và báo lỗi ở chỗ đọc lại.
   /** @type {string[] | null} */
   let safeFrames = null;
   let isInString = false;
@@ -77,7 +70,7 @@ function findSafeJsonCut(text, start) {
       else if (char === '"') {
         isInString = false;
         const frame = frames[frames.length - 1];
-        // Trong object, chuoi dau tien cua moi cap la TEN truong — cat ngay sau no la hong.
+        // Trong object, chuỗi đầu tiên của mỗi cặp là TÊN trường — cắt ngay sau nó là hỏng.
         if (frame && frame.type === '{' && !frame.hasKey) frame.hasKey = true;
         else closeValue(i + 1);
       }
@@ -101,18 +94,18 @@ function findSafeJsonCut(text, start) {
     } else if (char === ',') {
       markSafe(i);
     } else if (literalStart < 0 && !/[\s:]/.test(char)) {
-      // Ky tu khong the mo dau mot gia tri JSON = da het phan du lieu, phan sau la chu cua logger
-      // ("... Log message truncated; exceeds 10000 characters."). Dung han, dung nuot no lam gia tri.
+      // Ký tự không thể mở đầu một giá trị JSON = đã hết phần dữ liệu, phần sau là chữ của logger
+      // ("... Log message truncated; exceeds 10000 characters."). Dừng hẳn, đừng nuốt nó làm giá trị.
       if (!/[-0-9tfn*]/.test(char)) break;
       literalStart = i;
     }
   }
-  // Het text khi dang o giua mot chuoi (vi du "payload":"[{\\"id\\":...): dong chuoi lai de giu phan
-  // da doc duoc, thay vi vut ca truong. Them dau … de nhin la biet gia tri nay bi cat giua chung.
+  // Hết text khi đang ở giữa một chuỗi (ví dụ "payload":"[{\\"id\\":...): đóng chuỗi lại để giữ phần
+  // đã đọc được, thay vì vứt cả trường. Thêm dấu … để nhìn là biết giá trị này bị cắt giữa chừng.
   if (isInString && frames.length && stringStart > safeCut) {
     const frame = frames[frames.length - 1];
     if (frame.type !== '{' || frame.hasKey) {
-      // Khi cho cat nam giua chuoi, dong chu cua logger bi ket luon BEN TRONG gia tri — cat no ra.
+      // Khi chỗ cắt nằm giữa chuỗi, dòng chữ của logger bị kẹt luôn BÊN TRONG giá trị — cắt nó ra.
       const marker = /\.{3}\s*Log message truncated[^"]*$/.exec(text);
       let cut = marker ? marker.index : text.length;
       let slashes = 0;
@@ -135,11 +128,11 @@ function closersFor(types) {
     .join('');
 }
 
-// Log che gia tri nhay cam truoc khi gui len server, va che theo hai kieu:
-//   {"userId":"0","****","****","sessionKey":""}   — chuoi "****" tro troi
-//   {"userId":12345678,****,"balance":"..."}      — **** tran, khong co nhay
-// Ca hai deu lam JSON.parse hong. Quet co phan biet trong/ngoai chuoi de khong dung nham
-// nhung gia tri ma chinh no chua dau sao, vi du "accountNo":"**** **** **32".
+// Log che giá trị nhạy cảm trước khi gửi lên server, và che theo hai kiểu:
+//   {"userId":"0","****","****","sessionKey":""}   — chuỗi "****" trơ trọi
+//   {"userId":12345678,****,"balance":"..."}      — **** trần, không có nháy
+// Cả hai đều làm JSON.parse hỏng. Quét có phân biệt trong/ngoài chuỗi để không đụng nhầm
+// những giá trị mà chính nó chứa dấu sao, ví dụ "accountNo":"**** **** **32".
 function findMaskedSpans(block) {
   const spans = [];
   let isInString = false;
@@ -152,7 +145,7 @@ function findMaskedSpans(block) {
       else if (char === '\\') isEscaped = true;
       else if (char === '"') {
         isInString = false;
-        // Chuoi toan dau sao va khong theo sau boi ':' thi khong phai ten truong — no la cho bi che.
+        // Chuỗi toàn dấu sao và không theo sau bởi ':' thì không phải tên trường — nó là chỗ bị che.
         if (/^\*{2,}$/.test(block.slice(stringStart + 1, i)) && nextNonSpaceChar(block, i + 1) !== ':') {
           spans.push([stringStart, i + 1]);
         }
@@ -187,7 +180,7 @@ function firstNonSpaceIndex(text, from) {
   return text.length;
 }
 
-// Sua tu cuoi ve dau de chi so cua cac cho con lai khong bi lech.
+// Sửa từ cuối về đầu để chỉ số của các chỗ còn lại không bị lệch.
 function repairMaskedJson(block) {
   const spans = findMaskedSpans(block);
   if (!spans.length) return block;
@@ -199,11 +192,11 @@ function repairMaskedJson(block) {
     const before = lastNonSpaceIndex(out, start - 1);
     const after = firstNonSpaceIndex(out, end);
     if (before >= 0 && out[before] === ':') {
-      // Gia tri bi che: giu lai de nguoi doc van thay truong do ton tai, chi boc them cap nhay.
+      // Giá trị bị che: giữ lại để người đọc vẫn thấy trường đó tồn tại, chỉ bọc thêm cặp nháy.
       out = out.slice(0, start) + '"****"' + out.slice(end);
     } else if (out[after] === '{' || out[after] === '[' || out[after] === '"') {
-      // Cho che an ca TEN truong, con gia tri thi khong: ,****{"displayName":...}
-      // Danh so de hai cho bi che trong cung mot object khong de len nhau lam mat du lieu.
+      // Chỗ che ăn cả TÊN trường, còn giá trị thì không: ,****{"displayName":...}
+      // Đánh số để hai chỗ bị che trong cùng một object không đè lên nhau làm mất dữ liệu.
       maskedKeyCount += 1;
       out = out.slice(0, start) + '"****#' + maskedKeyCount + '":' + out.slice(end);
     } else if (before >= 0 && out[before] === ',') {
@@ -221,23 +214,23 @@ function parseJsonMaybeMasked(block) {
   try {
     return { pretty: JSON.stringify(JSON.parse(block), null, 2), isParsed: true, isRepaired: false };
   } catch (error) {
-    // Roi vao day gan nhu luon la vi cho bi che; thu don rieng nhung cho do roi parse lai.
+    // Rơi vào đây gần như luôn là vì chỗ bị che; thử dọn riêng những chỗ đó rồi parse lại.
   }
   const repaired = repairMaskedJson(block);
   if (repaired !== block) {
     try {
       return { pretty: JSON.stringify(JSON.parse(repaired), null, 2), isParsed: true, isRepaired: true };
     } catch (error) {
-      // Hong vi ly do khac (thuong la log cat bot payload dai): tra nguyen van.
+      // Hỏng vì lý do khác (thường là log cắt bớt payload dài): trả nguyên văn.
     }
   }
   return { pretty: block, isParsed: false, isRepaired: false };
 }
 
-// Dong HTTP goi payload theo dang "--ten: gia tri" noi duoi nhau tren cung mot dong:
+// Dòng HTTP gói payload theo dạng "--tên: giá trị" nối đuôi nhau trên cùng một dòng:
 //   [RequestPayload: --encrypted: false --body: {...} --encryptedBody:  --header: {...}]--exception: none
-// Doc tung truong mot, va khi gia tri la JSON thi nhay thang qua het khoi do — nho vay
-// mot chuoi "--x:" nam ben trong JSON khong bi tuong nham la truong moi.
+// Đọc từng trường một, và khi giá trị là JSON thì nhảy thẳng qua hết khối đó — nhờ vậy
+// một chuỗi "--x:" nằm bên trong JSON không bị tưởng nhầm là trường mới.
 const PAYLOAD_FIELD_RE = /--([A-Za-z][A-Za-z0-9_]*)\s*:/g;
 const BODY_LABEL_RE = /(?:responseBody|requestBody|body|payload)\s*:/i;
 
@@ -247,7 +240,7 @@ function countChar(text, char) {
   return total;
 }
 
-// Truong cuoi thuong dinh theo dau ] dong khoi [RequestPayload: ...]. Chi cat khi that su thua.
+// Trường cuối thường dính theo dấu ] đóng khối [RequestPayload: ...]. Chỉ cắt khi thật sự thừa.
 function trimPayloadScalar(text) {
   let value = text.trim();
   while (value.slice(-1) === ']' && countChar(value, ']') > countChar(value, '[')) {
@@ -287,12 +280,12 @@ function splitPayloadFields(raw) {
   return fields;
 }
 
-// Nhieu dong khong log JSON ma log thang Map.toString() cua Kotlin/Java:
+// Nhiều dòng không log JSON mà log thẳng Map.toString() của Kotlin/Java:
 //   {stage=sync_step, location={lat=0.0, long=0.0}, locationString={"lat":0.0}}
-// JSON.parse chiu thua nhung day van la du lieu co cau truc, doc duoi dang cay de hon nhieu.
+// JSON.parse chịu thua nhưng đây vẫn là dữ liệu có cấu trúc, đọc dưới dạng cây dễ hơn nhiều.
 const KV_MAP_HEAD_RE = /^\{\s*[A-Za-z_][\w.-]*\s*=/;
 
-// Cat theo dau phay o do sau 0 de gia tri long nhau khong bi xe doi.
+// Cắt theo dấu phẩy ở độ sâu 0 để giá trị lồng nhau không bị xẻ đôi.
 function splitTopLevel(body) {
   const parts = [];
   let depth = 0;
@@ -317,11 +310,11 @@ function parseKeyValueMap(text) {
   let lastKey = null;
   splitTopLevel(text.slice(1, -1)).forEach((part) => {
     const at = part.indexOf('=');
-    // Dinh dang nay khong bao quanh gia tri, nen gia tri co dau phay ben trong (bundle_sof=1,2)
-    // bi splitTopLevel xe doi va manh sau khong con dau '=' nao. Truoc day manh do bi bo di —
-    // mat du lieu ma khong bao gi. Do tren mot log that: 20 manh roi rung im lang, o moneysource,
-    // bundle_sof, list_sof, ref_id va ca title (title chinh la nhan popup trong "User da nhin thay gi").
-    // Chi noi lai manh KHONG co dau '=' nao; manh co '=' van xu ly y nhu truoc.
+    // Định dạng này không bao quanh giá trị, nên giá trị có dấu phẩy bên trong (bundle_sof=1,2)
+    // bị splitTopLevel xẻ đôi và mảnh sau không còn dấu '=' nào. Trước đây mảnh đó bị bỏ đi —
+    // mất dữ liệu mà không báo gì. Đo trên một log thật: 20 mảnh rơi rụng im lặng, ở moneysource,
+    // bundle_sof, list_sof, ref_id và cả title (title chính là nhãn popup trong "User đã nhìn thấy gì").
+    // Chỉ nối lại mảnh KHÔNG có dấu '=' nào; mảnh có '=' vẫn xử lý y như trước.
     if (at < 0) {
       if (lastKey !== null && typeof result[lastKey] === 'string') result[lastKey] += ',' + part;
       return;
@@ -339,7 +332,7 @@ function parseKeyValueMap(text) {
         result[key] = JSON.parse(value);
         return;
       } catch (error) {
-        // Khong phai JSON that: giu nguyen van.
+        // Không phải JSON thật: giữ nguyên văn.
       }
     }
     result[key] = value;
@@ -365,8 +358,8 @@ function buildJsonSection(name, text) {
       isTruncated: true, isMap: false, bytes: raw.length };
   }
   const parsed = parseJsonMaybeMasked(block.text);
-  // bytes do tren nguyen van trong log, khong do tren ban pretty-print: nguoi doc muon biet
-  // request nang bao nhieu, khong phai ban da them thut le nang bao nhieu.
+  // bytes đo trên nguyên văn trong log, không đo trên bản pretty-print: người đọc muốn biết
+  // request nặng bao nhiêu, không phải bản đã thêm thụt lề nặng bao nhiêu.
   if (parsed.isParsed) {
     return { name, kind: 'json', pretty: parsed.pretty, isParsed: true, isRepaired: parsed.isRepaired,
       isTruncated: false, isMap: false, bytes: block.text.length };
@@ -380,7 +373,7 @@ function buildJsonSection(name, text) {
     isTruncated: false, isMap: false, bytes: block.text.length };
 }
 
-// Tra ve danh sach truong de tam truot ve tung khoi mot, thay vi chi mot khoi JSON duy nhat.
+// Trả về danh sách trường để tấm trượt vẽ từng khối một, thay vì chỉ một khối JSON duy nhất.
 function buildPayloadSections(raw) {
   const sections = [];
   splitPayloadFields(raw).forEach((field) => {
@@ -394,8 +387,8 @@ function buildPayloadSections(raw) {
   });
   if (sections.length) return sections;
 
-  // Dong khong theo dang "--ten:" (vi du "@@SomeService :: responseBody: {...}") van co the
-  // chua mot khoi JSON tro troi. Uu tien cat sau nhan body/payload de khong vo phai [Module: HTTP].
+  // Dòng không theo dạng "--tên:" (ví dụ "@@SomeService :: responseBody: {...}") vẫn có thể
+  // chứa một khối JSON trơ trọi. Ưu tiên cắt sau nhãn body/payload để không vỡ phải [Module: HTTP].
   const label = BODY_LABEL_RE.exec(raw);
   const tail = label ? raw.slice(label.index + label[0].length) : raw.slice(raw.indexOf('{'));
   if (raw.indexOf('{') < 0 && !label) return sections;
@@ -403,4 +396,3 @@ function buildPayloadSections(raw) {
   if (section) sections.push(section);
   return sections;
 }
-// AI-GENERATED END

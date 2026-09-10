@@ -1,17 +1,10 @@
-/*
-File: src/03c-filter.js
-Created At: 2026-09-08 16:00:00 +07:00
-Created By: AI
-AI Agent: Claude Code
-Model: claude-opus-5
-*/
 // @ts-check
-// AI-GENERATED START — loi bo loc: bien dieu kien thanh ham, loc tap dong, dung view
-// Tach ra tu src/03-shell.js (992 dong / 67 ham). Cac file src/*.js duoc build.sh noi lai
-// theo thu tu ten file va boc trong MOT IIFE nen van dung chung scope — tach chi de doc,
-// khong doi cach chung goi nhau.
+// lõi bộ lọc: biến điều kiện thành hàm, lọc tập dòng, dựng view
+// Tách ra từ src/03-shell.js (992 dòng / 67 hàm). Các file src/*.js được build.sh nối lại
+// theo thứ tự tên file và bọc trong MỘT IIFE nên vẫn dùng chung scope — tách chỉ để đọc,
+// không đổi cách chúng gọi nhau.
 
-/* ------------------------------------------------------------------ bo loc */
+/* ------------------------------------------------------------------ bộ lọc */
 
 function hasAnyFilterFacet() {
   const filter = lensState.filter;
@@ -19,7 +12,7 @@ function hasAnyFilterFacet() {
     filter.timeFrom !== null || filter.timeTo !== null || filter.skipDuplicate);
 }
 
-// Mot lan ghi class len container thay cho hang nghin lan ghi len tung dong.
+// Một lần ghi class lên container thay cho hàng nghìn lần ghi lên từng dòng.
 function setLogFilteringMode(isFiltering, mode) {
   const container = lensState.data && lensState.data.container;
   if (!container) return;
@@ -28,21 +21,21 @@ function setLogFilteringMode(isFiltering, mode) {
   lensState.isFiltering = isFiltering;
 }
 
-// Chi phi loc nam gan nhu HOAN TOAN o so lan cham vao class cua dong, khong phai o layout.
-// Do that tren trang admin voi 10362 dong:
+// Chi phí lọc nằm gần như HOÀN TOÀN ở số lần chạm vào class của dòng, không phải ở layout.
+// Đo thật trên trang admin với 10362 dòng:
 //   10k classList.add            -> 7025ms
-//   bat .fll-filtering khi ca 10k dong deu co .fll-keep -> 224ms
+//   bật .fll-filtering khi cả 10k dòng đều có .fll-keep -> 224ms
 //   83 classList.add             -> 5ms
-//   tat loc, hien lai toan bo    -> 13ms
-// Tuc 10k lan cham class dat gap 1400 lan so voi 83 lan. Vi vay danh dau theo phia IT HON:
-// loc hep (vai chuc dong) thi danh dau dong DUOC GIU, loc rong (loc theo phien app — mot phien
-// co the la 10279/10362 dong) thi danh dau dong BI LOAI. So lan cham luon la min(giu, loai).
+//   tắt lọc, hiện lại toàn bộ    -> 13ms
+// Tức 10k lần chạm class đắt gấp 1400 lần so với 83 lần. Vì vậy đánh dấu theo phía ÍT HƠN:
+// lọc hẹp (vài chục dòng) thì đánh dấu dòng ĐƯỢC GIỮ, lọc rộng (lọc theo phiên app — một phiên
+// có thể là 10279/10362 dòng) thì đánh dấu dòng BỊ LOẠI. Số lần chạm luôn là min(giữ, loại).
 function pickRowMarkMode(visibleCount, total) {
   return visibleCount * 2 > total ? 'drop' : 'keep';
 }
 
 function applyRowMarks(entries, keepFlags, isFiltering, mode) {
-  // Doi cach danh dau thi phai go het dau cu truoc, neu khong dong mang dau cu se an/hien sai.
+  // Đổi cách đánh dấu thì phải gỡ hết dấu cũ trước, nếu không dòng mang dấu cũ sẽ ẩn/hiện sai.
   if (lensState.filterDomMode !== mode) {
     const stale = lensState.filterDomMode === 'drop' ? 'fll-drop' : 'fll-keep';
     entries.forEach((entry) => {
@@ -57,7 +50,7 @@ function applyRowMarks(entries, keepFlags, isFiltering, mode) {
     const keep = keepFlags[index] === 1;
     entry.isKept = keep;
     if (!isFiltering || !entry.el) return;
-    // Che do 'drop' danh dau dong BI LOAI, nen dau can gan la phu dinh cua keep.
+    // Chế độ 'drop' đánh dấu dòng BỊ LOẠI, nên dấu cần gắn là phủ định của keep.
     const wanted = mode === 'drop' ? !keep : keep;
     if (entry.isMarked !== wanted) {
       entry.el.classList.toggle(cls, wanted);
@@ -70,7 +63,7 @@ function isRowVisible(entry) {
   return !lensState.isFiltering || entry.isKept === true;
 }
 
-// Ep mot dong hien ra du bo loc dang giau no — cach ep phu thuoc dang danh dau nao dang dung.
+// Ép một dòng hiện ra dù bộ lọc đang giấu nó — cách ép phụ thuộc dạng đánh dấu nào đang dùng.
 function forceRowVisible(entry) {
   if (!entry.el) return;
   if (lensState.filterDomMode === 'drop') {
@@ -107,18 +100,20 @@ function compileFilter() {
   };
 }
 
-// skipFacetId cho phep hoi "neu bo qua dung dieu kien nay thi dong co lot khong".
-// Do la cach dem cho cac chip trong tab Loc: mot facet khong duoc tu dem theo chinh no,
-// neu khong thi chon ERROR xong chip WARNING ve 0 va khong con duong noi rong lai.
+// skipFacetId cho phép hỏi "nếu bỏ qua đúng điều kiện này thì dòng có lọt không".
+// Đó là cách đếm cho các chip trong tab Lọc: một facet không được tự đếm theo chính nó,
+// nếu không thì chọn ERROR xong chip WARNING về 0 và không còn đường nới rộng lại.
 function entryMatches(entry, compiled, skipFacetId) {
   if (skipFacetId !== 'duplicate' && compiled.skipDuplicate && entry.isDuplicate) return false;
   if (skipFacetId !== 'levels' && compiled.levels.size && !compiled.levels.has(entry.level)) return false;
   if (skipFacetId !== 'modules' && compiled.modules.size && !compiled.modules.has(entry.module)) return false;
   if (skipFacetId !== 'session' && compiled.session && entry.session !== compiled.session) return false;
   if (skipFacetId !== 'window' && (compiled.timeFrom !== null || compiled.timeTo !== null)) {
-    if (!entry.ts) return false;
-    if (compiled.timeFrom !== null && entry.ts < compiled.timeFrom) return false;
-    if (compiled.timeTo !== null && entry.ts > compiled.timeTo) return false;
+    // windowTs chứ không phải ts: dòng tiếp nối thừa hưởng giờ của dòng trên nó, nhờ vậy stack trace
+    // nhiều dòng không bị cửa sổ thời gian xén mất phần dưới.
+    if (!entry.windowTs) return false;
+    if (compiled.timeFrom !== null && entry.windowTs < compiled.timeFrom) return false;
+    if (compiled.timeTo !== null && entry.windowTs > compiled.timeTo) return false;
   }
   if (skipFacetId !== 'text' && compiled.text && !compiled.isBadPattern) {
     return compiled.matcher
@@ -140,8 +135,8 @@ function tallyFacetCandidates(skipFacetId, pickKey) {
   return tally;
 }
 
-// Cua so thoi gian dang xem, suy tu cac dieu kien THOI GIAN (khong phai tu tap dong con lai).
-// Neu suy tu tap dong thi loc "chi ERROR" se lam khoang lang phinh thanh nhung khoang gia giua hai loi.
+// Cửa sổ thời gian đang xem, suy từ các điều kiện THỜI GIAN (không phải từ tập dòng còn lại).
+// Nếu suy từ tập dòng thì lọc "chỉ ERROR" sẽ làm khoảng lặng phình thành những khoảng giả giữa hai lỗi.
 function getVisibleTimeRange() {
   const data = lensState.data;
   const filter = lensState.filter;
@@ -166,7 +161,7 @@ function buildView() {
   const subset = lensState.lastFilterResult.visible.map((index) => data.entries[index]);
   const stats = deriveStats(subset, data.gaps);
   const range = getVisibleTimeRange();
-  // Khoang lang la thuoc tinh cua duong thoi gian, khong phai cua tap dong: chi cat theo cua so thoi gian.
+  // Khoảng lặng là thuộc tính của đường thời gian, không phải của tập dòng: chỉ cắt theo cửa sổ thời gian.
   stats.gaps = data.gaps.filter((gap) => gap.before.ts >= range.from && gap.before.ts <= range.to);
   lensState.view = Object.assign({}, data, stats);
 }
@@ -175,21 +170,21 @@ function computeFilteredIndices() {
   const filter = lensState.filter;
   const compiled = compileFilter();
   const isBadPattern = compiled.isBadPattern;
-  // Ham nay tinh lai toan bo trang thai nen moi dong tung duoc "ep hien" tro ve chuan.
+  // Hàm này tính lại toàn bộ trạng thái nên mọi dòng từng được "ép hiện" trở về chuẩn.
   lensState.forcedVisibleIndices.clear();
   const isFiltering = filter.hideOthers && hasAnyFilterFacet();
   const entries = lensState.data.entries;
   const visible = [];
-  // Tinh xong het roi moi dung toi DOM: phai biet tong so dong duoc giu thi moi chon duoc
-  // danh dau theo phia nao cho it thao tac hon.
+  // Tính xong hết rồi mới đụng tới DOM: phải biết tổng số dòng được giữ thì mới chọn được
+  // đánh dấu theo phía nào cho ít thao tác hơn.
   const keepFlags = new Uint8Array(entries.length);
   entries.forEach((entry, index) => {
     if (!entryMatches(entry, compiled, null)) return;
     keepFlags[index] = 1;
     visible.push(entry.domIndex);
   });
-  // Khi khong loc thi giu nguyen cach danh dau dang co: class tren container tat la moi dong tu
-  // hien lai, va dau tren dong van khop nen lan loc sau chi ghi dung phan chenh lech.
+  // Khi không lọc thì giữ nguyên cách đánh dấu đang có: class trên container tắt là mọi dòng tự
+  // hiện lại, và dấu trên dòng vẫn khớp nên lần lọc sau chỉ ghi đúng phần chênh lệch.
   const mode = isFiltering ? pickRowMarkMode(visible.length, entries.length) : lensState.filterDomMode;
   applyRowMarks(entries, keepFlags, isFiltering, mode);
   setLogFilteringMode(isFiltering, mode);
@@ -199,9 +194,8 @@ function computeFilteredIndices() {
   return lensState.lastFilterResult;
 }
 
-// Ve lai tab Loc khong duoc tu quet lai 4085 dong: moi duong doi bo loc deu da goi
-// computeFilteredIndices truoc do roi. Quet hai lan la ly do "Xoa tat ca" tung ton 200ms.
+// Vẽ lại tab Lọc không được tự quét lại 4085 dòng: mọi đường đổi bộ lọc đều đã gọi
+// computeFilteredIndices trước đó rồi. Quét hai lần là lý do "Xoá tất cả" từng tốn 200ms.
 function getFilterResult() {
   return lensState.lastFilterResult || computeFilteredIndices();
 }
-// AI-GENERATED END

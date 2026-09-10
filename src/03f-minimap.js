@@ -1,20 +1,13 @@
-/*
-File: src/03f-minimap.js
-Created At: 2026-09-08 16:00:00 +07:00
-Created By: AI
-AI Agent: Claude Code
-Model: claude-opus-5
-*/
 // @ts-check
-// AI-GENERATED START — minimap mat do log va thao tac keo chon khoang thoi gian tren no
-// Tach ra tu src/03-shell.js (992 dong / 67 ham). Cac file src/*.js duoc build.sh noi lai
-// theo thu tu ten file va boc trong MOT IIFE nen van dung chung scope — tach chi de doc,
-// khong doi cach chung goi nhau.
+// minimap mật độ log và thao tác kéo chọn khoảng thời gian trên nó
+// Tách ra từ src/03-shell.js (992 dòng / 67 hàm). Các file src/*.js được build.sh nối lại
+// theo thứ tự tên file và bọc trong MỘT IIFE nên vẫn dùng chung scope — tách chỉ để đọc,
+// không đổi cách chúng gọi nhau.
 
 /* ----------------------------------------------------------------- minimap */
 
-// Minimap ve trong khoang nao: ca log, hay chi khoang dang phong to. Moi cho quy doi thoi gian <-> toa
-// do deu phai di qua day, neu khong thi phong to xong vach danh dau va vi tri cuon se lech het.
+// Minimap vẽ trong khoảng nào: cả log, hay chỉ khoảng đang phóng to. Mọi chỗ quy đổi thời gian <-> toạ
+// độ đều phải đi qua đây, nếu không thì phóng to xong vạch đánh dấu và vị trí cuộn sẽ lệch hết.
 function minimapBounds() {
   const zoom = lensState.mapZoom;
   if (zoom) return { from: zoom.from, to: zoom.to };
@@ -59,8 +52,8 @@ function renderMinimap() {
         height.toFixed(1) + '%;background:' + color + '"></i>';
     })
     .join('');
-  // Minimap co y giu NGUYEN toan dai: no la la ban do "dang o dau trong ca log".
-  // Bo loc thoi gian chi lam mo phan ngoai cua so, van thay duoc toan canh.
+  // Minimap cố ý giữ NGUYÊN toàn dải: nó là tấm bản đồ "đang ở đâu trong cả log".
+  // Bộ lọc thời gian chỉ làm mờ phần ngoài cửa sổ, vẫn thấy được toàn cảnh.
   lensState.el.map.innerHTML = columns +
     '<div class="fll-shade fll-shade-l"></div><div class="fll-shade fll-shade-r"></div>' +
     '<div class="fll-cursor"></div>';
@@ -77,8 +70,8 @@ function renderMinimap() {
         (lensState.mapZoomStack.length > 1
           ? ' — còn ' + (lensState.mapZoomStack.length - 1) + ' nấc nữa mới về cả log'
           : ' — về lại cả log') + '">&#8617;</button>' +
-        // Chi hien khi con NHIEU HON mot nac: con dung mot nac thi no lam y het nut lui, de canh nhau
-        // hai nut giong nhau chi to nguoi dung phai doan xem chung khac gi.
+        // Chỉ hiện khi còn NHIỀU HƠN một nấc: còn đúng một nấc thì nó làm y hệt nút lùi, để cạnh nhau
+        // hai nút giống nhau chỉ tổ người dùng phải đoán xem chúng khác gì.
         (lensState.mapZoomStack.length > 1
           ? '<button class="fll-mapzoom" data-act="mapZoomReset" data-tip="Xoá cả ' +
             lensState.mapZoomStack.length + ' nấc phóng to, về thẳng toàn bộ log">&#10005;</button>'
@@ -114,10 +107,10 @@ function updateMinimapRange() {
     : 'kéo để chọn khoảng · bấm để nhảy · nháy đúp để bỏ chọn';
 }
 
-// Nut "phong to" hien khi khoang dang chon NHO HON khung minimap dang ve — khong quan tam da phong
-// to hay chua. Truoc day cu thay dang phong to la an nut, nen chon tiep mot khoang nho hon ben trong
-// vung da phong thi khong con duong nao phong sau nua. Chi giau khi chon dung bang khung dang ve, luc
-// do bam vao khong doi duoc gi.
+// Nút "phóng to" hiện khi khoảng đang chọn NHỎ HƠN khung minimap đang vẽ — không quan tâm đã phóng
+// to hay chưa. Trước đây cứ thấy đang phóng to là ẩn nút, nên chọn tiếp một khoảng nhỏ hơn bên trong
+// vùng đã phóng thì không còn đường nào phóng sâu nữa. Chỉ giấu khi chọn đúng bằng khung đang vẽ, lúc
+// đó bấm vào không đổi được gì.
 function canZoomFurther(range, bounds) {
   return range.from > bounds.from || range.to < bounds.to;
 }
@@ -126,7 +119,7 @@ function hasAnyTimeRange() {
   return lensState.filter.timeFrom !== null || lensState.filter.timeTo !== null;
 }
 
-/* ------------------------------------------- keo chon khoang thoi gian tren minimap */
+/* ------------------------------------------- kéo chọn khoảng thời gian trên minimap */
 
 const MINIMAP_EDGE_GRAB_PX = 7;
 const MINIMAP_MIN_RANGE_MS = 500;
@@ -140,8 +133,8 @@ function minimapTsFromClientX(clientX) {
   return bounds.from + ratio * Math.max(1, bounds.to - bounds.from);
 }
 
-// Ep ve trong be ngang cua minimap: khi dang phong to, moc nam ngoai khung se cho toa do am hoac vuot
-// ra ngoai — ep vao mep de mui ten van chi dung "no o phia ben kia" thay vi ve ra ngoai panel.
+// Ép về trong bề ngang của minimap: khi đang phóng to, mốc nằm ngoài khung sẽ cho toạ độ âm hoặc vượt
+// ra ngoài — ép vào mép để mũi tên vẫn chỉ đúng "nó ở phía bên kia" thay vì vẽ ra ngoài panel.
 function minimapClientXFromTs(ts) {
   const rect = lensState.el.map.getBoundingClientRect();
   const bounds = minimapBounds();
@@ -149,8 +142,8 @@ function minimapClientXFromTs(ts) {
   return rect.left + Math.max(0, Math.min(1, ratio)) * rect.width;
 }
 
-// Chi ve lai hai mieng mo trong luc keo. Ap bo loc that su doi mot luot 4085 dong + layout bang log,
-// nang qua de chay theo tung nhip chuot — nen chi commit luc tha tay.
+// Chỉ vẽ lại hai miếng mờ trong lúc kéo. Áp bộ lọc thật sự đòi một lượt 4085 dòng + layout bảng log,
+// nặng quá để chạy theo từng nhịp chuột — nên chỉ commit lúc thả tay.
 function previewMinimapRange(from, to) {
   const bounds = minimapBounds();
   const span = Math.max(1, bounds.to - bounds.from);
@@ -168,9 +161,9 @@ function resolveMinimapDragMode(clientX) {
   const filter = lensState.filter;
   if (filter.timeFrom === null && filter.timeTo === null) return 'create';
   const range = getVisibleTimeRange();
-  // Vung sang phu kin ca minimap (hay gap ngay sau khi phong to: khung ve dung bang khoang dang chon)
-  // thi "doi" va "co gian" deu vo nghia — khong con cho nao de doi toi. Coi moi cu keo la chon moi,
-  // neu khong thi phong to xong la khong the chon mot khoang nho hon nua.
+  // Vùng sáng phủ kín cả minimap (hay gặp ngay sau khi phóng to: khung vẽ đúng bằng khoảng đang chọn)
+  // thì "dời" và "co giãn" đều vô nghĩa — không còn chỗ nào để dời tới. Coi mọi cú kéo là chọn mới,
+  // nếu không thì phóng to xong là không thể chọn một khoảng nhỏ hơn nữa.
   const bounds = minimapBounds();
   if (range.from <= bounds.from && range.to >= bounds.to) return 'create';
   if (Math.abs(clientX - minimapClientXFromTs(range.from)) <= MINIMAP_EDGE_GRAB_PX) return 'resizeStart';
@@ -240,9 +233,9 @@ function handleMinimapMouseUp() {
   window.removeEventListener('mouseup', handleMinimapMouseUp);
   const drag = minimapDrag;
   minimapDrag = null;
-  // Bam khong keo: de nguyen cho handleLensClick nhay toi moc do nhu cu.
+  // Bấm không kéo: để nguyên cho handleLensClick nhảy tới mốc đó như cũ.
   if (!drag || !drag.hasMoved) return;
-  // Da keo thi chan cu click sinh ra ngay sau mouseup, khong thi vua chon xong lai nhay lung tung.
+  // Đã kéo thì chặn cú click sinh ra ngay sau mouseup, không thì vừa chọn xong lại nhảy lung tung.
   lensState.suppressMapClick = true;
   setTimeout(() => {
     lensState.suppressMapClick = false;
@@ -252,6 +245,8 @@ function handleMinimapMouseUp() {
   else {
     lensState.filter.timeFrom = drag.previewFrom;
     lensState.filter.timeTo = drag.previewTo;
+    // Kéo tay là khoảng tự chọn: không còn là preset nào nữa, chip "N phút cuối" phải tắt.
+    lensState.filter.windowPreset = null;
     lensState.filter.hideOthers = true;
   }
   applyFilter(true);
@@ -281,12 +276,11 @@ function updateMinimapCursor(ts) {
   const bounds = minimapBounds();
   const ratio = (ts - bounds.from) / Math.max(1, bounds.to - bounds.from);
   if (ratio < 0 || ratio > 1) {
-    // Dong dang cuon toi nam ngoai khung dang phong to: an vach di con hon la ghim no o mep, vi ghim
-    // o mep thi nguoi doc tuong minh dang o dau khoang.
+    // Dòng đang cuộn tới nằm ngoài khung đang phóng to: ẩn vạch đi còn hơn là ghim nó ở mép, vì ghim
+    // ở mép thì người đọc tưởng mình đang ở đầu khoảng.
     cursor.style.opacity = '0';
     return;
   }
   cursor.style.left = (ratio * 100).toFixed(2) + '%';
   cursor.style.opacity = '1';
 }
-// AI-GENERATED END

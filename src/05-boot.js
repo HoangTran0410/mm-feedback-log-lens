@@ -1,39 +1,32 @@
-/*
-File: src/05-boot.js
-Created At: 2026-09-08 16:00:00 +07:00
-Created By: AI
-AI Agent: Claude Code
-Model: claude-opus-5
-*/
 // @ts-check
-// AI-GENERATED START — gan panel vao trang, dieu phoi tab, uy quyen su kien, tu quet lai khi doi tab log
+// gắn panel vào trang, điều phối tab, uỷ quyền sự kiện, tự quét lại khi đổi tab log
 
 const ROOT_ID = 'fll-root';
 const TAB_DEFS = [
-  // Tab Cham cu nam trong day: ba muc cua no cung la "so rut tu log" nhu moi muc khac o Tong quan.
+  // Tab Chậm cũ nằm trong đây: ba mục của nó cũng là "số rút từ log" như mọi mục khác ở Tổng quan.
   { id: 'sum', label: 'Tổng quan' },
-  // Tab HTTP cu nam trong day: "call nao hong" va "loi gi da no" la cung mot cau hoi.
+  // Tab HTTP cũ nằm trong đây: "call nào hỏng" và "lỗi gì đã nổ" là cùng một câu hỏi.
   { id: 'iss', label: 'Vấn đề', badge: countUnmutedErrorGroups, danger: true },
-  // Tab duy nhat co the tu an: log nao khong co dong cau hinh nao thi tab bien mat thay vi hien
-  // mot tab rong. Panel chi rong 480px, moi tab thua deu an vao cho cua tab con lai.
+  // Tab duy nhất có thể tự ẩn: log nào không có dòng cấu hình nào thì tab biến mất thay vì hiện
+  // một tab rỗng. Panel chỉ rộng 480px, mỗi tab thừa đều ăn vào chỗ của tab còn lại.
   { id: 'cfg', label: 'Cấu hình', badge: (data) => data.configs.total || null,
     hide: (data) => !data.configs.hasAny },
   { id: 'flt', label: 'Lọc', badge: () => getActiveFilterFacets().length || null, tone: 'act' },
   { id: 'tl', label: 'Diễn biến' },
 ];
 
-// Chay lai ca file (reload extension khi tab dang mo) = sinh mot the he closure moi.
-// The he cu van con listener keydown tren document va interval dang chay: no se bat phim
-// roi thao tac len panel cua the he moi. Vi vay moi lan khoi dong phai don the he truoc qua bien global nay.
+// Chạy lại cả file (reload extension khi tab đang mở) = sinh một thế hệ closure mới.
+// Thế hệ cũ vẫn còn listener keydown trên document và interval đang chạy: nó sẽ bắt phím
+// rồi thao tác lên panel của thế hệ mới. Vì vậy mỗi lần khởi động phải dọn thế hệ trước qua biến global này.
 const LENS_GLOBAL_KEY = '__feedbackLogLens';
 
-// Con duong don qua window[LENS_GLOBAL_KEY] chi hoat dong khi hai the he dung chung mot window.
-// Moc thu hai nay di qua DOM nen khong phu thuoc dieu do: instance nao khoi dong sau se ghi ten minh
-// len the html; instance cu doc thay ten khac thi tu rut lui, neu khong luoi an toan "root bi go thi
-// gan lai" cua no se dung dai root cu ve moi 2 giay.
-// CHUA XAC MINH: co truong hop nao con lai khien hai the he KHONG chung window hay khong. Moc nay ra doi
-// tu thoi con ban bookmarklet chay o page world; ban bookmarklet da bo, nhung chua kiem duoc reload
-// extension luc tab dang mo thi the he cu nam o dau, nen giu lai.
+// Con đường dọn qua window[LENS_GLOBAL_KEY] chỉ hoạt động khi hai thế hệ dùng chung một window.
+// Mốc thứ hai này đi qua DOM nên không phụ thuộc điều đó: instance nào khởi động sau sẽ ghi tên mình
+// lên thẻ html; instance cũ đọc thấy tên khác thì tự rút lui, nếu không lưới an toàn "root bị gỡ thì
+// gắn lại" của nó sẽ dựng dậy root cũ về mỗi 2 giây.
+// CHƯA XÁC MINH: có trường hợp nào còn lại khiến hai thế hệ KHÔNG chung window hay không. Mốc này ra đời
+// từ thời còn bản bookmarklet chạy ở page world; bản bookmarklet đã bỏ, nhưng chưa kiểm được reload
+// extension lúc tab đang mở thì thế hệ cũ nằm ở đâu, nên giữ lại.
 const LENS_OWNER_ATTR = 'data-fll-owner';
 const lensInstanceId = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 
@@ -45,18 +38,18 @@ function isLensOwner() {
   return document.documentElement.getAttribute(LENS_OWNER_ATTR) === lensInstanceId;
 }
 
-// WebAdmin la SPA React: bam tu danh sach sang feedback detail KHONG tai lai tai lieu,
-// nen content script (chay o document_idle) khong bao gio chay lai. Ban dau dung waitForLogRows
-// poll 30 giay roi bo cuoc — ngoi o trang danh sach lau hon the la mat luon co hoi gan.
-// Thay bang mot watcher thuong tru: gan khi bang log xuat hien, thao khi roi khoi trang detail.
+// WebAdmin là SPA React: bấm từ danh sách sang feedback detail KHÔNG tải lại tài liệu,
+// nên content script (chạy ở document_idle) không bao giờ chạy lại. Ban đầu dùng waitForLogRows
+// poll 30 giây rồi bỏ cuộc — ngồi ở trang danh sách lâu hơn thế là mất luôn cơ hội gắn.
+// Thay bằng một watcher thường trú: gắn khi bảng log xuất hiện, tháo khi rời khỏi trang detail.
 const PAGE_WATCH_INTERVAL_MS = 1000;
-// O loc noi dung cho lau hon vi no keo theo ca luot quet 4085 dong; hai o kia chi ve lai mot manh.
+// Ô lọc nội dung chờ lâu hơn vì nó kéo theo cả lượt quét 4085 dòng; hai ô kia chỉ vẽ lại một mảnh.
 const FILTER_INPUT_DEBOUNCE_MS = 180;
 const LIST_INPUT_DEBOUNCE_MS = 120;
 
 let pageWatcher = null;
 let lastRowCount = 0;
-// Moi o tim mot timer rieng: dung chung mot bien thi go o nay se huy mat cap nhat dang cho cua o kia.
+// Mỗi ô tìm một timer riêng: dùng chung một biến thì gõ ô này sẽ huỷ mất cập nhật đang chờ của ô kia.
 const inputTimers = {};
 
 function debounceInput(key, delayMs, run) {
@@ -79,15 +72,15 @@ function disposePreviousInstance() {
   if (leftover) leftover.remove();
 }
 
-// Phai go dung root CUA CHINH instance nay, khong duoc lay getElementById: khi mot instance khac
-// da tiep quan thi id do dang tro toi panel cua no.
-// shouldRestorePage=false khi minh rut lui vi nguoi khac tiep quan — luc ay class loc tren bang log
-// la cua chu moi, dung dong vao.
+// Phải gỡ đúng root CỦA CHÍNH instance này, không được lấy getElementById: khi một instance khác
+// đã tiếp quản thì id đó đang trỏ tới panel của nó.
+// shouldRestorePage=false khi mình rút lui vì người khác tiếp quản — lúc ấy class lọc trên bảng log
+// là của chủ mới, đừng động vào.
 function disposeSelf(shouldRestorePage) {
   window.removeEventListener('keydown', handleShortcut, LENS_KEY_LISTENER_OPTIONS);
   if (pageWatcher) clearInterval(pageWatcher);
   pageWatcher = null;
-  // Timer con treo se chay tren panel da bi go, phai don.
+  // Timer còn treo sẽ chạy trên panel đã bị gỡ, phải dọn.
   clearInputTimers();
   if (lensState.el.root) lensState.el.root.remove();
   if (shouldRestorePage) {
@@ -100,22 +93,46 @@ function registerInstance() {
   window[LENS_GLOBAL_KEY] = { dispose: function dispose() { disposeSelf(true); } };
 }
 
+// timeFrom/timeTo là mốc TUYỆT ĐỐI, mà trang admin là SPA: bấm sang feedback khác thì log đổi nội
+// dung nhưng bộ lọc còn nguyên. Đo thật: ở log 1 bấm "2 phút cuối" rồi sang log 2 -> bảng log còn
+// 0/7107 dòng, chip ghi một khoảng giờ không hề tồn tại trong log 2.
+//
+// Hai đường xử lý, khác nhau ở chỗ có biết người dùng MUỐN gì không:
+//   - đang bật preset ("N cuối") -> tính lại theo lastTs mới, ý định vẫn đúng trên log mới;
+//   - khoảng tự kéo tay -> không đoán được, chỉ giữ nếu nó còn giao với log mới, không thì bỏ hẳn.
+// Trường hợp log dài thêm (vẫn là log cũ, chỉ có dòng mới) thì khoảng cũ vẫn giao nên được giữ.
+function retargetTimeWindow(data) {
+  const filter = lensState.filter;
+  if (filter.timeFrom === null && filter.timeTo === null) return;
+  if (filter.windowPreset) {
+    filter.timeTo = data.lastTs;
+    filter.timeFrom = Math.max(data.firstTs, data.lastTs - filter.windowPreset);
+    return;
+  }
+  const from = filter.timeFrom !== null ? filter.timeFrom : data.firstTs;
+  const to = filter.timeTo !== null ? filter.timeTo : data.lastTs;
+  if (from <= data.lastTs && to >= data.firstTs) return;
+  filter.timeFrom = null;
+  filter.timeTo = null;
+}
+
 function scanLog() {
   const data = attachInsights(analyzeLog(lensState.gapThresholdMs));
   data.gapThresholdLabel = lensState.gapThresholdMs / 1000 + 's';
   lensState.data = data;
   lensState.view = data;
-  // Ket qua loc cu tro toi mang entries cu (va DOM cu), phai bo di de lan ve tab sau tinh lai.
+  // Kết quả lọc cũ trỏ tới mảng entries cũ (và DOM cũ), phải bỏ đi để lần vẽ tab sau tính lại.
   lensState.lastFilterResult = null;
   lensState.forcedVisibleIndices.clear();
   lensState.el.lastHit = null;
   lensState.isFiltering = false;
   lensState.visibleCount = data.entries.length;
-  // Sang log khac thi khoang dang phong to khong con nghia gi.
+  // Sang log khác thì khoảng đang phóng to không còn nghĩa gì.
   lensState.mapZoom = null;
   lensState.mapZoomStack = [];
-  // Doi sang log khac (trang admin thay noi dung ma khong tai lai) co the lam tab dang mo bien mat.
-  // Khong bat lai thi than panel ve tab do trong khi tren thanh tab khong con nut nao sang.
+  retargetTimeWindow(data);
+  // Đổi sang log khác (trang admin thay nội dung mà không tải lại) có thể làm tab đang mở biến mất.
+  // Không bắt lại thì thân panel vẽ tab đó trong khi trên thanh tab không còn nút nào sáng.
   const current = TAB_DEFS.find((tab) => tab.id === lensState.tab);
   if (current && current.hide && current.hide(data)) lensState.tab = 'sum';
   return data;
@@ -129,7 +146,7 @@ function renderTab() {
   else if (lensState.tab === 'cfg') body.innerHTML = renderConfigTab();
   else if (lensState.tab === 'flt') body.innerHTML = renderFilterTab();
   else body.innerHTML = renderTimelineTab();
-  // Muc dang tro toi vua bi thay the -> mui ten tro vao hu khong, don truoc khi gom muc.
+  // Mục đang trỏ tới vừa bị thay thế -> mũi tên trỏ vào hư không, dọn trước khi gom mục.
   hideAim();
   hideTooltip();
   collapsifySections(body, lensState.tab);
@@ -138,14 +155,14 @@ function renderTab() {
   refreshFilterBar();
 }
 
-// Go trong o tim thi moi con so trong tab deu doi theo (chip dem faceted, danh sach ID, trang thai
-// nut luu mau). Truoc day khong ve lai vi so mat con tro — nhung nhu the ca tab dung yen o trang thai cu,
-// nguoi dung thay "1 bo loc dang bat" ma phan Mau bo loc van bao chua co dieu kien nao.
-// Ve lai het roi tra lai tieu diem + vi tri con tro + vi tri cuon.
+// Gõ trong ô tìm thì mọi con số trong tab đều đổi theo (chip đếm faceted, danh sách ID, trạng thái
+// nút lưu mẫu). Trước đây không vẽ lại vì sợ mất con trỏ — nhưng như thế cả tab đứng yên ở trạng thái cũ,
+// người dùng thấy "1 bộ lọc đang bật" mà phần Mẫu bộ lọc vẫn báo chưa có điều kiện nào.
+// Vẽ lại hết rồi trả lại tiêu điểm + vị trí con trỏ + vị trí cuộn.
 function renderTabPreservingFocus() {
   const body = lensState.el.body;
-  // selectionStart/setSelectionRange chi co tren o nhap. Kiem bang typeof roi moi dung, con ep kieu
-  // o day la de trinh kiem kieu biet dieu do — khong doi hanh vi luc chay.
+  // selectionStart/setSelectionRange chỉ có trên ô nhập. Kiểm bằng typeof rồi mới dùng, còn ép kiểu
+  // ở đây là để trình kiểm kiểu biết điều đó — không đổi hành vi lúc chạy.
   const active = /** @type {HTMLInputElement | null} */ (document.activeElement);
   const activeId = active && active.id;
   const hasSelection = active && typeof active.selectionStart === 'number';
@@ -167,9 +184,9 @@ function renderTabPreservingFocus() {
 
 function renderTabBar() {
   lensState.el.tabs.innerHTML = TAB_DEFS
-    // Truyen data DAY DU chu khong phai view dang loc: loc xuong con 3 dong thi trong tap do khong con
-    // dong cau hinh nao, va tab Cau hinh se BIEN MAT giua chung — thay khi chup man hinh. Tab co hay
-    // khong la tinh chat cua ca log, con noi dung ben trong moi chay theo bo loc.
+    // Truyền data ĐẦY ĐỦ chứ không phải view đang lọc: lọc xuống còn 3 dòng thì trong tập đó không còn
+    // dòng cấu hình nào, và tab Cấu hình sẽ BIẾN MẤT giữa chừng — thấy khi chụp màn hình. Tab có hay
+    // không là tính chất của cả log, còn nội dung bên trong mới chạy theo bộ lọc.
     .filter((tab) => !(tab.hide && tab.hide(lensState.data)))
     .map((tab) => {
       const count = tab.badge ? tab.badge(getView()) : null;
@@ -189,8 +206,8 @@ function switchTab(tabId) {
 
 function refreshHeader() {
   const data = lensState.data;
-  // Phai tru phan "app xuong nen" y het the thong ke o Tong quan. Do tren log that 9363 dong: phu de
-  // ghi 34 trong khi the ghi 28 — hai con so cho cung mot thu, nguoi doc khong biet tin cai nao.
+  // Phải trừ phần "app xuống nền" y hệt thẻ thống kê ở Tổng quan. Đo trên log thật 9363 dòng: phụ đề
+  // ghi 34 trong khi thẻ ghi 28 — hai con số cho cùng một thứ, người đọc không biết tin cái nào.
   const gaps = data.gaps.filter((gap) => gap.cause !== 'background');
   const background = data.gaps.length - gaps.length;
   lensState.el.sub.textContent = data.entries.length + ' dòng · ' + data.sessionCount + ' phiên · ' +
@@ -198,10 +215,10 @@ function refreshHeader() {
     (background ? ' · ' + background + ' lần xuống nền' : '');
 }
 
-// Dem con cua container (O(1)) thay vi querySelectorAll ca tai lieu 8000+ node moi 2 giay.
-// PHAI dung dung ham nay cho ca gia tri khoi tao lan moi lan kiem: container con 2 div dem
-// ngoai cac dong log (4087 vs 4085), lay hai nguon khac nhau la tick dau tien se rescan oan
-// va xoa sach trang thai loc trong khi DOM van dang bi loc.
+// Đếm con của container (O(1)) thay vì querySelectorAll cả tài liệu 8000+ node mỗi 2 giây.
+// PHẢI dùng đúng hàm này cho cả giá trị khởi tạo lẫn mỗi lần kiểm: container còn 2 div đệm
+// ngoài các dòng log (4087 vs 4085), lấy hai nguồn khác nhau là tick đầu tiên sẽ rescan oan
+// và xoá sạch trạng thái lọc trong khi DOM vẫn đang bị lọc.
 function countLogRows() {
   const container = lensState.data && lensState.data.container;
   return container && container.isConnected
@@ -213,13 +230,13 @@ function rescan() {
   scanLog();
   renderMinimap();
   refreshHeader();
-  // Bang log vua duoc dung lai: ap lai bo loc dang bat de DOM va state khong lech nhau.
+  // Bảng log vừa được dựng lại: áp lại bộ lọc đang bật để DOM và state không lệch nhau.
   applyFilter(false);
   renderTab();
 }
 
-// Co y KHONG go listener phim va KHONG dung pageWatcher: chung la duong de Alt+L mo lai
-// ma khong phai reload trang. Co isDismissed nen watcher se khong tu gan lai tren feedback nay.
+// Cố ý KHÔNG gỡ listener phím và KHÔNG dừng pageWatcher: chúng là đường để Alt+L mở lại
+// mà không phải reload trang. Cờ isDismissed nên watcher sẽ không tự gắn lại trên feedback này.
 function closeLens() {
   const root = document.getElementById(ROOT_ID);
   if (root) root.remove();
@@ -231,15 +248,15 @@ function closeLens() {
   lensState.isDismissed = true;
 }
 
-// Roi khoi trang detail (SPA doi route): thao panel nhung giu watcher va phim tat,
-// de vao feedback khac la gan lai. Bo loc dat cho feedback cu phai xoa — giu lai la du lieu
-// feedback moi hien ra thieu ma nguoi dung khong biet. Rieng danh sach tat tieng thi giu.
+// Rời khỏi trang detail (SPA đổi route): tháo panel nhưng giữ watcher và phím tắt,
+// để vào feedback khác là gắn lại. Bộ lọc đặt cho feedback cũ phải xoá — giữ lại là dữ liệu
+// feedback mới hiện ra thiếu mà người dùng không biết. Riêng danh sách tắt tiếng thì giữ.
 function detachLens() {
   clearInputTimers();
   if (lensState.el.root) lensState.el.root.remove();
-  // Tra bang log ve nguyen trang TRUOC khi bo data: SPA co the dung lai chinh container do cho feedback
-  // ke tiep. Con sot .fll-filtering/.fll-keep thi feedback moi chi hien vai chuc dong trong khi panel
-  // bao "khong co bo loc nao" — dung kieu sai ma nguoi dung khong biet.
+  // Trả bảng log về nguyên trạng TRƯỚC khi bỏ data: SPA có thể dùng lại chính container đó cho feedback
+  // kế tiếp. Còn sót .fll-filtering/.fll-keep thì feedback mới chỉ hiện vài chục dòng trong khi panel
+  // báo "không có bộ lọc nào" — đúng kiểu sai mà người dùng không biết.
   setLogFilteringMode(false);
   document.querySelectorAll('.fll-keep, .fll-drop, .fll-hit')
     .forEach((el) => el.classList.remove('fll-keep', 'fll-drop', 'fll-hit'));
@@ -257,13 +274,14 @@ function detachLens() {
   lensState.filter.text = '';
   lensState.filter.timeFrom = null;
   lensState.filter.timeTo = null;
+  lensState.filter.windowPreset = null;
   lensState.filter.session = null;
   lensState.filter.skipDuplicate = false;
   lensState.mapZoom = null;
   lensState.mapZoomStack = [];
-  // tabUiState cung la trang thai cua MOT feedback: o tim nhom loi, o tim HTTP, chip loai moc, che do
-  // xem nhom da tat tieng. De sot thi sang feedback sau nguoi dung thay danh sach da bi loc san bang
-  // mot cau tim cua log truoc — cung mot loai loi voi viec de sot bo loc.
+  // tabUiState cũng là trạng thái của MỘT feedback: ô tìm nhóm lỗi, ô tìm HTTP, chip loại mốc, chế độ
+  // xem nhóm đã tắt tiếng. Để sót thì sang feedback sau người dùng thấy danh sách đã bị lọc sẵn bằng
+  // một câu tìm của log trước — cùng một loại lỗi với việc để sót bộ lọc.
   resetTabUiState();
   lensState.isShowingMuted = false;
   lensState.isDismissed = false;
@@ -275,7 +293,7 @@ function tickPageWatcher() {
     if (!lensState.isDismissed && hasLogRows()) startLens(!lensState.wasPanelOpen);
     return;
   }
-  // Mot instance moi hon da tiep quan: rut lui han.
+  // Một instance mới hơn đã tiếp quản: rút lui hẳn.
   if (!isLensOwner()) {
     disposeSelf(false);
     return;
@@ -284,7 +302,7 @@ function tickPageWatcher() {
     detachLens();
     return;
   }
-  // Luoi an toan: trang admin tung go #fll-root khoi body khi xu ly phim. Neu bi go thi gan lai.
+  // Lưới an toàn: trang admin từng gỡ #fll-root khỏi body khi xử lý phím. Nếu bị gỡ thì gắn lại.
   if (!lensState.el.root.isConnected) document.body.appendChild(lensState.el.root);
   const current = countLogRows();
   if (current === lastRowCount || !current) return;
@@ -349,10 +367,10 @@ function mountPanel() {
   lensState.el.map.addEventListener('mousedown', handleMinimapMouseDown);
   lensState.el.map.addEventListener('mousemove', handleMinimapHover);
   lensState.el.map.addEventListener('dblclick', handleMinimapDoubleClick);
-  // Gan o PANEL chu khong o than: nhu vay cac hang trong tam truot (.fll-sheet) cung duoc ve mui ten.
+  // Gắn ở PANEL chứ không ở thân: như vậy các hàng trong tấm trượt (.fll-sheet) cũng được vẽ mũi tên.
   panel.addEventListener('mouseover', handleLensHover);
   panel.addEventListener('mouseleave', hideAim);
-  // 'scroll' khong noi bot len, phai bat o pha capture moi thay duoc cuon cua than va cua tam truot.
+  // 'scroll' không nổi bọt lên, phải bắt ở pha capture mới thấy được cuộn của thân và của tấm trượt.
   panel.addEventListener('scroll', handleAimScroll, true);
 
   applyPanelGeometry(panel);
@@ -364,29 +382,29 @@ function mountPanel() {
   renderFooter();
 }
 
-/* ---------------------------------------------------------- uy quyen click */
+/* ---------------------------------------------------------- uỷ quyền click */
 
 function handleLensClick(event) {
   const hit = event.target.closest('[data-act],[data-tab],[data-lines],[data-jump],[data-group],' +
     '[data-module],[data-level],[data-call],[data-bucket],[data-event],[data-saw],[data-apifail],' +
     '[data-jscreen],[data-jtap],[data-tracefail],[data-jload]');
   if (!hit) return;
-  // groups/httpCalls doc theo view (dang loc thi la cua tap dang hien, dung nhu tab vua ve);
-  // correlations van lay tu data vi chuoi mot request phai xem tron ven.
+  // groups/httpCalls đọc theo view (đang lọc thì là của tập đang hiện, đúng như tab vừa vẽ);
+  // correlations vẫn lấy từ data vì chuỗi một request phải xem trọn vẹn.
   const data = lensState.data;
   const view = getView();
   const value = hit.getAttribute('data-value');
 
   if (hit.dataset.tab) return switchTab(hit.dataset.tab);
-  // data-lines = "hang nay ung voi tung nay dong log". Phai xet TRUOC data-jump: nhay mot dong thi
-  // thanh duoi khong co gi de duyet, nguoi dung ket o dong dau tien cua nhom.
+  // data-lines = "hàng này ứng với từng này dòng log". Phải xét TRƯỚC data-jump: nhảy một dòng thì
+  // thanh dưới không có gì để duyệt, người dùng kẹt ở dòng đầu tiên của nhóm.
   if (hit.dataset.lines) {
     const indices = hit.dataset.lines.split(',').map(Number).filter((index) => !Number.isNaN(index));
     return setMatches(indices, hit.getAttribute('data-label') || (indices.length + ' dòng'));
   }
   if (hit.dataset.jump) return jumpToIndex(Number(hit.dataset.jump));
   if (hit.dataset.bucket) {
-    // Vua keo chon khoang xong: cu click di kem mouseup khong duoc bien thanh lenh nhay dong.
+    // Vừa kéo chọn khoảng xong: cú click đi kèm mouseup không được biến thành lệnh nhảy dòng.
     if (lensState.suppressMapClick) return undefined;
     const index = Number(hit.dataset.bucket);
     return index >= 0 ? jumpToIndex(index) : undefined;
@@ -511,6 +529,10 @@ function handleLensClick(event) {
     lensState.isShowingMuted = !lensState.isShowingMuted;
     return renderTab();
   }
+  if (action === 'moreSection') {
+    expandSection(hit);
+    return;
+  }
   if (action === 'moreIssues') {
     tabUiState.issueLimit += ISSUE_PAGE_SIZE;
     const list = document.getElementById('fll-issue-list');
@@ -519,7 +541,7 @@ function handleLensClick(event) {
   }
   if (action === 'mapZoomIn') {
     const range = getVisibleTimeRange();
-    // Nho nac dang dung truoc khi phong sau, de con lui tung nac. Nac dau tien la null = ca log.
+    // Nhớ nấc đang đứng trước khi phóng sâu, để còn lùi từng nấc. Nấc đầu tiên là null = cả log.
     lensState.mapZoomStack.push(lensState.mapZoom);
     lensState.mapZoom = { from: range.from, to: range.to };
     renderMinimap();
@@ -553,8 +575,8 @@ function handleLensClick(event) {
   if (action === 'next') return moveMatch(1);
   if (action === 'gotoIssues') {
     switchTab('iss');
-    // Muc mac dinh dang thu lai. Bam "47 ERROR" ma sang tab chi thay may dong tieu de thi coi nhu
-    // khong di den dau — mo san dung muc chua danh sach loi.
+    // Mục mặc định đang thu lại. Bấm "47 ERROR" mà sang tab chỉ thấy mấy dòng tiêu đề thì coi như
+    // không đi đến đâu — mở sẵn đúng mục chứa danh sách lỗi.
     const first = lensState.el.body && lensState.el.body.querySelector('[data-group]');
     if (first) revealElement(first);
     return undefined;
@@ -571,10 +593,10 @@ function handleLensClick(event) {
   if (action === 'gotoTimeline') return switchTab('tl');
   if (action === 'gotoSessions') {
     switchTab('flt');
-    // Tab Loc co 9 muc; nhay thang toi muc Phien app thay vi de nguoi dung tu do tim.
+    // Tab Lọc có 9 mục; nhảy thẳng tới mục Phiên app thay vì để người dùng tự dò tìm.
     const chip = lensState.el.body && lensState.el.body.querySelector('[data-act="setSession"]');
     if (chip) {
-      // Muc mac dinh dang thu lai: khong mo ra thi cuon toi cung khong thay gi.
+      // Mục mặc định đang thu lại: không mở ra thì cuộn tới cũng không thấy gì.
       revealElement(chip);
       chip.scrollIntoView({ block: 'center' });
     }
@@ -585,7 +607,7 @@ function handleLensClick(event) {
     return renderTab();
   }
   if (action === 'tlKind') {
-    // Chon duoc nhieu loai cung luc: "chi xem chạm + popup" la cau hay hoi nhat khi doc lai mot ca loi.
+    // Chọn được nhiều loại cùng lúc: "chỉ xem chạm + popup" là câu hay hỏi nhất khi đọc lại một ca lỗi.
     toggleSetValue(tabUiState.tlKinds, value);
     tabUiState.tlLimit = TIMELINE_PAGE_SIZE;
     return renderTab();
@@ -638,8 +660,8 @@ function handleLensClick(event) {
     return renderTab();
   }
   if (action === 'copySummary') {
-    // Tom tat luon doc data DAY DU, khong doc view dang loc: ticket phai mo ta ca log chu khong phai
-    // mo ta cai lat cat nguoi doc dang mo.
+    // Tóm tắt luôn đọc data ĐẦY ĐỦ, không đọc view đang lọc: ticket phải mô tả cả log chứ không phải
+    // mô tả cái lát cắt người đọc đang mở.
     return copyTextToClipboard(buildTicketSummary(lensState.data), hit, 'Đã copy tóm tắt');
   }
   if (action === 'copyVisible') return copyVisibleLines(hit);
@@ -651,9 +673,9 @@ function toggleSetValue(set, value) {
   else set.add(value);
 }
 
-// Doi nhan nut roi tra lai. Phai co ca nhanh HONG: navigator.clipboard tu choi khi tab khong duoc lay
-// net (hoac trinh duyet chan), luc do promise reject va truoc day nut dung im — nguoi dung tuong da
-// copy xong roi di dan, dan ra thu cu.
+// Đổi nhãn nút rồi trả lại. Phải có cả nhánh HỎNG: navigator.clipboard từ chối khi tab không được lấy
+// nét (hoặc trình duyệt chặn), lúc đó promise reject và trước đây nút đứng im — người dùng tưởng đã
+// copy xong rồi đi dán, dán ra thứ cũ.
 function copyTextToClipboard(text, button, doneLabel) {
   const original = button.textContent;
   const show = (label) => {
@@ -679,16 +701,16 @@ function copyVisibleLines(button) {
   copyTextToClipboard(text, button, 'Đã copy ' + text.split('\n').length + ' dòng');
 }
 
-/* ----------------------------------------------------- uy quyen go phim */
+/* ----------------------------------------------------- uỷ quyền gõ phím */
 
 function handleLensInput(event) {
   const target = event.target;
-  // O tim cua tung muc: loc thang tren DOM da ve, khong ve lai gi nen khong can debounce.
+  // Ô tìm của từng mục: lọc thẳng trên DOM đã vẽ, không vẽ lại gì nên không cần debounce.
   if (target.classList && target.classList.contains('fll-secq')) {
     filterSectionRows(target);
     return;
   }
-  // Ve lai toi 50 the nhom, moi the mot sparkline 26 cot — do duoc 2 khung hinh roi neu chay moi phim.
+  // Vẽ lại tới 50 thẻ nhóm, mỗi thẻ một sparkline 26 cột — đo được 2 khung hình rơi nếu chạy mỗi phím.
   if (target.id === 'fll-q') {
     tabUiState.issueQuery = target.value;
     debounceInput('issueQuery', LIST_INPUT_DEBOUNCE_MS, () => {
@@ -697,12 +719,12 @@ function handleLensInput(event) {
     });
     return;
   }
-  // Giu ten mau nguoi dung dang go: sua bo loc se ve lai tab, khong giu thi ten bay mat.
+  // Giữ tên mẫu người dùng đang gõ: sửa bộ lọc sẽ vẽ lại tab, không giữ thì tên bay mất.
   if (target.id === 'fll-tplname') {
     tabUiState.templateName = target.value;
     return;
   }
-  // Quet ca payload cua moi request nen nang hon o tim nhom; van chi ve lai danh sach HTTP.
+  // Quét cả payload của mọi request nên nặng hơn ô tìm nhóm; vẫn chỉ vẽ lại danh sách HTTP.
   if (target.id === 'fll-httpq') {
     tabUiState.httpQuery = target.value;
     debounceInput('httpQuery', LIST_INPUT_DEBOUNCE_MS, () => {
@@ -713,7 +735,7 @@ function handleLensInput(event) {
   }
   if (target.id === 'fll-tlq') {
     tabUiState.tlQuery = target.value;
-    // Go lai tu dau thi tra ve trang dau, khong thi dang o "da hien 240 moc" ma loc con 3.
+    // Gõ lại từ đầu thì trả về trang đầu, không thì đang ở "đã hiện 240 mốc" mà lọc còn 3.
     tabUiState.tlLimit = TIMELINE_PAGE_SIZE;
     debounceInput('tlQuery', LIST_INPUT_DEBOUNCE_MS, () => {
       const list = document.getElementById('fll-tl-list');
@@ -729,7 +751,7 @@ function handleLensInput(event) {
     });
     return;
   }
-  // Duong nang nhat: quet 4085 dong, ghi class len bang log roi ve lai ca tab. De cho lau hon.
+  // Đường nặng nhất: quét 4085 dòng, ghi class lên bảng log rồi vẽ lại cả tab. Để chờ lâu hơn.
   if (target.id === 'fll-re') {
     lensState.filter.text = target.value;
     debounceInput('filterText', FILTER_INPUT_DEBOUNCE_MS, () => {
@@ -742,8 +764,8 @@ function handleLensInput(event) {
 /* -------------------------------------------------------------------- boot */
 
 function startLens(startMinimized) {
-  // Nhan quyen TRUOC khi don: neu don xong moi nhan, nhip watcher cua instance cu cham vao dung khe ho
-  // do se tuong root cua no bi go oan va dung lai ngay.
+  // Nhận quyền TRƯỚC khi dọn: nếu dọn xong mới nhận, nhịp watcher của instance cũ chạm vào đúng khe hở
+  // đó sẽ tưởng root của nó bị gỡ oan và dựng lại ngay.
   claimLensOwnership();
   disposePreviousInstance();
   registerInstance();
@@ -756,8 +778,8 @@ function startLens(startMinimized) {
   lensState.filterTemplates = loadFilterTemplates();
 
   scanLog();
-  // Mo bang link chia se thi luon bung panel, ke ca khi dang chay duoi dang extension (mac dinh thu gon):
-  // nguoi nhan link chi thay mot cai pill trong khi bang log da bi loc se tuong la khong co gi xay ra.
+  // Mở bằng link chia sẻ thì luôn bung panel, kể cả khi đang chạy dưới dạng extension (mặc định thu gọn):
+  // người nhận link chỉ thấy một cái pill trong khi bảng log đã bị lọc sẽ tưởng là không có gì xảy ra.
   const isRestoredFromLink = applyPermalinkFromHash();
   if (startMinimized && !isRestoredFromLink) showPill();
   else mountPanel();
@@ -766,8 +788,8 @@ function startLens(startMinimized) {
   root.addEventListener('input', handleLensInput);
   root.addEventListener('mouseover', handleLensTooltip);
   root.addEventListener('mouseleave', hideTooltip);
-  // Bam vao dau la dang lam viec khac, khong con doi doc chu giai nua. 'scroll' bat o pha capture vi
-  // no khong noi bot len.
+  // Bấm vào đâu là đang làm việc khác, không còn đợi đọc chú giải nữa. 'scroll' bắt ở pha capture vì
+  // nó không nổi bọt lên.
   root.addEventListener('mousedown', hideTooltip);
   root.addEventListener('scroll', hideTooltip, true);
   window.addEventListener('keydown', handleShortcut, LENS_KEY_LISTENER_OPTIONS);
@@ -778,7 +800,6 @@ function startLens(startMinimized) {
 }
 
 if (hasLogRows()) startLens(false);
-// Chay ca khi chua gan duoc: dieu huong trong SPA khong tai lai tai lieu, watcher nay la thu duy nhat
-// biet duoc "vua vao mot feedback detail moi".
+// Chạy cả khi chưa gắn được: điều hướng trong SPA không tải lại tài liệu, watcher này là thứ duy nhất
+// biết được "vừa vào một feedback detail mới".
 startPageWatcher();
-// AI-GENERATED END

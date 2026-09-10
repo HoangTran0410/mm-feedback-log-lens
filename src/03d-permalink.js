@@ -1,21 +1,14 @@
-/*
-File: src/03d-permalink.js
-Created At: 2026-09-08 16:00:00 +07:00
-Created By: AI
-AI Agent: Claude Code
-Model: claude-opus-5
-*/
 // @ts-check
-// AI-GENERATED START — permalink qua hash URL va mau bo loc luu san
-// Tach ra tu src/03-shell.js (992 dong / 67 ham). Cac file src/*.js duoc build.sh noi lai
-// theo thu tu ten file va boc trong MOT IIFE nen van dung chung scope — tach chi de doc,
-// khong doi cach chung goi nhau.
+// permalink qua hash URL và mẫu bộ lọc lưu sẵn
+// Tách ra từ src/03-shell.js (992 dòng / 67 hàm). Các file src/*.js được build.sh nối lại
+// theo thứ tự tên file và bọc trong MỘT IIFE nên vẫn dùng chung scope — tách chỉ để đọc,
+// không đổi cách chúng gọi nhau.
 
 /* --------------------------------------------------- permalink qua hash URL */
 
-// Mot dinh nghia duy nhat cho ca permalink lan mau bo loc.
-// Khoang thoi gian ket thuc dung o lastTs duoc luu dang "N cuoi" chu khong phai moc tuyet doi:
-// nhu the mau "2 phut cuoi" con dung duoc o feedback khac, con moc tuyet doi thi vo nghia.
+// Một định nghĩa duy nhất cho cả permalink lẫn mẫu bộ lọc.
+// Khoảng thời gian kết thúc đúng ở lastTs được lưu dạng "N cuối" chứ không phải mốc tuyệt đối:
+// như thế mẫu "2 phút cuối" còn dùng được ở feedback khác, còn mốc tuyệt đối thì vô nghĩa.
 function serializeFilter() {
   const filter = lensState.filter;
   const data = lensState.data;
@@ -26,13 +19,15 @@ function serializeFilter() {
     re: filter.useRegex ? 1 : 0,
     s: filter.session || 0,
   };
-  // Thieu cho nay thi: mau bo loc luu xong mo ta la "khong co dieu kien nao" va bam vao khong lam gi,
-  // con permalink gui cho dong nghiep se hien so gap doi ma khong co dau hieu gi.
+  // Thiếu chỗ này thì: mẫu bộ lọc lưu xong mô tả là "không có điều kiện nào" và bấm vào không làm gì,
+  // còn permalink gửi cho đồng nghiệp sẽ hiện số gấp đôi mà không có dấu hiệu gì.
   if (filter.skipDuplicate) payload.d = 1;
   if (filter.timeFrom !== null || filter.timeTo !== null) {
     const from = filter.timeFrom !== null ? filter.timeFrom : data.firstTs;
     const to = filter.timeTo !== null ? filter.timeTo : data.lastTs;
-    if (Math.abs(to - data.lastTs) < 1000) payload.wLast = to - from;
+    // Preset gửi đi dưới dạng "N cuối" để người nhận tính lại trên log của họ, không gửi hai mốc tuyệt đối.
+    if (filter.windowPreset) payload.wLast = filter.windowPreset;
+    else if (Math.abs(to - data.lastTs) < 1000) payload.wLast = to - from;
     else {
       payload.f = from - data.firstTs;
       payload.tt = to - data.firstTs;
@@ -49,13 +44,14 @@ function applyFilterPayload(payload) {
   filter.text = payload.q || '';
   filter.useRegex = payload.re !== 0;
   filter.session = payload.s || null;
-  // Phai dat lai CA khi payload khong co: ap mot mau khong co dieu kien nay ma van giu co dang bat thi
-  // ket qua khac han mo ta cua mau.
+  // Phải đặt lại CẢ khi payload không có: áp một mẫu không có điều kiện này mà vẫn giữ cờ đang bật thì
+  // kết quả khác hẳn mô tả của mẫu.
   filter.skipDuplicate = payload.d === 1;
   filter.timeFrom = null;
   filter.timeTo = null;
+  filter.windowPreset = null;
   filter.hideOthers = true;
-  // payload.w la dang cu cua permalink (chi luu "N giay cuoi").
+  // payload.w là dạng cũ của permalink (chỉ lưu "N giây cuối").
   if (payload.wLast || payload.w) setTimeWindowPreset(payload.wLast || payload.w);
   else if (payload.f >= 0 || payload.tt >= 0) {
     filter.timeFrom = payload.f >= 0 ? Math.min(data.lastTs, data.firstTs + payload.f) : null;
@@ -63,9 +59,9 @@ function applyFilterPayload(payload) {
   }
 }
 
-// Chi doc/ghi chuoi, khong dat lai location.hash: trang la SPA, doi hash co the lam router chay lai.
+// Chỉ đọc/ghi chuỗi, không đặt lại location.hash: trang là SPA, đổi hash có thể làm router chạy lại.
 function buildPermalink() {
-  // matches chua domIndex, khong phai vi tri trong entries — phai tra qua mot lop nua.
+  // matches chứa domIndex, không phải vị trí trong entries — phải tra qua một lớp nữa.
   const entry = lensState.matches.length
     ? lensState.data.entries[lensState.matches[Math.max(0, lensState.matchPos)]]
     : null;
@@ -84,8 +80,8 @@ function applyPermalinkFromHash() {
     return false;
   }
   applyFilterPayload(payload);
-  // Link cu co the ghi t='http' hoac t='slow' — hai tab da gop di. Khong chan thi renderTab roi vao
-  // nhanh else va ve tab Dien bien trong khi thanh tab khong co nut nao sang.
+  // Link cũ có thể ghi t='http' hoặc t='slow' — hai tab đã gộp đi. Không chặn thì renderTab rơi vào
+  // nhánh else và vẽ tab Diễn biến trong khi thanh tab không có nút nào sáng.
   lensState.tab = TAB_DEFS.some((tab) => tab.id === payload.t) ? payload.t : 'sum';
   applyFilter(false);
   if (payload.ln) {
@@ -95,7 +91,7 @@ function applyPermalinkFromHash() {
   return true;
 }
 
-/* ------------------------------------------------ mau bo loc (luu trong localStorage) */
+/* ------------------------------------------------ mẫu bộ lọc (lưu trong localStorage) */
 
 function loadFilterTemplates() {
   try {
@@ -110,7 +106,7 @@ function persistFilterTemplates() {
   try {
     localStorage.setItem(TEMPLATE_STORAGE_KEY, JSON.stringify(lensState.filterTemplates));
   } catch (error) {
-    // Rieng tu / het dung luong: mau van dung duoc trong phien nay, chi khong nho sang lan sau.
+    // Riêng tư / hết dung lượng: mẫu vẫn dùng được trong phiên này, chỉ không nhớ sang lần sau.
   }
 }
 
@@ -141,7 +137,7 @@ function applyFilterTemplate(name) {
   applyFilter(true);
 }
 
-// Mo ta ngan mot mau de hien lam tooltip — doc duoc ma khong can ap thu.
+// Mô tả ngắn một mẫu để hiện làm tooltip — đọc được mà không cần áp thử.
 function describeTemplatePayload(payload) {
   const parts = [];
   if (payload.wLast) parts.push(formatWindowPresetLabel(payload.wLast));
@@ -162,4 +158,3 @@ function applyFilter(shouldNavigate) {
   refreshFilterBar();
   return result;
 }
-// AI-GENERATED END

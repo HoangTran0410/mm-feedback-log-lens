@@ -1,31 +1,24 @@
-/*
-File: src/02d-trace.js
-Created At: 2026-09-08 16:00:00 +07:00
-Created By: AI
-AI Agent: Claude Code
-Model: claude-opus-5
-*/
 // @ts-check
-// AI-GENERATED START — loi doc tu Grafana trace, va nhan dien nhieu cua chinh lop do luong
-// Tach ra tu src/02-insights.js (946 dong). Cac file src/*.js duoc build.sh noi lai theo thu tu
-// ten file va boc trong MOT IIFE nen van dung chung scope — tach chi de doc.
+// lỗi đọc từ Grafana trace, và nhận diện nhiễu của chính lớp đo lường
+// Tách ra từ src/02-insights.js (946 dòng). Các file src/*.js được build.sh nối lại theo thứ tự
+// tên file và bọc trong MỘT IIFE nên vẫn dùng chung scope — tách chỉ để đọc.
 
-/* ------------------------------------------- nhieu tu chinh he thong do luong */
+/* ------------------------------------------- nhiễu từ chính hệ thống đo lường */
 
-// Do tren 50 feedback PRODUCTION that (25 iOS, 25 Android, ngay 2026-09-10): 2488 dong ERROR, trong do
-// 1267 dong (51%) khong phai loi user gap ma la loi cua chinh lop do luong. 24/49 log co qua nua so
-// dong ERROR la loai nay. Chung deu ghi bang logger.e truc tiep nen KHONG bi cat boi co Debug Tool —
-// tuc chung co mat tren may user that, khac han cac dong "@@ grafana >>" khac.
+// Đo trên 50 feedback PRODUCTION thật (25 iOS, 25 Android, ngày 2026-09-10): 2488 dòng ERROR, trong đó
+// 1267 dòng (51%) không phải lỗi user gặp mà là lỗi của chính lớp đo lường. 24/49 log có quá nửa số
+// dòng ERROR là loại này. Chúng đều ghi bằng logger.e trực tiếp nên KHÔNG bị cắt bởi cờ Debug Tool —
+// tức chúng có mặt trên máy user thật, khác hẳn các dòng "@@ grafana >>" khác.
 //
-// Khong tu dong tat tieng: do la quyet dinh cua nguoi doc. Chi tach ra mot khoi rieng de danh sach
-// van de con lai la nhung thu dang doc.
+// Không tự động tắt tiếng: đó là quyết định của người đọc. Chỉ tách ra một khối riêng để danh sách
+// vấn đề còn lại là những thứ đáng đọc.
 const TELEMETRY_NOISE_PATTERNS = [
-  // withTraceId() lam buffer.remove() nen traceId chi dung duoc mot lan; goi stop lan hai la mat.
+  // withTraceId() làm buffer.remove() nên traceId chỉ dùng được một lần; gọi stop lần hai là mất.
   { re: /GrafanaTrace\.\w+:: no traceId/, label: 'GrafanaTrace mất traceId' },
-  // resolveFormatter() tra null khi Koin scope da dong.
+  // resolveFormatter() trả null khi Koin scope đã đóng.
   { re: /GrafanaTrace\.\w+ PaymentSession is null/, label: 'GrafanaTrace không có PaymentSession' },
   { re: /GrafanaTrace\.exceptionHandler/, label: 'GrafanaTrace nuốt exception' },
-  // Hang doi gui trace cua chinh Grafana bi loi.
+  // Hàng đợi gửi trace của chính Grafana bị lỗi.
   { re: /grafana >> DefaultRequestQueue >> handleError/, label: 'Hàng đợi gửi trace Grafana lỗi' },
 ];
 
@@ -36,21 +29,21 @@ function telemetryNoiseLabel(text) {
   return '';
 }
 
-/* -------------------------------------------------- loi doc tu Grafana trace */
+/* -------------------------------------------------- lỗi đọc từ Grafana trace */
 
-// Grafana ghi o muc INFO nen khong dong nao lot vao buildIssueGroups, trong khi traceFail mang san
-// flow + step + errorCode + errorMessage — tuc mo ta loi RO HON bat ky dong ERROR nao trong log.
+// Grafana ghi ở mức INFO nên không dòng nào lọt vào buildIssueGroups, trong khi traceFail mang sẵn
+// flow + step + errorCode + errorMessage — tức mô tả lỗi RÕ HƠN bất kỳ dòng ERROR nào trong log.
 //
-// Gom theo errorMessage chu khong theo step: trong GrafanaTracker.generateParams, voi miniapp thi
-// `flow` bi ghi de bang appId va `step` bi doi thanh "flow.step", nen MOT su co ha tang hien ra
-// thanh hang chuc dong khac nhau. Do tren mot log that: cung mot loi "500 - B07 No version found
-// from remote" xuat hien o 17 miniapp khac nhau. Gom theo errorMessage thi 17 dong do ve mot hang,
-// kem so app bi anh huong — nhin la biet ngay ha tang chet chu khong phai bug cua tinh nang.
+// Gom theo errorMessage chứ không theo step: trong GrafanaTracker.generateParams, với miniapp thì
+// `flow` bị ghi đè bằng appId và `step` bị đổi thành "flow.step", nên MỘT sự cố hạ tầng hiện ra
+// thành hàng chục dòng khác nhau. Đo trên một log thật: cùng một lỗi "500 - B07 No version found
+// from remote" xuất hiện ở 17 miniapp khác nhau. Gom theo errorMessage thì 17 dòng đó về một hàng,
+// kèm số app bị ảnh hưởng — nhìn là biết ngay hạ tầng chết chứ không phải bug của tính năng.
 const TRACE_VERBS = ['startTrace', 'traceSuccess', 'traceFail', 'countTrace', 'durationStopTrace',
   'durationTrace', 'errorTrace'];
 
-// Hau to _start/_success/_fail do generateParams tu gan, va tien to "<flow>." cung do no gan khi
-// appId khong phai platform. Bo ca hai de con lai ten buoc that.
+// Hậu tố _start/_success/_fail do generateParams tự gắn, và tiền tố "<flow>." cũng do nó gắn khi
+// appId không phải platform. Bỏ cả hai để còn lại tên bước thật.
 function traceStepRoot(step) {
   const text = journeyValue(step).replace(/_(start|success|fail|duration)$/i, '');
   const dot = text.lastIndexOf('.');
@@ -75,10 +68,10 @@ function buildTraceIssues(entries) {
     const message = journeyValue(params.errorMessage);
     const code = journeyValue(params.errorCode).replace(/\.0$/, '');
     const step = traceStepRoot(params.step);
-    // Co errorMessage thi gom theo no — do moi la thu chung giua cac app cung dinh mot su co.
-    // Khong co thi KHONG duoc gom theo moi errorCode: tren mot log that, "code 200" om chung
+    // Có errorMessage thì gom theo nó — đó mới là thứ chung giữa các app cùng dính một sự cố.
+    // Không có thì KHÔNG được gom theo mỗi errorCode: trên một log thật, "code 200" ôm chung
     // TransactionResultV3_call_api_V1_REWARDS_PREDICT va TabBarContainer_call_api_RIGVER_APPVERSION
-    // — hai chuyen khac han nhau. Luc do lay ten buoc lam khoa.
+    // — hai chuyện khác hẳn nhau. Lúc đó lấy tên bước làm khoá.
     const key = message || (step ? step + (code ? ' · errorCode ' + code : '') : 'errorCode ' + code);
 
     let row = failMap.get(key);
@@ -105,16 +98,15 @@ function buildTraceIssues(entries) {
       apps: Array.from(row.apps) }))
     .sort((a, b) => b.apps.length - a.apps.length || b.count - a.count);
 
-  // Phan biet hai chuyen khac han nhau:
-  // - gated: cac dong "@@ grafana >>" di qua GrafanaTracker.log(), bi cat boi co Debug Tool.
-  //   Do tren 50 feedback production that: chi 2/50 log (4%) co startTrace/traceFail.
-  // - available: co bat ky dong trace nao khong. Mot so dong ("generateOffsetBase", handleError)
-  //   ghi thang bang logger nen KHONG bi cat — 68% log production co chung. Neu chi nhin
-  //   available thi se tuong log nao cung co du lieu trace, trong khi thuc te gan nhu khong log nao co.
+  // Phân biệt hai chuyện khác hẳn nhau:
+  // - gated: các dòng "@@ grafana >>" đi qua GrafanaTracker.log(), bị cắt bởi cờ Debug Tool.
+  //   Đo trên 50 feedback production thật: chỉ 2/50 log (4%) có startTrace/traceFail.
+  // - available: có bất kỳ dòng trace nào không. Một số dòng ("generateOffsetBase", handleError)
+  //   ghi thẳng bằng logger nên KHÔNG bị cắt — 68% log production có chúng. Nếu chỉ nhìn
+  //   available thì sẽ tưởng log nào cũng có dữ liệu trace, trong khi thực tế gần như không log nào có.
   return { available: lineCount > 0, hasGated: counts.startTrace + counts.traceSuccess + counts.traceFail > 0,
     lineCount, counts, fails };
 }
 
-// Moi thu phu thuoc "dang nhin nhung dong nao". Goi mot lan cho ca file luc quet,
-// va goi lai tren tap da loc moi khi bo loc doi — do duoc 2.5ms cho 4085 dong, 0.4ms cho tap ~850 dong.
-// AI-GENERATED END
+// Mọi thứ phụ thuộc "đang nhìn những dòng nào". Gọi một lần cho cả file lúc quét,
+// và gọi lại trên tập đã lọc mỗi khi bộ lọc đổi — đo được 2.5ms cho 4085 dòng, 0.4ms cho tập ~850 dòng.

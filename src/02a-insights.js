@@ -1,21 +1,13 @@
-/*
-File: src/02a-insights.js
-Created At: 2026-09-08 16:00:00 +07:00
-Created By: AI
-AI Agent: Claude Code
-Model: claude-opus-5
-*/
 // @ts-check
-// AI-GENERATED START — thoi luong, ID lien ket, phien app, metadata feedback
-// Tach ra tu src/02-insights.js (946 dong). Cac file src/*.js duoc build.sh noi lai theo thu tu
-// ten file va boc trong MOT IIFE nen van dung chung scope — tach chi de doc.
+// thời lượng, ID liên kết, phiên app, metadata feedback
+// Tách ra từ src/02-insights.js (946 dòng). Các file src/*.js được build.sh nối lại theo thứ tự
+// tên file và bọc trong MỘT IIFE nên vẫn dùng chung scope — tách chỉ để đọc.
 
-// Chay sau analyzeLog tren cung mang entries. Tach rieng de 01-analyzer.js khong phinh qua 500 dong.
+// Chạy sau analyzeLog trên cùng mảng entries. Tách riêng để 01-analyzer.js không phình quá 500 dòng.
 
-// Vai cho trong log ghi nham epoch vao truong duration= (vi du duration=1788836518693),
-// nen bo moi gia tri vuot nguong nay thay vi tin mu.
+// Vài chỗ trong log ghi nhầm epoch vào trường duration= (ví dụ duration=1788836518693),
+// nên bỏ mọi giá trị vượt ngưỡng này thay vì tin mù.
 const MAX_PLAUSIBLE_DURATION_MS = 600000;
-const MAX_DURATION_ROWS = 80;
 
 const DURATION_PATTERNS = [
   { kind: 'duration', re: /\bduration=(\d+)\b/ },
@@ -25,8 +17,8 @@ const DURATION_PATTERNS = [
   { kind: 'waited', re: /\btotalWaited[A-Za-z]*\s*[:=]\s*(\d+)/ },
   { kind: 'took', re: /\btook (\d+)\s?ms\b/ },
 ];
-// Co y KHONG bat pattern chung chung kieu /(\d+)\s?ms/: no an ca gia tri cau hinh
-// (vi du mot module khai bao cua so cho 5000ms) va day len dau bang nhu the la thao tac cham.
+// Cố ý KHÔNG bắt pattern chung chung kiểu /(\d+)\s?ms/: nó ăn cả giá trị cấu hình
+// (ví dụ một module khai báo cửa sổ chờ 5000ms) và đẩy lên đầu bảng như thể là thao tác chậm.
 
 const CORRELATION_PATTERNS = [
   { key: 'cmdId', re: /"cmdId"\s*:\s*"([^"]{6,})"/g },
@@ -43,7 +35,7 @@ function extractDurations(entries) {
   const rows = [];
   entries.forEach((entry) => {
     if (!entry.message) return;
-    // Sang loc bang indexOf truoc: dai da so dong khong he co so do thoi gian, khong can chay 6 regex.
+    // Sàng lọc bằng indexOf trước: đại đa số dòng không hề có số đo thời gian, không cần chạy 6 regex.
     if (entry.message.indexOf('ms') < 0 && entry.message.indexOf('duration=') < 0 &&
       entry.message.indexOf('Waited') < 0) return;
     for (let i = 0; i < DURATION_PATTERNS.length; i += 1) {
@@ -63,16 +55,19 @@ function extractDurations(entries) {
       return;
     }
   });
-  return rows.sort((a, b) => b.ms - a.ms).slice(0, MAX_DURATION_ROWS);
+  // KHÔNG cắt bớt ở đây: cắt trước khi trả về thì tổng bị mất luôn, badge của mục ghi 80 trong khi
+  // log có 160 con số — mà chữ ngay dưới lại ghi "Mọi con số thời lượng". Việc cắt bớt để cho
+  // capSectionRows() làm sau khi vẽ, lúc đó vẫn còn tổng thật để ghi badge.
+  return rows.sort((a, b) => b.ms - a.ms);
 }
 
-// Mot cmdId xuat hien o nhieu dong = mot request di qua nhieu lop. Gom lai la dung duoc ca luong.
+// Một cmdId xuất hiện ở nhiều dòng = một request đi qua nhiều lớp. Gom lại là dựng được cả luồng.
 function buildCorrelations(entries) {
   const byValue = new Map();
   entries.forEach((entry) => {
     entry.correlationIds = [];
     if (!entry.raw) return;
-    // Cung ly do: quet 5 regex toan cuc tren 1.2MB text la vo ich khi dong do khong chua ten ID nao.
+    // Cùng lý do: quét 5 regex toàn cục trên 1.2MB text là vô ích khi dòng đó không chứa tên ID nào.
     if (entry.raw.indexOf('cmdId') < 0 && entry.raw.indexOf('request_id') < 0 &&
       entry.raw.indexOf('riskId') < 0 && entry.raw.indexOf('traceId') < 0) return;
     CORRELATION_PATTERNS.forEach((pattern) => {
@@ -118,8 +113,8 @@ function buildSessions(entries) {
   return sessions.filter(Boolean);
 }
 
-// Metadata cua feedback nam ngay tren trang duoi dang <span class="ant-tag">Nhan: gia tri</span>.
-// Current Context dung truoc Error Context trong DOM nen lay lan xuat hien dau tien la dung cai dang co hieu luc.
+// Metadata của feedback nằm ngay trên trang dưới dạng <span class="ant-tag">Nhãn: giá trị</span>.
+// Current Context đứng trước Error Context trong DOM nên lấy lần xuất hiện đầu tiên là đúng cái đang có hiệu lực.
 function readFeedbackContext() {
   const context = {};
   document.querySelectorAll('span[class*="ant-tag"]').forEach((el) => {
@@ -135,4 +130,3 @@ function readFeedbackContext() {
   if (timeHit) context.submittedAt = timeHit[1] + ' ' + timeHit[2];
   return context;
 }
-// AI-GENERATED END

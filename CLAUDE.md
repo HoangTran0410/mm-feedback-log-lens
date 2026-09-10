@@ -30,6 +30,11 @@ bằng px CSS còn ảnh đã bị co. Cửa sổ hẹp hơn giới hạn đó t
 Test fixture (`test/fixture.js`) cũng bịa hoàn toàn, nhưng tái tạo đúng những ĐẶC TÍNH đã gặp trên log
 thật: ghi lặp, `trace_id` trùng, popup ở mức INFO, giá trị có dấu phẩy bên trong.
 
+**Comment viết bằng tiếng Việt CÓ DẤU.** Toàn bộ `src/` từng viết không dấu; đã chuyển hết. Tài liệu,
+chữ trên giao diện và commit message đều có dấu, để riêng code không dấu là chỗ duy nhất lạc điệu và
+đọc chậm hơn hẳn. Cũng không còn dòng `// AI-GENERATED START/END` và không còn khối `File: / Created
+By: / AI Agent: / Model:` ở đầu file — repo này không dùng.
+
 **Không `import`/`export` trong `src/`.** `build.sh` nối mọi file thành MỘT IIFE nên chúng dùng chung
 global scope. Đây cũng chính là thứ làm `// @ts-check` chạy được mà không cần bước biên dịch. Thêm một
 dòng `import` là hỏng cả hai.
@@ -41,6 +46,37 @@ trong cùng một lần khởi động, cách nhau vài trăm ms — đếm từ
 "gặp lại đúng loại mốc đã thấy trong chùm" bắt trường hợp mở lại ngay — nhưng mới dựa trên bốn chùm
 quan sát được, nên **CHƯA XÁC MINH** rằng không log nào lặp một loại mốc giữa cùng một lần chạy.
 
+**Ghép request/response HTTP theo THỨ TỰ DÒNG, không theo trục thời gian — và phải chừa một dòng lùi.**
+Logger ghi theo lô nên dòng `ResponsePayload` có thể nằm **trước** dòng `RequestPayload` của chính nó.
+Đo trên ba log thật: **0 / 3 / 16** cặp nằm ngược, và mọi cặp ngược quan sát được đều lệch **đúng một
+dòng** (Δdòng = -1, Δts = 0 hoặc -2ms) — hai dòng ra trong cùng một lần flush. Vì vậy
+`HTTP_PAIR_LOOKAHEAD = 1`. Bản cũ ghép response với request đứng trước nó nên hỏng cả hai đầu: request
+thật bị báo "không có response" (vào `badHttpCalls`, vào thẻ "HTTP bất thường", vào ticket) rồi chính
+response đó lại sinh thêm một hàng "call ma". Đo trên log production: 94 dòng request và 94 dòng
+response mà ra **104 call, 10 cái báo thiếu response**; sau khi sửa còn đúng **94 call, 0 thiếu**.
+Ba log thật sau khi sửa: 58 / 67 / 94 call, cả ba đều 0 cái thiếu response.
+
+Đã **thử và bỏ** cách ghép theo trục thời gian: trục thời gian nhiễu hơn nhiều — trên log uat1 có một
+cặp nằm đúng thứ tự dòng mà timestamp lệch **ngược 728ms**, chặn theo `ts` là xẻ đôi cặp đó. **CHƯA XÁC
+MINH** giả định "một URL trả về theo đúng thứ tự gọi": dòng HTTP chỉ có `[Method:]` và `[URL:]`, không
+có trường nào nối hai đầu.
+
+**Cửa sổ thời gian: nhớ preset, đừng suy ngược từ hai mốc.** `setTimeWindowPreset` kẹp `timeFrom` về
+`firstTs`, nên trên log **ngắn hơn preset** thì hiệu `timeTo - timeFrom` không còn bằng preset — chip
+tắt và nhãn đổi thành hai mốc giờ tuyệt đối. Ba log thật dài 291s / 572s / 234s nên preset "5 phút
+cuối" hỏng ở **cả ba**. Nay `filter.windowPreset` được nhớ riêng.
+
+Cùng một trường đó xử lý nốt việc **đổi feedback trong SPA**: `timeFrom/timeTo` là mốc tuyệt đối, bấm
+sang log khác là chúng vô nghĩa. Đo được: log 1 bật "2 phút cuối" rồi sang log 2 → **0/7107 dòng** lọt,
+chip ghi một khoảng giờ không tồn tại trong log 2. `retargetTimeWindow()` tính lại preset theo `lastTs`
+mới; còn khoảng tự kéo tay thì không đoán được ý người dùng nên chỉ giữ khi còn giao với log mới.
+
+**Dòng không có giờ thừa hưởng giờ của dòng trên nó — nhưng chỉ cho cửa sổ thời gian.** Đo trên ba log
+thật: **240 / 180 / 85** dòng không có timestamp (dòng tiếp nối của stack trace, dòng trống, "END OF
+BATCH"). Cửa sổ thời gian từng loại thẳng chúng, tức bật cửa sổ quanh đúng lúc lỗi nổ ra thì mất luôn
+phần dưới của chính stack trace đó. Giá trị nằm ở `entry.windowTs`, **không** nhập vào `entry.ts`: `ts`
+đi vào khoảng lặng, minimap và phiên app — thêm giờ giả vào đó là đổi số liệu.
+
 **Nhãn nguồn cấu hình không được suy đoán.** `src/02g-config.js` chỉ gán nguồn khi chính dòng log nói
 ra (chữ `webadmin`, url CDN, tên lớp `ABTestingExpTag`...). Dòng không tự khai thì vào nhóm
 `oth` = "Chưa rõ nguồn", tuyệt đối không gán bừa vào BE.
@@ -51,6 +87,11 @@ khác lại thấy đóng. Mọi tiêu đề mục phải đi qua `secTitle(titl
 
 **`hide()` của tab đọc data ĐẦY ĐỦ, không phải view đang lọc.** Lọc hẹp lại thì tab tự ẩn sẽ biến mất
 giữa chừng. Tab có hay không là tính chất của cả log; nội dung bên trong mới chạy theo bộ lọc.
+
+Luật đó áp cho cả **câu chữ**: "log này không có X" là khẳng định về CẢ LOG nên chỉ được đọc
+`lensState.data`. Lọc còn ERROR xong tab Cấu hình từng in "Log này không có dòng cấu hình nào đọc được"
+trong khi cả log có 34 khoá. Khi data có mà view rỗng thì đổi hẳn câu (`emptyBecauseOfFilter()`): nói
+rõ là do bộ lọc, kèm số của cả log và một nút bỏ lọc.
 
 **Chữ hướng dẫn trên giao diện: một câu.** Giải thích dài để trong chú giải của chính phần tử nó nói
 về. Panel chỉ rộng 480px, mỗi câu thừa đẩy nội dung thật xuống dưới màn.
@@ -95,8 +136,8 @@ popup), nhưng vẫn hơn chữ "popup" trơn. Lý do có luật này: trên log
 khi đó hai popup khác hẳn nhau bị gom thành một hàng `2× popup` — mất sạch cái để phân biệt.
 
 **Thêm thứ dùng chung cho MỌI mục thì làm bằng một lượt quét sau khi vẽ, đừng sửa từng renderer.**
-Đã trả giá đúng hai lần và cả hai lần cách này đều thắng: mục đóng/mở được (`collapsifySections`) và ô
-tìm nhanh trong từng mục (`addSectionSearch`). Đối chứng: mỗi ô tìm kiểu cũ (`#fll-q`, `#fll-httpq`,
+Đã trả giá đúng ba lần và cả ba lần cách này đều thắng: mục đóng/mở được (`collapsifySections`), ô
+tìm nhanh trong từng mục (`addSectionSearch`), và cắt bớt hàng thừa của mục dài (`capSectionRows`). Đối chứng: mỗi ô tìm kiểu cũ (`#fll-q`, `#fll-httpq`,
 `#fll-modq`, `#fll-tlq`) phải sửa ở **hai file** — một trường `tabUiState`, một nhánh trong
 `handleLensInput`, một thẻ `<input>`, một id container. Nhân lên ~20 mục là ~80 chỗ sửa, và mỗi mục
 thêm sau này lại phải nhớ làm theo.
@@ -105,6 +146,15 @@ Hai cái bẫy của cách này, đều đã gặp: (1) hàng của một mục 
 của thân mục — nhiều danh sách bọc trong đúng một thẻ (`.fll-rank`, `.fll-lvkey`), đếm con trực tiếp ra
 1 nên ô tìm không bao giờ được chèn; (2) mục nào **đã có ô tìm riêng** (tìm trên toàn bộ dữ liệu, không
 chỉ trang đang hiện) thì phải bỏ qua, đừng chèn chồng.
+
+**Cắt bớt hàng phải làm SAU khi vẽ, không cắt trong renderer.** Cắt trong renderer thì tổng bị mất
+luôn: `extractDurations` từng cắt còn 80 hàng **trước khi trả về**, nên badge của mục ghi "80" trong
+khi log có 160 con số — mà chữ ngay dưới lại ghi "**Mọi** con số thời lượng". Nay renderer trả về đủ,
+`capSectionRows` giấu phần thừa (`SECTION_MAX_ROWS = 12`) và thêm nút "Hiện thêm". Nhờ vậy badge là
+tổng thật, và ô tìm nhanh vẫn chạm tới được phần bị giấu (chúng nằm trong DOM, chỉ đang `hidden`) —
+gõ đúng tên một hàng bị cắt vẫn ra kết quả. Mục **tự quản lý phân trang** (danh sách nhóm lỗi, danh
+sách mốc) thì bỏ qua, đừng cắt chồng lên phân trang của nó. Đo trong Chrome trên trang demo: bung
+476 hàng bị cắt mất **2.9ms**.
 
 **`momoClassDiscriminator` là tên màn chính xác — nhưng KHÔNG phải lúc nào cũng là tên màn.** Trên log
 thật, hai màn cùng ghi `screen_name=result` mà là hai lớp khác hẳn
@@ -305,10 +355,15 @@ Panel từng bị rối vì mấy thói quen dưới đây, sửa rồi thì gi�
   `getBoundingClientRect()` dùng thẳng được, khỏi quy đổi.
   Mũi tên vẽ **bên trong** mép dưới minimap chứ không thò xuống dưới: bản đầu để nó chạm mép dưới rồi
   thò xuống 8px, đúng chỗ dòng nhãn giờ cao ~14px — thấy khi chụp màn hình.
-- **Bảy tab phải vừa bề ngang mặc định.** Đo trên panel 480px: với `gap:3px` + padding ngang 7px, bảy
-  tab cần **507px** trong khi chỗ chỉ có **478px** — tab cuối bị cắt mất chữ mà không có dấu hiệu gì
-  là còn cuộn được. `gap:2px` + padding 5px lại còn **473px**. Vẫn giữ `overflow-x:auto` cho trường
-  hợp người dùng kéo panel hẹp hơn.
+- **Thanh tab phải vừa bề ngang mặc định — đo lại mỗi lần đổi cỡ chữ.** Hồi còn bảy tab, đo trên panel
+  480px: `gap:3px` + padding ngang 7px cần **507px** trong khi chỗ chỉ có **478px** — tab cuối bị cắt
+  mất chữ mà không có dấu hiệu gì là còn cuộn được; `gap:2px` + padding 5px lại còn **473px**. Nay còn
+  năm tab và cỡ chữ đã tăng 1.12×: đo lại trong Chrome ra đúng **478/478**, vẫn vừa khít. Vẫn giữ
+  `overflow-x:auto` cho trường hợp người dùng kéo panel hẹp hơn.
+- **Cỡ chữ trong `PANEL_CSS` là px cứng ở ~70 chỗ, muốn đổi thì nhân đều cả bộ.** Lần gần nhất nhân
+  1.12× và làm tròn về 0.5px (13px → 14.5px, 10.5px → 12px, 21px → 23.5px) để giữ nguyên tỉ lệ thiết
+  kế. `line-height` đều không đơn vị nên tự theo; chỉ hai chỗ có hộp cố định phải sửa tay là
+  `.fll-ev-ic` (vòng tròn quanh biểu tượng) và thanh tab.
 - **Badge phải nằm NGOÀI khoá nhớ trạng thái.** `collapsifySections()` lấy `data-sec` làm khoá, không
   lấy `textContent` — trong `textContent` có cả badge (`"Phiên app9 phiên"`), mà badge đổi theo từng
   log, lấy nó vào khoá thì mở một mục ở log này, sang log khác lại thấy đóng. Mọi tiêu đề mục đi qua

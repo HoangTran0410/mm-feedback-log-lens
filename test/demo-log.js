@@ -1,21 +1,14 @@
-/*
-File: test/demo-log.js
-Created At: 2026-09-10 21:00:00 +07:00
-Created By: AI
-AI Agent: Claude Code
-Model: claude-opus-5
-*/
-// AI-GENERATED START — sinh mot log GIA du lon de chup anh man hinh cho README
+// sinh một log GIẢ đủ lớn để chụp ảnh màn hình cho README
 //
-// Vi sao khong chup tren log that: .gitignore cam commit *.yml VA cam ca *.png, cung mot ly do —
-// log feedback that chua so dien thoai, token, ma giao dich cua nguoi dung that, va anh chup man hinh
-// thi lo nguyen van nhung thu do. Moi dong duoi day deu bia; ten app, ten man, ma loi khong lay tu dau.
+// Vì sao không chụp trên log thật: .gitignore cấm commit *.yml VÀ cấm cả *.png, cùng một lý do —
+// log feedback thật chứa số điện thoại, token, mã giao dịch của người dùng thật, và ảnh chụp màn hình
+// thì lộ nguyên văn những thứ đó. Mọi dòng dưới đây đều bịa; tên app, tên màn, mã lỗi không lấy từ đâu.
 //
-// Khac test/fixture.js o cho: fixture co y toi thieu va tung dong deu ung voi mot phep thu. File nay
-// nguoc lai — can DAY va DA DANG de moi tab trong anh chup deu co gi de xem.
+// Khác test/fixture.js ở chỗ: fixture cố ý tối thiểu và từng dòng đều ứng với một phép thử. File này
+// ngược lại — cần DÀY và ĐA DẠNG để mọi tab trong ảnh chụp đều có gì để xem.
 //
 //   node test/demo-log.js /duong/dan/demo.html
-// roi mo trang do (qua http, khong phai file://) — extension/lens.js tu bung panel len.
+// rồi mở trang đó (qua http, không phải file://) — extension/lens.js tự bung panel lên.
 
 const fs = require('fs');
 const path = require('path');
@@ -59,8 +52,8 @@ function nextId(prefix) {
 }
 
 function boot(sessionIndex) {
-  // Ba moc khoi dong no sat nhau y nhu log that — de anh chup chung minh luon rang mot lan mo app
-  // van chi dem thanh MOT phien.
+  // Ba mốc khởi động nổ sát nhau y như log thật — để ảnh chụp chứng minh luôn rằng một lần mở app
+  // vẫn chỉ đếm thành MỘT phiên.
   line('INFO', '[Module: CoSoDuLieuDemo] MomoDatabase init OK in ' + (11 + sessionIndex) + 'ms', 900);
   line('INFO', '@@ appSync >> syncStartApp', 369);
   line('INFO', '[Module: CoSoDuLieuDemo] [PERF] SyncAppFeature, start', 382);
@@ -176,7 +169,7 @@ function build() {
   line('INFO', '[Module: NhanRoiDemo] app vào nền, chờ người dùng quay lại', 7600);
   boot(2);
   browse(74);
-  // Cau hinh doi giua chung phien — dung thu ma tab Cau hinh danh dau "2 gia tri khac nhau".
+  // Cấu hình đổi giữa chừng phiên — đúng thứ mà tab Cấu hình đánh dấu "2 giá trị khác nhau".
   line('INFO', '[Module: BaoLoiDemo] Persist SentryRemoteConfig key=sentry_remote_config raw=' +
     '{"enable":true,"handledRate":1.0,"unhandledRate":1.0,"anrRate":1.0,"enableANR":true,"ignoreList":[],' +
     '"tracesSampleRate":0.05,"enableAutoSessionTracking":true,"sessionTrackingIntervalMillis":15000}');
@@ -203,4 +196,3 @@ if (require.main === module) {
   const result = writePage(target);
   process.stdout.write(result.file + ' — ' + result.lines + ' dòng log bịa\n');
 }
-// AI-GENERATED END

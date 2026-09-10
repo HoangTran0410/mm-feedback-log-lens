@@ -1,18 +1,11 @@
-/*
-File: src/04-sheet.js
-Created At: 2026-09-08 16:00:00 +07:00
-Created By: AI
-AI Agent: Claude Code
-Model: claude-opus-5
-*/
 // @ts-check
-// AI-GENERATED START — tam truot phu len than panel: xem payload JSON va gom cac dong cung mot ID
+// tấm trượt phủ lên thân panel: xem payload JSON và gom các dòng cùng một ID
 
 const SHEET_MAX_RAW_LENGTH = 20000;
 
-// Tam truot tung phu tu duoi header xuong (top:52px co dinh trong CSS) nen no che luon minimap —
-// dung luc doc payload lai la luc can nhin "dong nay nam cho nao trong log" nhat. Do bang JS thay vi
-// dat so co dinh vi chieu cao phan tren khong co dinh: thanh bo loc co luc hien co luc an.
+// Tấm trượt từng phủ từ dưới header xuống (top:52px cố định trong CSS) nên nó che luôn minimap —
+// đúng lúc đọc payload lại là lúc cần nhìn "dòng này nằm chỗ nào trong log" nhất. Đo bằng JS thay vì
+// đặt số cố định vì chiều cao phần trên không cố định: thanh bộ lọc có lúc hiện có lúc ẩn.
 function positionSheetBelowTimeline() {
   const sheet = lensState.el.sheet;
   const body = lensState.el.body;
@@ -43,7 +36,7 @@ function closeSheet() {
   lensState.el.sheet = null;
 }
 
-// Mot khoi co the vua bi cat vua bi che, nen tra ve danh sach nhan chu khong phai mot nhan.
+// Một khối có thể vừa bị cắt vừa bị che, nên trả về danh sách nhãn chứ không phải một nhãn.
 function payloadSectionTags(section) {
   const tags = [];
   if (section.isTruncated) {
@@ -58,8 +51,8 @@ function payloadSectionTags(section) {
   return tags;
 }
 
-// To mau bang cach quet token roi escape TUNG manh — escape truoc rooi mau sau se an ca the <i>,
-// con mau truoc escape sau thi the bi bien thanh chu.
+// Tô màu bằng cách quét token rồi escape TỪNG mảnh — escape trước rồi tô màu sau sẽ ăn cả thẻ <i>,
+// còn tô màu trước escape sau thì thẻ bị biến thành chữ.
 const JSON_TOKEN_RE =
   /("(?:\\.|[^"\\])*")(\s*:)?|\b(true|false|null)\b|(-?\d+(?:\.\d+)?(?:[eE][-+]?\d+)?)/g;
 
@@ -101,13 +94,13 @@ function renderPayloadSection(section, index) {
     '">' + highlightJson(text) + '</pre></div>';
 }
 
-// Mot request HTTP nam o hai dong log khac nhau va moi dong mang truong khac nhau
-// (--header/--encrypted o dong request, --status o dong response), nen mo chung mot tam truot
-// roi doi qua lai bang chip: khoi phai dong ra mo vao de so request voi response.
+// Một request HTTP nằm ở hai dòng log khác nhau và mỗi dòng mang trường khác nhau
+// (--header/--encrypted ở dòng request, --status ở dòng response), nên mở chung một tấm trượt
+// rồi đổi qua lại bằng chip: khỏi phải đóng ra mở vào để so request với response.
 const WRAP_STORAGE_KEY = 'fll.payloadWrap';
 
-// Mac dinh BAT: pretty-print chi ngan dong o cau truc, con mot gia tri dai (chu ky, chuoi base64)
-// van la mot dong dai vai nghin ky tu — cuon ngang de doc thu do rat met.
+// Mặc định BẬT: pretty-print chỉ ngắt dòng ở cấu trúc, còn một giá trị dài (chữ ký, chuỗi base64)
+// vẫn là một dòng dài vài nghìn ký tự — cuộn ngang để đọc thứ đó rất mệt.
 const payloadSheetState = { reqIndex: null, resIndex: null, side: 'req', isWrapped: loadPayloadWrap() };
 
 function loadPayloadWrap() {
@@ -122,14 +115,14 @@ function persistPayloadWrap() {
   try {
     localStorage.setItem(WRAP_STORAGE_KEY, payloadSheetState.isWrapped ? '1' : '0');
   } catch (error) {
-    // Rieng tu / het dung luong: lua chon van co hieu luc trong phien nay.
+    // Riêng tư / hết dung lượng: lựa chọn vẫn có hiệu lực trong phiên này.
   }
 }
 
 function togglePayloadWrap(button) {
   payloadSheetState.isWrapped = !payloadSheetState.isWrapped;
   persistPayloadWrap();
-  // Doi class tai cho thay vi ve lai: giu nguyen vi tri cuon nguoi dung dang doc do.
+  // Đổi class tại chỗ thay vì vẽ lại: giữ nguyên vị trí cuộn người dùng đang đọc dở.
   const sheet = lensState.el.panel && lensState.el.panel.querySelector('.fll-sheet');
   if (sheet) {
     sheet.querySelectorAll('.fll-code').forEach((block) => {
@@ -139,12 +132,12 @@ function togglePayloadWrap(button) {
   button.className = 'fll-chip' + (payloadSheetState.isWrapped ? ' on' : '');
 }
 
-// Nut "Nhay toi dong" nam tren thanh cong cu dau tam truot, khong phai duoi cung: payload JSON dai
-// toi 10KB nen truoc day phai cuon het ca khoi du lieu moi thay no. Thanh nay con dinh lai khi cuon
-// (position:sticky) de doc giua chung van bam duoc.
-// Hai hang co chu dich, khong nhoi tat ca vao mot hang: do that tren panel 480px cho thay nhoi chung
-// thi tong be ngang cac nut vuot khung 61px va tu vo thanh hai hang loi lom.
-// Hang tren la tab Request/Response, hang duoi la hanh dong. Ca khoi dinh lai khi cuon.
+// Nút "Nhảy tới dòng" nằm trên thanh công cụ đầu tấm trượt, không phải dưới cùng: payload JSON dài
+// tới 10KB nên trước đây phải cuộn hết cả khối dữ liệu mới thấy nó. Thanh này còn dính lại khi cuộn
+// (position:sticky) để đọc giữa chừng vẫn bấm được.
+// Hai hàng có chủ đích, không nhồi tất cả vào một hàng: đo thật trên panel 480px cho thấy nhồi chung
+// thì tổng bề ngang các nút vượt khung 61px và tự vỡ thành hai hàng lồi lõm.
+// Hàng trên là tab Request/Response, hàng dưới là hành động. Cả khối dính lại khi cuộn.
 function renderPayloadToolbar(tabsHtml, domIndex, lineNo) {
   const jump = domIndex == null ? '' :
     '<button class="fll-btn fll-mini pri" data-jump="' + domIndex + '" ' +
@@ -172,7 +165,7 @@ function formatBytes(count) {
   return (count / 1024).toFixed(count < 10240 ? 1 : 0) + ' KB';
 }
 
-// Do tren nguyen van cua CAC TRUONG payload, khong tinh phan "[Module: HTTP] [URL: ...]" dau dong.
+// Đo trên nguyên văn của CÁC TRƯỜNG payload, không tính phần "[Module: HTTP] [URL: ...]" đầu dòng.
 function payloadBytes(domIndex) {
   const entry = lensState.data.entries[domIndex];
   if (!entry) return 0;
@@ -205,7 +198,7 @@ function switchPayloadSide(side) {
   renderPayloadSheet(payloadSheetState.reqIndex, payloadSheetState.resIndex, side);
 }
 
-// Duong vao cho MOT dong don le (tam truot correlation), khong co cap request/response.
+// Đường vào cho MỘT dòng đơn lẻ (tấm trượt correlation), không có cặp request/response.
 function renderJsonSheet(domIndex) {
   const rendered = renderPayloadBody(domIndex, '');
   if (!rendered) return;
@@ -237,4 +230,3 @@ function renderCorrelationSheet(value) {
     '<button class="fll-btn pri" data-act="browseCorrelation" data-value="' + escapeHtml(value) + '">' +
     'Duyệt bằng n / p</button></div><div class="fll-tl">' + rows + '</div>');
 }
-// AI-GENERATED END

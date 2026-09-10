@@ -1,20 +1,13 @@
-/*
-File: src/02j-summary.js
-Created At: 2026-09-11 02:40:00 +07:00
-Created By: AI
-AI Agent: Claude Code
-Model: claude-opus-5
-*/
 // @ts-check
-// AI-GENERATED START — dung mot khoi markdown ~25 dong de dan thang vao ticket
+// dựng một khối markdown ~25 dòng để dán thẳng vào ticket
 //
-// Buoc trong nhat trong quy trinh cua dev: doc log xong van phai go tay lai vao ticket. "Copy dong dang
-// hien" cho ra vai nghin dong tho — khong ai dan duoc, ma lai kem nguyen so dien thoai va token trong
+// Bước trống nhất trong quy trình của dev: đọc log xong vẫn phải gõ tay lại vào ticket. "Copy dòng đang
+// hiện" cho ra vài nghìn dòng thô — không ai dán được, mà lại kèm nguyên số điện thoại và token trong
 // payload.
 //
-// LUAT CUA KHOI NAY: chi liet ke SU KIEN CO GIO, tuyet doi khong co cau "nguyen nhan la X". Xep hang
-// nguyen nhan la suy doan, ma cai nay se nam lai trong ticket cho nguoi khac doc nhu su that.
-// Va chi lay nhung truong DA HIEN tren panel — khong nhet payload tho vao.
+// LUẬT CỦA KHỐI NÀY: chỉ liệt kê SỰ KIỆN CÓ GIỜ, tuyệt đối không có câu "nguyên nhân là X". Xếp hạng
+// nguyên nhân là suy đoán, mà cái này sẽ nằm lại trong ticket cho người khác đọc như sự thật.
+// Và chỉ lấy những trường ĐÃ HIỆN trên panel — không nhét payload thô vào.
 
 const SUMMARY_MAX_GROUPS = 5;
 const SUMMARY_MAX_CALLS = 5;
@@ -40,12 +33,12 @@ function summaryEnvironment(data) {
   return out;
 }
 
-// Nhung gi log KHONG tra loi duoc cung phai nam trong ticket: nguoi doc sau se biet vi sao khong co
-// phan do, thay vi tuong la "da kiem, khong co van de".
+// Những gì log KHÔNG trả lời được cũng phải nằm trong ticket: người đọc sau sẽ biết vì sao không có
+// phần đó, thay vì tưởng là "đã kiểm, không có vấn đề".
 function summaryBlindSpots(data) {
   const notes = [];
-  // LUON nhac, chi doi cau chu. Truoc day cho bat "bo khoi lap" thi cau nay bien mat — nguoi doc ticket
-  // khong con mot dau hieu nao rang file goc bi noi doi.
+  // LUÔN nhắc, chỉ đổi câu chữ. Trước đây chỗ bật "bỏ khối lặp" thì câu này biến mất — người đọc ticket
+  // không còn một dấu hiệu nào rằng file gốc bị nối đôi.
   if (data.duplicate) {
     notes.push(lensState.filter.skipDuplicate
       ? 'file gốc có ' + data.duplicate.length + ' dòng lặp lại nguyên xi; các con số trên đã trừ chúng ra'
@@ -68,8 +61,8 @@ function summaryBlindSpots(data) {
   return notes;
 }
 
-// Ticket mo ta CA LOG chu khong mo ta lat cat nguoi doc dang mo — nhung "bo khoi lap" khong phai mot
-// lat cat, no la sua du lieu ve dung. Nen day la ngoai le duy nhat duoc loc.
+// Ticket mô tả CẢ LOG chứ không mô tả lát cắt người đọc đang mở — nhưng "bỏ khối lặp" không phải một
+// lát cắt, nó là sửa dữ liệu về đúng. Nên đây là ngoại lệ duy nhất được lọc.
 function summaryData(data) {
   if (!data.duplicate || !lensState.filter.skipDuplicate) return data;
   const entries = data.entries.filter((entry) => !entry.isDuplicate);
@@ -148,4 +141,3 @@ function buildTicketSummary(fullData) {
     'Đây là danh sách sự kiện có giờ, không phải kết luận nguyên nhân._\n';
   return out;
 }
-// AI-GENERATED END

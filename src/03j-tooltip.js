@@ -1,24 +1,17 @@
-/*
-File: src/03j-tooltip.js
-Created At: 2026-09-10 23:00:00 +07:00
-Created By: AI
-AI Agent: Claude Code
-Model: claude-opus-5
-*/
 // @ts-check
-// AI-GENERATED START — tooltip tu ve, thay cho thuoc tinh title="" cua trinh duyet
+// tooltip tự vẽ, thay cho thuộc tính title="" của trình duyệt
 //
-// Vi sao phai tu ve: do tre truoc khi hien title="" do HE DIEU HANH quyet dinh, khong co CSS hay JS
-// nao doi duoc. Panel nay day chu giai — moi hang, moi chip, moi tieu de muc deu co mot cai — nen luot
-// chuot qua la tooltip nhay lien tuc va che mat phan giao dien phia sau. Doi sang data-tip roi tu ve
-// thi kiem soat duoc ba thu: cho bao lau moi hien, rong toi da bao nhieu, va hien o dau.
+// Vì sao phải tự vẽ: độ trễ trước khi hiện title="" do HỆ ĐIỀU HÀNH quyết định, không có CSS hay JS
+// nào đổi được. Panel này đầy chú giải — mỗi hàng, mỗi chip, mỗi tiêu đề mục đều có một cái — nên lướt
+// chuột qua là tooltip nhảy liên tục và che mất phần giao diện phía sau. Đổi sang data-tip rồi tự vẽ
+// thì kiểm soát được ba thứ: chờ bao lâu mới hiện, rộng tối đa bao nhiêu, và hiện ở đâu.
 //
-// Dat trong #fll-root chu khong trong .fll-panel: panel co overflow:hidden nen tooltip sat mep panel
-// se bi cat mat mot nua.
+// Đặt trong #fll-root chứ không trong .fll-panel: panel có overflow:hidden nên tooltip sát mép panel
+// sẽ bị cắt mất một nửa.
 
 const TOOLTIP_DELAY_MS = 600;
-// Lech xuong duoi va sang phai con tro. Chuot thuong di tu tren xuong / tu trai sang, nen huong nay
-// che vao cho nguoi dung VUA roi khoi, khong che cho ho dang nhin toi.
+// Lệch xuống dưới và sang phải con trỏ. Chuột thường đi từ trên xuống / từ trái sang, nên hướng này
+// che vào chỗ người dùng VỪA rời khỏi, không che chỗ họ đang nhìn tới.
 const TOOLTIP_OFFSET_X = 14;
 const TOOLTIP_OFFSET_Y = 18;
 const TOOLTIP_MARGIN = 8;
@@ -49,7 +42,7 @@ function hideTooltip() {
   if (lensState.el.tip) lensState.el.tip.hidden = true;
 }
 
-// Do xong moi dat: phai hien ra thi moi biet no rong cao bao nhieu de con lat len / day vao trong man.
+// Đo xong mới đặt: phải hiện ra thì mới biết nó rộng cao bao nhiêu để còn lật lên / đẩy vào trong màn.
 function placeTooltip(el, clientX, clientY) {
   const text = el.getAttribute('data-tip');
   if (!text || !el.isConnected) return;
@@ -64,8 +57,8 @@ function placeTooltip(el, clientX, clientY) {
   if (left + box.width > window.innerWidth - TOOLTIP_MARGIN) {
     left = Math.max(TOOLTIP_MARGIN, window.innerWidth - TOOLTIP_MARGIN - box.width);
   }
-  // Khong du cho ben duoi thi lat len TREN con tro, chu khong ep sat day man hinh — ep sat day thi no
-  // nam de len chinh cai dang tro toi.
+  // Không đủ chỗ bên dưới thì lật lên TRÊN con trỏ, chứ không ép sát đáy màn hình — ép sát đáy thì nó
+  // nằm đè lên chính cái đang trỏ tới.
   if (top + box.height > window.innerHeight - TOOLTIP_MARGIN) {
     top = Math.max(TOOLTIP_MARGIN, clientY - TOOLTIP_OFFSET_Y - box.height);
   }
@@ -87,4 +80,3 @@ function handleLensTooltip(event) {
     if (lensState.tipEl === hit) placeTooltip(hit, clientX, clientY);
   }, TOOLTIP_DELAY_MS);
 }
-// AI-GENERATED END
