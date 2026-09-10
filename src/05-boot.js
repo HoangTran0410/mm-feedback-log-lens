@@ -654,6 +654,11 @@ function copyVisibleLines(button) {
 
 function handleLensInput(event) {
   const target = event.target;
+  // O tim cua tung muc: loc thang tren DOM da ve, khong ve lai gi nen khong can debounce.
+  if (target.classList && target.classList.contains('fll-secq')) {
+    filterSectionRows(target);
+    return;
+  }
   // Ve lai toi 50 the nhom, moi the mot sparkline 26 cot — do duoc 2 khung hinh roi neu chay moi phim.
   if (target.id === 'fll-q') {
     tabUiState.issueQuery = target.value;

@@ -74,7 +74,8 @@ function loadLens() {
     'renderTimelineTab,renderConfigTab,buildConfigs,tabUiState,lensState,TAB_DEFS,' +
     'applyFilter,aimIndicesFor,sectionKey,isSectionOpen,setSectionOpen,loadOpenSections,' +
     'buildTimelineEvents,formatDuration,renderTimelineList,TIMELINE_KIND_ORDER,TIMELINE_KINDS,' +
-    'canZoomFurther,minimapBounds,pickJourneyLabel,findDuplicateBlock,entryMatches,compileFilter};';
+    'canZoomFurther,minimapBounds,pickJourneyLabel,findDuplicateBlock,entryMatches,compileFilter,' +
+    'SECTION_SEARCH_MIN_ROWS};';
   const wired = src.replace(/\n\}\)\(\);\s*$/, '\n' + exportLine + '\n})();\n');
   if (wired === src) throw new Error('khong chen duoc dong export vao IIFE cua extension/lens.js');
   (0, eval)(wired);
@@ -839,6 +840,12 @@ check('khoang lang: hai loai hien khac nhau tren dong thoi gian', () => {
   ok(html.indexOf('App xuống nền') >= 0, 'phai goi dung ten, khong goi la "khoang lang"');
   ok(html.indexOf('không phải app treo') >= 0, 'va noi ro khong phai app treo');
   ok(html.indexOf('data-act="tlKind" data-value="gap-bg"') >= 0, 'co chip loc rieng cho loai nay');
+});
+
+// O tim cua tung muc duoc CHEN SAU KHI VE, khong renderer nao biet den no. Kiem o day chi la kiem
+// nguong va hai cai bay da gap; phan chen/loc DOM da do trong Chrome tren trang demo.
+check('o tim tung muc: nguong hop ly va khong am tham doi', () => {
+  eq(L.SECTION_SEARCH_MIN_ROWS, 6, 'duoi 6 hang thi liec mat la thay het, khong can o tim');
 });
 
 renderAll('log day du');

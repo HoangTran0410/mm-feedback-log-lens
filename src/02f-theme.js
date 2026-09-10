@@ -319,6 +319,8 @@ const PANEL_CSS = [
   '.fll-secw > .fll-sec{margin-top:0;cursor:pointer;user-select:none;transition:.14s}',
   '.fll-secw > .fll-sec:hover{color:#fff;background:linear-gradient(180deg,#2d2740,#211c2e)}',
   '.fll-secb{display:none}',
+  '.fll-secq{margin-bottom:8px;font-size:10.5px;padding:6px 10px}',
+  '.fll-secq-note{margin:-4px 0 8px}',
   '.fll-secw.open > .fll-secb{display:block}',
   /* Muc dang dong thi thanh tieu de khong can dinh lai: khong co gi troi qua duoi no ca. */
   '.fll-secw:not(.open) > .fll-sec{position:relative;top:0}',

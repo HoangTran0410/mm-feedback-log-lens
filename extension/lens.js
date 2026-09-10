@@ -1816,6 +1816,8 @@ const PANEL_CSS = [
   '.fll-secw > .fll-sec{margin-top:0;cursor:pointer;user-select:none;transition:.14s}',
   '.fll-secw > .fll-sec:hover{color:#fff;background:linear-gradient(180deg,#2d2740,#211c2e)}',
   '.fll-secb{display:none}',
+  '.fll-secq{margin-bottom:8px;font-size:10.5px;padding:6px 10px}',
+  '.fll-secq-note{margin:-4px 0 8px}',
   '.fll-secw.open > .fll-secb{display:block}',
   /* Muc dang dong thi thanh tieu de khong can dinh lai: khong co gi troi qua duoi no ca. */
   '.fll-secw:not(.open) > .fll-sec{position:relative;top:0}',
@@ -3836,6 +3838,71 @@ function collapsifySections(container, tabId) {
     bodyOfCurrentSection.className = 'fll-secb';
     wrap.appendChild(bodyOfCurrentSection);
   });
+  // Chen o tim SAU khi da chuyen het noi dung vao than muc — luc gom o tren than con dang rong.
+  Array.from(container.querySelectorAll('.fll-secb')).forEach(addSectionSearch);
+}
+
+// Mot muc co bao nhieu hang thi moi dang co o tim. Duoi nguong nay thi liec mat la thay het.
+const SECTION_SEARCH_MIN_ROWS = 6;
+
+// Hang cua mot muc khong phai luc nao cung la con truc tiep cua than muc: nhieu danh sach duoc boc
+// trong DUNG MOT the (.fll-rank, .fll-lvkey, #fll-issue-list), luc do dem con truc tiep ra 1 va o tim
+// se khong bao gio duoc chen. Neu than muc chi co mot the con ma the do lai co nhieu con thi chinh
+// no moi la cho chua hang.
+function sectionRowContainer(sectionBody) {
+  const kids = Array.from(sectionBody.children).filter((node) => node.classList &&
+    !node.classList.contains('fll-hint') && !node.classList.contains('fll-secq') &&
+    !node.classList.contains('fll-secq-note'));
+  if (kids.length === 1 && kids[0].children && kids[0].children.length > 1) return kids[0];
+  return sectionBody;
+}
+
+function sectionRows(container, box) {
+  return Array.from(container.children).filter((node) => node !== box && node.classList &&
+    !node.classList.contains('fll-hint') && !node.classList.contains('fll-secq') &&
+    !node.classList.contains('fll-secq-note'));
+}
+
+// Chen o tim vao ngay trong muc, SAU KHI VE, thay vi sua tung renderer. Do that: moi o tim kieu cu
+// (#fll-q, #fll-httpq, #fll-modq, #fll-tlq) deu phai sua o hai file — them mot truong tabUiState, mot
+// nhanh trong handleLensInput, mot the input, mot id container. Nhan len ~20 muc la ~80 cho sua va moi
+// muc them sau nay lai phai nho lam theo. Lam o day thi mot cho biet, moi muc du dai deu tu co.
+//
+// Danh doi: o nay loc tren DOM DA VE, nen muc nao phan trang (danh sach nhom loi) thi no chi tim trong
+// trang dang hien. Vi vay muc nao DA co o tim rieng (tim tren toan bo du lieu) thi bo qua, khong chen.
+function addSectionSearch(sectionBody) {
+  if (sectionBody.querySelector('input')) return;
+  const container = sectionRowContainer(sectionBody);
+  if (sectionRows(container, null).length < SECTION_SEARCH_MIN_ROWS) return;
+  const box = document.createElement('input');
+  box.className = 'fll-in fll-secq';
+  box.setAttribute('placeholder', 'Tìm nhanh trong mục này...');
+  sectionBody.insertBefore(box, sectionBody.firstChild);
+}
+
+// Loc ngay tren DOM: khong ve lai gi ca nen khong mat tieu diem, khong can debounce.
+function filterSectionRows(box) {
+  const sectionBody = box.parentElement;
+  const container = sectionRowContainer(sectionBody);
+  const query = box.value.trim().toLowerCase();
+  const rows = sectionRows(container, box);
+  let shown = 0;
+  rows.forEach((node) => {
+    const hit = !query || (node.textContent || '').toLowerCase().indexOf(query) >= 0;
+    node.hidden = !hit;
+    if (hit) shown += 1;
+  });
+  let note = sectionBody.querySelector('.fll-secq-note');
+  if (!query) {
+    if (note) note.remove();
+    return;
+  }
+  if (!note) {
+    note = document.createElement('div');
+    note.className = 'fll-hint fll-secq-note';
+    sectionBody.insertBefore(note, box.nextSibling);
+  }
+  note.textContent = shown ? 'Khớp ' + shown + '/' + rows.length : 'Không mục nào khớp.';
 }
 
 // Dong/mo TAI CHO, khong ve lai ca tab: ve lai se mat vi tri cuon va lam mat luon o tim dang go do.
@@ -5795,6 +5862,11 @@ function copyVisibleLines(button) {
 
 function handleLensInput(event) {
   const target = event.target;
+  // O tim cua tung muc: loc thang tren DOM da ve, khong ve lai gi nen khong can debounce.
+  if (target.classList && target.classList.contains('fll-secq')) {
+    filterSectionRows(target);
+    return;
+  }
   // Ve lai toi 50 the nhom, moi the mot sparkline 26 cot — do duoc 2 khung hinh roi neu chay moi phim.
   if (target.id === 'fll-q') {
     tabUiState.issueQuery = target.value;

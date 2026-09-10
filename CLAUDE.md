@@ -87,6 +87,18 @@ thì càng ưu tiên"*: (1) chữ user thật sự đọc được — `title`, 
 popup), nhưng vẫn hơn chữ "popup" trơn. Lý do có luật này: trên log thật `title=null` khá thường, và
 khi đó hai popup khác hẳn nhau bị gom thành một hàng `2× popup` — mất sạch cái để phân biệt.
 
+**Thêm thứ dùng chung cho MỌI mục thì làm bằng một lượt quét sau khi vẽ, đừng sửa từng renderer.**
+Đã trả giá đúng hai lần và cả hai lần cách này đều thắng: mục đóng/mở được (`collapsifySections`) và ô
+tìm nhanh trong từng mục (`addSectionSearch`). Đối chứng: mỗi ô tìm kiểu cũ (`#fll-q`, `#fll-httpq`,
+`#fll-modq`, `#fll-tlq`) phải sửa ở **hai file** — một trường `tabUiState`, một nhánh trong
+`handleLensInput`, một thẻ `<input>`, một id container. Nhân lên ~20 mục là ~80 chỗ sửa, và mỗi mục
+thêm sau này lại phải nhớ làm theo.
+
+Hai cái bẫy của cách này, đều đã gặp: (1) hàng của một mục **không phải lúc nào cũng là con trực tiếp**
+của thân mục — nhiều danh sách bọc trong đúng một thẻ (`.fll-rank`, `.fll-lvkey`), đếm con trực tiếp ra
+1 nên ô tìm không bao giờ được chèn; (2) mục nào **đã có ô tìm riêng** (tìm trên toàn bộ dữ liệu, không
+chỉ trang đang hiện) thì phải bỏ qua, đừng chèn chồng.
+
 **Chú giải dùng `data-tip`, KHÔNG dùng `title`.** Độ trễ trước khi hiện `title=""` do hệ điều hành
 quyết định — không CSS hay JS nào đổi được. Panel này có tới 120 chỗ mang chú giải, nên lướt chuột qua
 là tooltip của trình duyệt nhảy liên tục và che mất giao diện phía sau. `src/03j-tooltip.js` tự vẽ:
