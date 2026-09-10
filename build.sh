@@ -5,22 +5,22 @@
 # AI Agent: Claude Code
 # Model: claude-opus-5
 #
-# AI-GENERATED START — nối src/*.js thành một IIFE rồi xuất ra content script cho extension,
+# AI-GENERATED START — nối src/*.js thành một IIFE rồi ghi thẳng vào extension/lens.js,
 # chạy bộ test, và ghi số liệu thật vào README (không ai gõ tay số nữa).
+# Từng có thêm dist/ nhưng sau khi bỏ bản bookmarklet thì nó chỉ còn là bản sao y hệt
+# của extension/lens.js — một đầu ra, một chỗ, khỏi lệch nhau.
 set -euo pipefail
 cd "$(dirname "$0")"
 
-mkdir -p dist extension
+mkdir -p extension
 
 {
   echo '(function(){"use strict";'
   cat $(ls src/*.js | sort)
   echo '})();'
-} > dist/lens.js
+} > extension/lens.js
 
-cp dist/lens.js extension/lens.js
-
-node --check dist/lens.js
+node --check extension/lens.js
 
 # Kiem kieu bang tsc neu may co san. Co y KHONG bat buoc: build.sh phai chay duoc tren may khong cai
 # gi ngoai node. Moi file src/*.js co "// @ts-check" o dau, va vi chung khong co import/export nen
@@ -41,7 +41,7 @@ echo "$TEST_OUT"
 node - "$TEST_OUT" <<'NODE'
 const fs = require('fs');
 
-const bytes = fs.statSync('dist/lens.js').size;
+const bytes = fs.statSync('extension/lens.js').size;
 const srcFiles = fs.readdirSync('src').filter((name) => name.endsWith('.js')).sort();
 const srcLines = srcFiles.reduce(
   (sum, name) => sum + fs.readFileSync('src/' + name, 'utf8').split('\n').length, 0);
@@ -54,7 +54,7 @@ const block = [
   '',
   '| | |',
   '|---|---|',
-  '| `dist/lens.js` | **' + kb + ' KB** (' + bytes.toLocaleString('en-US') + ' bytes) |',
+  '| `extension/lens.js` | **' + kb + ' KB** (' + bytes.toLocaleString('en-US') + ' bytes) |',
   '| Nguồn | ' + srcLines.toLocaleString('en-US') + ' dòng trong ' + srcFiles.length + ' file `src/` |',
   '| Dependency lúc chạy | không có |',
   '| Test | ' + testCount + ' phép thử, `node test/run.js` |',
@@ -77,5 +77,5 @@ if (updated !== readme) {
 }
 NODE
 
-echo "dist/lens.js $(wc -c < dist/lens.js | tr -d ' ') bytes — cú pháp OK"
+echo "extension/lens.js $(wc -c < extension/lens.js | tr -d ' ') bytes — cú pháp OK"
 # AI-GENERATED END

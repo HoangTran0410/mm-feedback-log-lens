@@ -5,7 +5,7 @@ Created By: AI
 AI Agent: Claude Code
 Model: claude-opus-5
 */
-// AI-GENERATED START — chay dist/lens.js that trong node voi DOM gia, tren log fixture bia.
+// AI-GENERATED START — chay extension/lens.js that trong node voi DOM gia, tren log fixture bia.
 // Khong dependency, khong test runner: `node test/run.js`.
 //
 // Cac phep thu o day deu sinh ra tu bug THAT gap luc phat trien, khong phai bia ra cho du so:
@@ -58,12 +58,12 @@ function installFakeDom() {
 // Chen mot dong export vao TRUOC dau ')();' de lay chung ra — van la chinh ban dist se chay that,
 // khong phai mot ban sao rieng cho test.
 function loadLens() {
-  const src = fs.readFileSync(path.join(REPO, 'dist/lens.js'), 'utf8');
+  const src = fs.readFileSync(path.join(REPO, 'extension/lens.js'), 'utf8');
   const exportLine = 'globalThis.__LENS={analyzeLog,attachInsights,deriveStats,buildJourney,' +
     'parseKeyValueMap,renderSummaryTab,renderIssuesTab,renderHttpTab,renderSlowTab,renderFilterTab,' +
     'renderTimelineTab,tabUiState,lensState,TAB_DEFS,TIMELINE_GROUPS};';
   const wired = src.replace(/\n\}\)\(\);\s*$/, '\n' + exportLine + '\n})();\n');
-  if (wired === src) throw new Error('khong chen duoc dong export vao IIFE cua dist/lens.js');
+  if (wired === src) throw new Error('khong chen duoc dong export vao IIFE cua extension/lens.js');
   (0, eval)(wired);
   return globalThis.__LENS;
 }

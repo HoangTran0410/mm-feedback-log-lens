@@ -29,7 +29,7 @@ bản build thì ngược lại: khối ngay dưới do `build.sh` ghi lại m�
 
 | | |
 |---|---|
-| `dist/lens.js` | **192 KB** (196,541 bytes) |
+| `extension/lens.js` | **192 KB** (196,541 bytes) |
 | Nguồn | 4,400 dòng trong 17 file `src/` |
 | Dependency lúc chạy | không có |
 | Test | 63 phép thử, `node test/run.js` |
@@ -302,11 +302,35 @@ Kích thước được nhớ lại khi thu về pill rồi mở ra, và khi đ�
 
 Nối `src/*.js` theo thứ tự tên file thành một IIFE rồi xuất:
 
-- `dist/lens.js` + `extension/lens.js` — content script
+- `extension/lens.js` — content script, đầu ra duy nhất
 
 Build kiểm cú pháp (`node --check`), **kiểm kiểu** (`tsc --noEmit`), chạy bộ test (`node test/run.js`),
 rồi ghi số liệu thật của bản vừa build vào khối `<!-- build-stats -->` trong README. Trước đây số đó gõ tay, nên README ghi
 bookmarklet "~114KB" trong khi thực tế đã 177KB — sai suốt một thời gian dài mà không ai biết.
+
+**Vì sao `ops_receive_be` khử trùng theo `trace_id`.** `MAPInterceptor.kt` ghi sự kiện này ở hai chỗ:
+trong `invokeOnCompletion` khi request kết thúc có exception (`status=fail`, `error_code=HTTP-<mã>-<tên
+lớp exception>`), và trong response interceptor ở đường bình thường. Nhưng log trùng cả ở
+`status=success`, nên hai chỗ đó không giải thích hết.
+
+Bằng chứng quyết định nằm ở `miniapp_track_timestamp` — mốc `now` tính riêng trong mỗi lần chạy khối
+tracking. Trên một log thật: 140 `trace_id` xuất hiện hơn một lần, nhưng **chỉ 6 cặp có cùng
+`miniapp_track_timestamp`**; 134 cặp còn lại lệch nhau vài ms. Tức không phải một lần chạy bị ghi log
+đôi, mà là **khối tracking response chạy hai lần cho cùng một request**. `trace_id` thì lấy từ attribute
+của request nên vẫn là một — vì vậy khử trùng theo nó là đúng.
+
+*Chưa xác minh:* vì sao khối đó chạy hai lần (interceptor đăng ký trùng, hay client cài plugin hai lần).
+
+**`momo_proxy_to_http_duration: null` không phải đo hỏng.** `MAPInterceptor.kt:132-136`:
+
+```kotlin
+val maxApiToHttpDuration = maxApiStartTime?.let { it.toLongOrNull()?.let { s -> now - s } }
+logger.d("momo_proxy_to_http_duration: $maxApiToHttpDuration ms (proxy_start: $maxApiStartTime, ...)")
+```
+
+`null` khi attribute `MAX_API_START_TIME` không có — tức **call không đi qua maxAPI proxy**. Trên log thử
+115/168 dòng là `null`, nghĩa là phần lớn call gọi thẳng chứ không qua proxy. Lưu ý dòng này dùng
+`logger.d`, mà trên bản production chỉ `d()` bị nuốt — nên `[Module: MAPTiming]` chỉ có ở log máy nội bộ.
 
 **Kiểm kiểu mà không đổi ngôn ngữ.** Mỗi file `src/*.js` mở đầu bằng `// @ts-check`, cấu hình ở
 `tsconfig.json` với `noEmit` — nên đây thuần tuý là một lớp kiểm, không có bước biên dịch, `dist/`
