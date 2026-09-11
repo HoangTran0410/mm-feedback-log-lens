@@ -86,3 +86,7 @@ Bản rút gọn nhỏ hơn 58% (gzip −57%). Bước này không bắt buộc:
 
 Kiến trúc, các ràng buộc bất biến, những phép đo đã làm và các kết luận từng sai rồi mới sửa lại đều
 nằm trong [CLAUDE.md](CLAUDE.md) — đọc file đó trước khi sửa.
+
+
+## saved on webadmin
+app/appx/feedback/mm_feedback_log_lens_min.js
