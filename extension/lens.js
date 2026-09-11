@@ -63,19 +63,6 @@ function getLogRowElements() {
   return Array.from(document.querySelectorAll(ROW_SELECTOR));
 }
 
-// Nội dung một dòng log, bỏ ô đầu (số dòng). Không thể lấy `el.textContent` vì số dòng dính vào đầu
-// chuỗi là hỏng regex timestamp; nhưng cũng KHÔNG được lấy mỗi `children[1]`: ô thứ hai chứa cả dòng
-// là cấu trúc đã kiểm trên DOM thật ngày 2026-09-08, không phải thứ trang admin hứa giữ mãi. Chia
-// thành ba ô ([giờ][mức][nội dung]) là mất sạch phần sau — và mất IM LẶNG: dòng vẫn hiện trên trang,
-// vẫn đếm được, chỉ là tìm trong nội dung không bao giờ ra.
-function rowText(el) {
-  const children = el.children;
-  if (!children || !children.length) return el.textContent || '';
-  let out = '';
-  for (let i = 1; i < children.length; i += 1) out += children[i].textContent || '';
-  return out || el.textContent || '';
-}
-
 // Log không scroll theo window mà theo một div lồng bên trong, phải tìm đúng nó để nhảy dòng.
 function getLogScrollContainer(rowEl) {
   let node = rowEl ? rowEl.parentElement : null;
@@ -454,7 +441,7 @@ function isBadHttpCall(call) {
 function analyzeLog(gapThresholdMs) {
   const rowEls = getLogRowElements();
   const entries = rowEls.map((el, index) => {
-    const text = rowText(el);
+    const text = (el.children[1] ? el.children[1].textContent : el.textContent) || '';
     const parsedLineNo = el.children[0] ? parseInt(el.children[0].textContent, 10) : NaN;
     return parseEntry(text, index, Number.isNaN(parsedLineNo) ? index + 1 : parsedLineNo, el);
   });
