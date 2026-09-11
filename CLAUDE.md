@@ -171,7 +171,9 @@ phần dưới của chính stack trace đó. Giá trị nằm ở `entry.window
   deviceid / IP. Thêm trường mới thì khai ở đó, renderer tự có — nó chỉ biết một luật, không nhớ tên
   từng trường.
 
-  Ba chỗ dễ sai, cả ba đều đã dính:
+  Bốn chỗ dễ sai, cả bốn đều đã dính:
+  - **Mã model chỉ giữ riêng khi tên máy CHƯA CHỨA nó.** Có log ghi `device-name` là `Oppo CPH2083`
+    còn User-Agent ghi `CPH2083` — so bằng `!==` thì dòng Thiết bị ra `Oppo CPH2083 (CPH2083)`.
   - **Hệ điều hành phải gộp theo NHÃN, không theo chuỗi User-Agent.** Đo trên log thật: **8 chuỗi UA
     khác nhau mà chỉ một hệ điều hành** — chúng chỉ khác cái đuôi `AgentID/…`. Lấy UA thô làm danh sách
     thì log nào cũng báo "8 giá trị khác nhau".
@@ -623,6 +625,13 @@ Panel từng bị rối vì mấy thói quen dưới đây, sửa rồi thì gi�
   (dòng dừng lại và dòng mở lại), chữ trên hàng là của dòng ĐẦU mà cú bấm lại nhảy tới dòng CUỐI, và
   đầu kia không có đường nào mở ra. Nay nó đưa cả hai vào thanh duyệt (`data-lines` + `data-label`):
   bấm là tới dòng dừng lại, bấm `n` là sang dòng mở lại.
+- **Hàng trong "Máy & môi trường" trỏ tới dòng bằng CHỈ SỐ, đừng nhét cả danh sách dòng vào thuộc
+  tính.** `data-env="<thứ tự trường>:<thứ tự giá trị>"` (và `data-envapp` cho miniapp) tra ngược vào
+  `view.environment.watched`, vì một giá trị có thể ứng với hàng nghìn dòng — viết hết ra HTML là mỗi
+  hàng nặng cả chục KB. Chỉ số dòng được gom sẵn lúc quét (`envBump` nhớ luôn `entry.domIndex`) chứ
+  không quét lại lúc rê chuột: rê chuột bắn liên tục, mà quét lại là đi qua cả vạn dòng mỗi lần. Đo
+  trên log demo: rê vào "Asia/Bangkok" ra **35 vạch** nằm đúng nửa sau timeline, bấm vào ra
+  `1/35 · Múi giờ: Asia/Bangkok` trong thanh duyệt.
 - **`data-aim` = "trỏ tới dòng này, nhưng bấm vào thì làm việc khác".** Nó từng tồn tại chỉ để phục vụ
   hàng khoảng lặng (hồi đó bấm vào chỉ tới được một đầu), rồi bị bỏ khi hàng đó chuyển sang
   `data-lines`. Nay nó quay lại với nghĩa khác hẳn: **chip phiên app** bấm vào là LỌC, nhưng rê chuột

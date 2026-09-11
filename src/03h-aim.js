@@ -9,7 +9,8 @@
 // không renderer nào phải biết đến chuyện này, và tab mới thêm sau này tự động có luôn.
 
 const AIM_SELECTOR = '[data-aim],[data-lines],[data-jump],[data-bucket],[data-group],[data-call],' +
-  '[data-saw],[data-apifail],[data-jscreen],[data-jtap],[data-jload],[data-tracefail]';
+  '[data-saw],[data-apifail],[data-jscreen],[data-jtap],[data-jload],[data-tracefail],' +
+  '[data-env],[data-envapp]';
 // Một nhóm lỗi có thể có hàng trăm dòng. Vẽ hết thì minimap thành một mảng đỏ đặc, nhìn không ra gì;
 // 60 vạch đã đủ dày để thấy "rải đều" hay "dồn một chỗ".
 const AIM_MAX_TICKS = 60;
@@ -60,6 +61,18 @@ function aimIndicesFor(el) {
   if (data.jload != null) {
     const row = view.journey.screenLoads.find((item) => item.key === data.jload);
     return row ? row.indices : [];
+  }
+  // "trường:giá trị" trong mục Máy & môi trường — trỏ tới đúng những dòng đã khai ra giá trị đó, để
+  // thấy nó xuất hiện lúc nào trên minimap (múi giờ đổi lúc nào, bản app cũ dừng ở đâu).
+  if (data.env != null) {
+    const at = data.env.split(':');
+    const field = view.environment.watched[Number(at[0])];
+    const item = field && field.values[Number(at[1])];
+    return item ? item.indices : [];
+  }
+  if (data.envapp != null) {
+    const app = view.environment.miniApps[Number(data.envapp)];
+    return app ? app.indices : [];
   }
   return [];
 }

@@ -1671,6 +1671,29 @@ check('log khong co header van doc duoc ngon ngu va doi may', () => {
   ok(htmlKhongHeader.indexOf('high-end') >= 0, 'phai hien ra tren panel');
 });
 
+// Một giá trị trong danh sách mà không trỏ đi đâu thì người đọc biết "có hai múi giờ" nhưng không
+// biết cái nào xuất hiện lúc nào — mà đó mới là câu hỏi thật.
+check('tung gia tri trong danh sach tro duoc toi dong log cua no', () => {
+  const env = L.lensState.data.environment;
+  const iTz = env.watched.findIndex((field) => field.key === 'M-Timezone');
+  const tz = env.watched[iTz];
+  ok(iTz >= 0 && tz.values.length === 2, 'phai co hai mui gio');
+  tz.values.forEach((item) => eq(item.indices.length, item.count, 'so dong phai khop so lan: ' + item.value));
+  // Hai giá trị phải trỏ tới HAI dòng khác nhau, không phải cùng một chỗ.
+  ok(tz.values[0].indices[0] !== tz.values[1].indices[0], 'hai mui gio o hai dong khac nhau');
+
+  const html = L.renderSummaryTab();
+  ok(html.indexOf('data-env="' + iTz + ':0"') >= 0, 'hang phai mang data-env');
+  ok(html.indexOf('Bấm để duyệt') >= 0, 'chu giai phai noi ra la bam duoc');
+
+  // aimIndicesFor là chỗ mũi tên/vạch trên minimap đọc — phải ra đúng những dòng đó.
+  const el = { dataset: { env: iTz + ':1' } };
+  eq(L.aimIndicesFor(el).join(','), tz.values[1].indices.join(','), 'aim tro dung nhung dong do');
+  // Dòng được trỏ tới phải có giờ, không thì vạch trên minimap tắt ngóm.
+  const entry = L.lensState.data.entries[tz.values[1].indices[0]];
+  ok(entry && entry.ts, 'dong duoc tro toi phai co timestamp');
+});
+
 // Mục "Máy & môi trường" từng đọc thẳng lensState.data nên lọc kiểu gì nó cũng đứng yên. Trên log
 // production có thật chuyện người dùng nâng cấp app giữa log: đọc theo cả log thì panel ghi bản hay
 // gặp nhất — tức bản CŨ — trong khi feedback được gửi từ bản mới.

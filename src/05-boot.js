@@ -436,7 +436,7 @@ function mountPanel() {
 function handleLensClick(event) {
   const hit = event.target.closest('[data-act],[data-tab],[data-lines],[data-jump],[data-group],' +
     '[data-module],[data-level],[data-call],[data-bucket],[data-event],[data-saw],[data-apifail],' +
-    '[data-jscreen],[data-jtap],[data-tracefail],[data-jload]');
+    '[data-jscreen],[data-jtap],[data-tracefail],[data-jload],[data-env],[data-envapp]');
   if (!hit) return;
   // groups/httpCalls đọc theo view (đang lọc thì là của tập đang hiện, đúng như tab vừa vẽ);
   // correlations vẫn lấy từ data vì chuỗi một request phải xem trọn vẹn.
@@ -470,6 +470,20 @@ function handleLensClick(event) {
     // Lọc trước, chuyển tab sau — xem chú thích của filterByLevel().
     applyFilter(true);
     return switchTab('flt');
+  }
+  // Một giá trị trong mục Máy & môi trường ứng với NHIỀU dòng, nên đưa cả tập vào thanh duyệt thay vì
+  // nhảy tới một dòng — cùng luật với hàng khoảng lặng.
+  if (hit.dataset.env != null) {
+    const at = hit.dataset.env.split(':');
+    const field = view.environment.watched[Number(at[0])];
+    const item = field && field.values[Number(at[1])];
+    if (!item || !item.indices.length) return undefined;
+    return setMatches(item.indices, field.label + ': ' + item.value);
+  }
+  if (hit.dataset.envapp != null) {
+    const app = view.environment.miniApps[Number(hit.dataset.envapp)];
+    if (!app || !app.indices.length) return undefined;
+    return setMatches(app.indices, 'MiniApp: ' + app.appId);
   }
   if (hit.dataset.call) {
     const call = view.httpCalls[Number(hit.dataset.call)];

@@ -116,8 +116,10 @@ function envShortValue(value) {
   return value.length > 24 ? value.slice(0, 12) + '…' + value.slice(-6) : value;
 }
 
-function envRankRow(left, right, tip) {
-  return '<div class="fll-rk" style="cursor:default"' +
+// attrs khác rỗng = hàng này trỏ tới những dòng log cụ thể: rê chuột thì vạch lên minimap, bấm thì
+// đưa vào thanh duyệt. Hàng không trỏ đi đâu thì giữ con trỏ mặc định, đừng mời bấm một chỗ không bấm được.
+function envRankRow(left, right, tip, attrs) {
+  return '<div class="fll-rk" style="cursor:' + (attrs ? 'pointer' : 'default') + '"' + (attrs || '') +
     (tip ? ' data-tip="' + escapeHtml(tip) + '"' : '') + '>' +
     '<span>' + escapeHtml(left) + '</span><b style="color:var(--txt)">' + escapeHtml(right) + '</b></div>';
 }
@@ -126,14 +128,18 @@ function envRankRow(left, right, tip) {
 // hay gặp nhất: IP đổi giữa chừng = đổi mạng, deviceid đổi = log đã bị trộn từ hai máy, bản app đổi =
 // người dùng vừa nâng cấp giữa log nên mọi con số phía trên đang trộn hai bản.
 // Đúng một giá trị thì nó đã nằm ở bảng trên rồi, không lặp lại ở đây.
-function renderEnvValueList(field) {
+function renderEnvValueList(field, fieldIndex) {
   if (field.values.length < 2) return '';
   return '<div class="fll-hint" style="margin:10px 0 4px"' +
     (field.tip ? ' data-tip="' + escapeHtml(field.tip) + '"' : '') + '>' + escapeHtml(field.label) +
     ' — <b>' + field.values.length + '</b> giá trị khác nhau, đổi giữa chừng</div>' +
     '<div class="fll-rank">' + field.values
-      .map((item) => envRankRow(envShortValue(item.value), item.count + ' lần',
-        item.value + (field.tip ? '\n' + field.tip : '')))
+      .map((item, valueIndex) => envRankRow(envShortValue(item.value), item.count + ' lần',
+        item.value + (field.tip ? '\n' + field.tip : '') +
+        (item.indices.length ? '\nBấm để duyệt ' + item.indices.length + ' dòng mang giá trị này.' : ''),
+        // Chỉ số vào env.watched chứ không nhét cả danh sách dòng vào thuộc tính: một giá trị có thể
+        // ứng với hàng nghìn dòng, viết hết ra HTML là mỗi hàng nặng cả chục KB.
+        item.indices.length ? ' data-env="' + fieldIndex + ':' + valueIndex + '"' : ''))
       .join('') + '</div>';
 }
 
@@ -142,9 +148,10 @@ function renderEnvMiniApps(miniApps) {
   return '<div class="fll-hint" style="margin:10px 0 4px">MiniApp đã gọi request — <b>' +
     miniApps.length + '</b></div>' +
     '<div class="fll-rank">' + miniApps
-      .map((app) => envRankRow(app.appId, app.versions.map((item) => item.value).join(', '),
+      .map((app, appIndex) => envRankRow(app.appId, app.versions.map((item) => item.value).join(', '),
         app.appId + '\n' + app.versions.map((item) => 'version ' + item.value + ': ' + item.count + ' request')
-          .join('\n')))
+          .join('\n') + '\nBấm để duyệt ' + app.indices.length + ' request của miniapp này.',
+        ' data-envapp="' + appIndex + '"'))
       .join('') + '</div>';
 }
 

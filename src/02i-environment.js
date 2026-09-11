@@ -131,13 +131,22 @@ function parseEnvMap(raw, marker, resolveKey) {
   return count ? map : null;
 }
 
-function envBump(tally, key, value) {
+// Nhớ luôn DÒNG NÀO đã cho ra giá trị này: có vậy thì rê chuột lên một giá trị mới chỉ được ra nó
+// xuất hiện lúc nào trên minimap, và bấm vào mới duyệt được đúng những dòng đó. Lưu thẳng chỉ số chứ
+// không quét lại lúc hover: hover bắn liên tục, mà quét lại là đi qua cả vạn dòng mỗi lần.
+function envBump(tally, key, value, index) {
   let byValue = tally.get(key);
   if (!byValue) {
     byValue = new Map();
     tally.set(key, byValue);
   }
-  byValue.set(value, (byValue.get(value) || 0) + 1);
+  let seen = byValue.get(value);
+  if (!seen) {
+    seen = { count: 0, indices: [] };
+    byValue.set(value, seen);
+  }
+  seen.count += 1;
+  seen.indices.push(index);
 }
 
 // Một lượt quét duy nhất qua các dòng request. Sàng bằng indexOf trước: dòng payload dài mà chạy
@@ -157,7 +166,7 @@ function collectEnvHeaders(entries) {
       const map = parseEnvMap(raw, '--header:', envHeaderKey);
       if (map) {
         lineCount += 1;
-        Object.keys(map).forEach((key) => envBump(tally, key, map[key]));
+        Object.keys(map).forEach((key) => envBump(tally, key, map[key], entry.domIndex));
         // Cặp (miniapp, version) phải đọc TRONG CÙNG một dòng: gom riêng hai danh sách rồi ghép lại là
         // gán nhầm version của miniapp này cho miniapp kia.
         if (map.map_appId && map.map_miniAppVersion) {
@@ -166,7 +175,13 @@ function collectEnvHeaders(entries) {
             versions = new Map();
             miniApps.set(map.map_appId, versions);
           }
-          versions.set(map.map_miniAppVersion, (versions.get(map.map_miniAppVersion) || 0) + 1);
+          let seen = versions.get(map.map_miniAppVersion);
+          if (!seen) {
+            seen = { count: 0, indices: [] };
+            versions.set(map.map_miniAppVersion, seen);
+          }
+          seen.count += 1;
+          seen.indices.push(entry.domIndex);
         }
       }
     }
@@ -174,7 +189,7 @@ function collectEnvHeaders(entries) {
       const map = parseEnvMap(raw, '--body:', envBodyKey);
       if (map) {
         bodyLineCount += 1;
-        Object.keys(map).forEach((key) => envBump(bodyTally, key, map[key]));
+        Object.keys(map).forEach((key) => envBump(bodyTally, key, map[key], entry.domIndex));
       }
     }
   });
@@ -187,7 +202,7 @@ function collectEnvHeaders(entries) {
 function envValues(tally, key) {
   const byValue = tally.get(key);
   if (!byValue) return [];
-  return Array.from(byValue, (pair) => ({ value: pair[0], count: pair[1] }))
+  return Array.from(byValue, (pair) => ({ value: pair[0], count: pair[1].count, indices: pair[1].indices }))
     .sort((a, b) => b.count - a.count);
 }
 
@@ -221,9 +236,18 @@ function envOsLabels(uaValues) {
   const byLabel = new Map();
   uaValues.forEach((item) => {
     const label = osLabelFromUa(item.value);
-    if (label) byLabel.set(label, (byLabel.get(label) || 0) + item.count);
+    if (!label) return;
+    let seen = byLabel.get(label);
+    if (!seen) {
+      seen = { count: 0, indices: [] };
+      byLabel.set(label, seen);
+    }
+    seen.count += item.count;
+    // Gộp chỉ số của mọi chuỗi UA cùng nhãn, giữ đúng thứ tự dòng để vạch trên minimap không nhảy cóc.
+    seen.indices = seen.indices.concat(item.indices);
   });
-  return Array.from(byLabel, (pair) => ({ value: pair[0], count: pair[1] }))
+  return Array.from(byLabel, (pair) => ({ value: pair[0], count: pair[1].count,
+    indices: pair[1].indices.slice().sort((a, b) => a - b) }))
     .sort((a, b) => b.count - a.count);
 }
 
@@ -283,16 +307,20 @@ function buildEnvironment(entries, httpCalls) {
 
   // Hai cái tên của cùng một cái máy: tên người đọc được ("Redmi Note 11") và mã máy trong
   // User-Agent ("2201117TG"). Giữ cả hai — tên để người đọc nhận ra, mã để tra cứu và để so với
-  // những log khác. Chỉ giữ mã riêng khi nó KHÁC tên, không thì dòng "Thiết bị" lặp lại chính nó.
+  // những log khác. Chỉ giữ mã riêng khi tên CHƯA CHỨA nó: có log ghi device-name là "Oppo CPH2083"
+  // còn User-Agent ghi "CPH2083", hiện cả hai thì ra "Oppo CPH2083 (CPH2083)".
   const uaModel = iosDevice.device || (androidModel ? androidModel[1] : '');
   const namedDevice = envTop(headers, 'device-name');
+  const modelIsNew = !!uaModel && namedDevice.toLowerCase().indexOf(uaModel.toLowerCase()) < 0;
   const appVersions = envPick(headers, 'app_code');
 
   const miniApps = Array.from(headers.miniApps, (pair) => ({
     appId: pair[0],
-    versions: Array.from(pair[1], (item) => ({ value: item[0], count: item[1] }))
+    versions: Array.from(pair[1], (item) => ({ value: item[0], count: item[1].count }))
       .sort((a, b) => b.count - a.count),
-    count: Array.from(pair[1].values()).reduce((sum, n) => sum + n, 0),
+    indices: Array.from(pair[1].values()).reduce((all, item) => all.concat(item.indices), [])
+      .sort((a, b) => a - b),
+    count: Array.from(pair[1].values()).reduce((sum, item) => sum + item.count, 0),
   })).sort((a, b) => b.count - a.count);
 
   // Mỗi trường đáng theo dõi kèm mọi giá trị của nó. Renderer chỉ cần một luật: đúng một giá trị thì
@@ -309,7 +337,7 @@ function buildEnvironment(entries, httpCalls) {
       const hit = envFirst(entries, field.scan);
       // Đường quét bằng regex chỉ trả về giá trị ĐẦU TIÊN gặp, nên không đếm được số lần — và cũng
       // không dùng để nói "đổi giữa chừng", nó luôn là một giá trị.
-      if (hit) values = [{ value: hit, count: 1 }];
+      if (hit) values = [{ value: hit, count: 1, indices: [] }];
     }
     return values;
   };
@@ -332,7 +360,7 @@ function buildEnvironment(entries, httpCalls) {
     cfNetwork: parsed ? parsed[3] : '',
     darwin: parsed ? parsed[4] : '',
     device: namedDevice || uaModel,
-    deviceModel: namedDevice && uaModel && uaModel !== namedDevice ? uaModel : '',
+    deviceModel: namedDevice && modelIsNew ? uaModel : '',
     osVersion: iosDevice.osVersion,
     osLabel,
     deviceOs,
