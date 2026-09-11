@@ -184,7 +184,10 @@ function renderMiniAppSection(data) {
       ? '<b>' + changed.length + '</b> miniapp đổi bản build ngay trong log này: ' +
         escapeHtml(changed.map((app) => app.appId.replace(/^vn\.[a-z0-9]+\./, '') + ' ' +
           miniAppBuildPath(app)).join(' · '))
-      : 'Bản build lấy từ dòng nạp bundle, version lấy từ header request — hai cách đánh số khác nhau.') +
+      // Chỉ nói mỗi con số ĐẾN TỪ ĐÂU. Bản đầu viết "hai cách đánh số khác nhau" — một câu tôi tự
+      // nghĩ ra, và phép đo sau đó bác bỏ: app duy nhất có cả hai trên log thật khai header 3449 còn
+      // bundle 3449/3494, tức cùng một dãy số.
+      : 'Số bên phải là version trong header request, hàng con là bản build lúc nạp bundle.') +
     '</div>' +
     '<div class="fll-rank">' + miniApps
       .map((app, appIndex) => envRankRow(app.appId, app.versions.map((item) => item.value).join(', '),

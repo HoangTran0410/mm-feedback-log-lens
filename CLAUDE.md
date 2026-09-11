@@ -197,6 +197,16 @@ bằng `parseKeyValueMap`) mới nói ra cả `buildNumber`, `size`, `installMod
 **3420 → 3449 → 3494** ngay trong một log; `vn.momo.bank` 10773 → 10808; `vn.momo.financial_hub`
 1868 → 1880. Chi phí **6.8ms** trên 8541 dòng.
 
+- **`map_miniAppVersion` trong header và `buildNumber` trong dòng nạp bundle là CÙNG một dãy số.** Đo
+  trên log thật (`autoId=5956827`): app duy nhất mang cả hai khai header **3449**, còn bundle log khai
+  **3449 và 3494** — tức header nói bản đang chạy lúc gọi request, bundle log nói thêm bản vừa vá lên.
+  Panel vì vậy để số version ở cột phải của hàng miniapp và bản build ở hàng con, không đổi tên gọi.
+  **CHƯA XÁC MINH trên diện rộng:** mới đúng một app trong một log có cả hai nguồn; những app còn lại
+  chỉ có một trong hai. Vì vậy chữ trên panel chỉ nói mỗi con số ĐẾN TỪ ĐÂU, không khẳng định quan hệ.
+
+  *Một câu đã viết sai và phải rút lại:* dòng chữ đầu mục từng ghi "hai cách đánh số khác nhau" — tôi
+  tự nghĩ ra, không đo. Người dùng bắt được vì log demo bịa hai dãy số rời nhau (header 694 nằm cạnh
+  build 3420) nên đọc ra như tool tính sai. Log demo nay dùng chung một dãy số cho cùng một miniapp.
 - **Phải đòi đúng `execute version:` rồi tới `{`.** Cùng chuỗi "execute version" còn một dòng khác hẳn:
   `execute version.appId: vn.momo.expense loaded event. bridge data: …`. Đo trên log trên: 54 dòng chứa
   chuỗi đó thì **20 dòng là loại này**. Sàng `indexOf` trước cho rẻ, rồi mới regex.

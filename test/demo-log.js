@@ -131,7 +131,10 @@ function apiCall(api, screen, ok, ms) {
   const url = 'https://api.demo/' + api.toLowerCase().replace(/_/g, '/');
   // Đổi miniapp và đổi IP giữa chừng để mục Máy & môi trường có danh sách chứ không chỉ một giá trị.
   const appId = traceSeq % 3 === 0 ? 'vn.demo.quy_dau_tu' : 'vn.demo.nentang';
-  const version = traceSeq % 3 === 0 ? '694' : (traceSeq % 7 === 0 ? '1902' : '1901');
+  // map_miniAppVersion trong header và buildNumber trong dòng nạp bundle là CÙNG một cách đánh số —
+  // đo trên log thật (autoId=5956827): app duy nhất có cả hai khai header 3449, bundle 3449/3494.
+  // Log demo từng bịa hai dãy số rời nhau (694 cạnh 3420) nên đọc ra như tool tính sai.
+  const version = traceSeq % 3 === 0 ? '3449' : (traceSeq % 7 === 0 ? '1902' : '1901');
   const ip = traceSeq % 11 === 0 ? '10.20.30.40' : '42.118.185.199';
   // Múi giờ đổi MỘT LẦN giữa chừng (không xen kẽ như IP): đó là hình dạng thật của việc người dùng
   // bay sang múi giờ khác hoặc máy đồng bộ lại giờ.
@@ -236,6 +239,9 @@ function build() {
   bundleExec('vn.demo.quy_dau_tu', 3449, 3420);
   browse(44);
   bundleExec('vn.demo.quy_dau_tu', 3494, 3449);
+  // nentang cũng vá một lần, để số trong header (1901/1902) khớp với bản build của chính nó.
+  bundleExec('vn.demo.nentang', 1901, 0);
+  bundleExec('vn.demo.nentang', 1902, 1901);
   // Vài miniapp khác chỉ nạp một bản: mục MiniApp phải đủ dài để có ô tìm nhanh (ngưỡng 6 hàng).
   bundleExec('vn.demo.rap_phim', 4042, 0);
   bundleExec('vn.demo.ngan_hang', 10773, 0);
