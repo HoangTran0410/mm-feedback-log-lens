@@ -374,6 +374,55 @@ function buildJsonSection(name, text) {
 }
 
 // Trả về danh sách trường để tấm trượt vẽ từng khối một, thay vì chỉ một khối JSON duy nhất.
+/* ------------------------------------------- JSON bị in ra nhiều dòng log */
+
+// Trang admin in JSON nhiều dòng thì MỖI DÒNG VẬT LÝ là một logRow riêng: dòng mở khối có "{" mà
+// không bao giờ đóng trong chính nó, những dòng sau không có giờ, không có mức độ. Gặp thật trên log
+// production (một khối config dài từ dòng 2643 trở đi).
+//
+// Nối thêm những dòng tiếp nối đó cho tới khi cân ngoặc — nhưng CHỈ cho đường mở payload, tuyệt đối
+// không nhập vào `entry.raw`: raw đi vào tìm kiếm, chữ ký lỗi, khoảng lặng, chữ ký trùng lặp... thêm
+// chữ của dòng khác vào đó là đổi mọi con số. Cùng lý do với `windowTs` không được nhập vào `ts`.
+const SPLIT_JSON_MAX_LINES = 2000;
+
+// Quét độ sâu ngoặc, có nhớ trạng thái để chạy tiếp qua nhiều dòng. Phải biết đang ở trong chuỗi hay
+// không, nếu không thì một dấu ngoặc nằm trong giá trị text ("url": "https://a/{id}") sẽ đếm nhầm.
+function scanJsonDepth(text, state) {
+  for (let i = 0; i < text.length; i += 1) {
+    const char = text[i];
+    if (state.isInString) {
+      if (state.isEscaped) state.isEscaped = false;
+      else if (char === '\\') state.isEscaped = true;
+      else if (char === '"') state.isInString = false;
+      continue;
+    }
+    if (char === '"') state.isInString = true;
+    else if (char === '{' || char === '[') state.depth += 1;
+    else if (char === '}' || char === ']') state.depth -= 1;
+  }
+  return state;
+}
+
+// Nguyên văn "hợp lý" của một dòng: chính nó, cộng thêm phần đuôi nếu khối JSON của nó bị tách ra.
+function logicalPayloadText(entry) {
+  const raw = (entry && entry.raw) || '';
+  const at = raw.search(/[{[]/);
+  if (at < 0 || !lensState.data) return raw;
+  const state = scanJsonDepth(raw.slice(at), { depth: 0, isInString: false, isEscaped: false });
+  if (state.depth <= 0) return raw;
+  const entries = lensState.data.entries;
+  let text = raw;
+  for (let i = entry.domIndex + 1; i < entries.length && state.depth > 0; i += 1) {
+    const next = entries[i];
+    // Gặp dòng có giờ riêng = một dòng log mới bắt đầu, dừng. Khối chưa cân thì thà hiện phần đọc
+    // được còn hơn nuốt luôn dòng log sau đó vào khối.
+    if (next.ts || i - entry.domIndex > SPLIT_JSON_MAX_LINES) break;
+    text += '\n' + next.raw;
+    scanJsonDepth(next.raw, state);
+  }
+  return text;
+}
+
 function buildPayloadSections(raw) {
   const sections = [];
   splitPayloadFields(raw).forEach((field) => {

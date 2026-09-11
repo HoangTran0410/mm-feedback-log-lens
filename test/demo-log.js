@@ -124,8 +124,31 @@ function apiCall(api, screen, ok, ms) {
   grafana('startTrace', 'flow=http_request_v2, step=' + api.toLowerCase() + '_start, appId=vn.demo.nentang, ' +
     'errorCode=null, errorMessage=null', ms);
   if (ok) {
-    line('INFO', '[Module: HTTP] [Method: POST] [URL: ' + url + '] [ResponsePayload: --encrypted: false ' +
-      '--status: 200 --body: {"cmdId":"' + cmdId + '","errorCode":0,"result":true,"message":"Thành công"}]');
+    // Thỉnh thoảng trả về JSON in nhiều dòng: trang admin render mỗi dòng vật lý thành một logRow
+    // riêng, tức khối JSON bị tách ra và dòng mở khối không bao giờ đóng trong chính nó. Gặp thật
+    // trên log production, nên ảnh chụp và bản thử tay phải có ít nhất một khối như vậy.
+    if (traceSeq % 13 === 0) {
+      line('INFO', '[Module: HTTP] [Method: POST] [URL: ' + url + '] [ResponsePayload: --encrypted: false ' +
+        '--status: 200 --body: {');
+      lines.push('"cmdId": "' + cmdId + '",');
+      lines.push('"errorCode": 0,');
+      lines.push('"lstCountry": [');
+      lines.push('{');
+      lines.push('"countryName": "Việt Nam",');
+      lines.push('"flagUrl": "https://static.demo/img_flag_vn.png",');
+      lines.push('"timezone": [');
+      lines.push('"Asia/Ho_Chi_Minh",');
+      lines.push('"Asia/SaiGon"');
+      lines.push('],');
+      lines.push('"regionCode": "VN"');
+      lines.push('}');
+      lines.push('],');
+      lines.push('"message": "Thành công"');
+      lines.push('}]');
+    } else {
+      line('INFO', '[Module: HTTP] [Method: POST] [URL: ' + url + '] [ResponsePayload: --encrypted: false ' +
+        '--status: 200 --body: {"cmdId":"' + cmdId + '","errorCode":0,"result":true,"message":"Thành công"}]');
+    }
     tracker('ops_receive_be', 'api=' + api + ', trace_id=' + traceId + ', status=success, error_code=0, duration=' +
       ms + '.0, screen_name=' + screen);
     grafana('traceSuccess', 'flow=http_request_v2, step=' + api.toLowerCase() + '_success, appId=vn.demo.nentang, ' +

@@ -77,6 +77,7 @@ function loadLens() {
     'hasSelectedTimeRange,hasAnyTimeRange,getVisibleTimeRange,buildSessions,sessionLabel,' +
     'updateMinimapRange,renderSessionChipRow,indexRowElements,handlePageRowHover,handlePageLeave,' +
     'buildErrorCodes,buildCaptureTally,regexCaptureCount,renderErrorCodeSection,' +
+    'logicalPayloadText,buildPayloadSections,' +
     'renderTraceFailSection,isBadHttpCall,setTimeWindowPreset,isWindowPresetActive,' +
     'formatWindowLabel,retargetTimeWindow,extractDurations,renderCorrelationList};';
   const wired = src.replace(/\n\}\)\(\);\s*$/, '\n' + exportLine + '\n})();\n');
@@ -1661,6 +1662,57 @@ check('dem nhom bat va chon nhom dau tien CO gia tri', () => {
   ok(rong && rong.values.length > 0, 'mau khop chuoi rong van phai tra ve duoc, khong treo');
   filter.text = '';
   L.applyFilter(false);
+});
+
+// Trang admin in JSON nhiều dòng thì mỗi dòng vật lý là một logRow riêng: dòng mở khối có "{" mà không
+// bao giờ đóng trong chính nó. Gặp thật trên log production (khối config dài từ dòng 2643 trở đi).
+rows = [
+  '2026-01-02 10:00:00:010 GMT+07:00 INFO    [Module: GiaLapDb] MomoDatabase init OK',
+  '2026-01-02 10:00:01:010 GMT+07:00 INFO    [Module: HTTP] [Method: GET] [URL: https://api.demo/cfg] ' +
+    '[ResponsePayload: --status: 200 --body: {',
+  '"lstCountry": [',
+  '{',
+  '"countryName": "Việt Nam",',
+  '"flagUrl": "https://static.demo/img_flag_vn.png",',
+  '"regionCode": "VN"',
+  '}',
+  '],',
+  '"dauHieuCuoiKhoi": "TRONG-KHOI"',
+  '}]',
+  '2026-01-02 10:00:02:010 GMT+07:00 INFO    [Module: ViDemo] DONG-SAU-KHOI',
+].map(makeRow);
+scan();
+renderAll('log co JSON nhieu dong');
+
+check('JSON in ra nhieu dong: noi lai duoc de xem, ma khong dung vao entry.raw', () => {
+  const data = L.lensState.data;
+  const moKhoi = data.entries[1];
+  ok(moKhoi.raw.indexOf('dauHieuCuoiKhoi') < 0, 'entry.raw cua dong mo khoi VAN chi la dong do');
+
+  const text = L.logicalPayloadText(moKhoi);
+  ok(text.indexOf('TRONG-KHOI') >= 0, 'noi den het khoi JSON');
+  // Dừng đúng chỗ: dòng có giờ riêng là một dòng log mới, không được nuốt vào khối.
+  ok(text.indexOf('DONG-SAU-KHOI') < 0, 'khong duoc nuot dong log ke tiep vao khoi');
+
+  const sections = L.buildPayloadSections(text);
+  const json = sections.find((item) => item.kind === 'json');
+  ok(json, 'phai ra duoc mot khoi JSON');
+  ok(json.isParsed, 'va parse duoc, khong phai chuoi cut');
+  ok(json.pretty.indexOf('TRONG-KHOI') >= 0, 'noi dung day du');
+
+  // Dòng tự nó đã cân ngoặc thì không được nối gì thêm.
+  const dongThuong = data.entries[data.entries.length - 1];
+  eq(L.logicalPayloadText(dongThuong), dongThuong.raw, 'dong binh thuong giu nguyen');
+});
+
+// Thống kê không được đổi vì khối JSON: các dòng tiếp nối không có giờ, không có mức độ.
+check('khoi JSON nhieu dong khong lam sai thong ke', () => {
+  const data = L.lensState.data;
+  eq(data.levels.INFO, 3, 'chi ba dong that su co muc do INFO');
+  eq(data.entries.filter((entry) => !entry.level).length, 9, 'chin dong cua khoi khong mang muc do');
+  // windowTs: dòng trong khối thừa hưởng giờ của dòng mở khối, để cửa sổ thời gian không xén mất khối.
+  eq(data.entries[5].windowTs, data.entries[1].ts, 'dong giua khoi thua huong gio cua dong mo khoi');
+  eq(data.entries[5].ts, null, 'nhung ts van phai la null');
 });
 
 // log rỗng

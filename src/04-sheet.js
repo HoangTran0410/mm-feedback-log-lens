@@ -153,7 +153,8 @@ function renderPayloadToolbar(tabsHtml, domIndex, lineNo) {
 function renderPayloadBody(domIndex, tabsHtml) {
   const entry = lensState.data.entries[domIndex];
   if (!entry) return null;
-  const sections = buildPayloadSections(entry.raw);
+  // logicalPayloadText: khối JSON in ra nhiều dòng log thì dòng này chỉ có phần đầu.
+  const sections = buildPayloadSections(logicalPayloadText(entry));
   const body = sections.length
     ? sections.map(renderPayloadSection).join('')
     : '<div class="fll-empty">Dòng này không có khối dữ liệu nào.</div>';
@@ -169,7 +170,8 @@ function formatBytes(count) {
 function payloadBytes(domIndex) {
   const entry = lensState.data.entries[domIndex];
   if (!entry) return 0;
-  return buildPayloadSections(entry.raw).reduce((total, section) => total + (section.bytes || 0), 0);
+  return buildPayloadSections(logicalPayloadText(entry))
+    .reduce((total, section) => total + (section.bytes || 0), 0);
 }
 
 function renderPayloadSideTabs() {

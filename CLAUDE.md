@@ -146,6 +146,26 @@ Android thật: ra được đúng `device_os` / `device_performance` / `lang`, 
 `app_version` — và nếu đoán bừa thì panel ghi "iOS 9" cho máy Oppo. Nay `env.osLabel` do module dựng
 (`Android 9` hoặc `iOS 16.7.16`), không đoán được thì chỉ ghi tên hệ điều hành.
 
+**JSON in ra nhiều dòng: nối lại CHỈ cho đường mở payload, tuyệt đối không nhập vào `entry.raw`.**
+Trang admin in JSON nhiều dòng thì mỗi dòng vật lý là một `logRow` riêng — dòng mở khối có `{` mà không
+bao giờ đóng trong chính nó, những dòng sau không có giờ, không có mức độ. Gặp thật trên log production
+(một khối config dài từ dòng 2643 trở đi). `logicalPayloadText()` nối thêm các dòng tiếp nối cho tới khi
+cân ngoặc; `entry.raw` giữ nguyên vì raw đi vào tìm kiếm, chữ ký lỗi, khoảng lặng, dò khối lặp — thêm
+chữ của dòng khác vào đó là đổi mọi con số. Cùng lý do với `windowTs` không được nhập vào `ts`.
+
+- **Dừng ở dòng có `ts` riêng.** Đó là một dòng log mới; khối chưa cân thì thà hiện phần đọc được còn
+  hơn nuốt luôn dòng log sau vào khối.
+- **Đếm ngoặc phải phân biệt trong/ngoài chuỗi**, nếu không thì một dấu ngoặc nằm trong giá trị text
+  (`"url": "https://a/{id}"`) làm lệch độ sâu và khối không bao giờ cân.
+- Đo trên trang demo: một response bị tách thành **15 dòng** nay mở ra đúng **240 B** JSON trọn vẹn,
+  kết thúc ở `"message": "Thành công"`.
+
+Đo trên chính khối JSON nhiều dòng đó, những cơ chế khác **không bị ảnh hưởng**: dòng tiếp nối không có
+mức độ nên không lọt vào tỉ lệ mức độ hay nhóm chữ ký, không có `ts` nên không lọt vào khoảng lặng /
+phiên app / minimap, và vẫn nằm trong cửa sổ thời gian nhờ `windowTs`. Hai chỗ **không** sửa: tìm một
+chuỗi vắt qua hai dòng thì không ra (bộ lọc làm việc trên từng dòng, đổi chỗ này là đổi mọi con số), và
+**CHƯA XÁC MINH** khối JSON lặp lại có làm bộ dò "log bị nối đôi" báo nhầm không.
+
 **Mọi mã lỗi: đọc bằng MỘT regex trên text, không đi gom từ bốn cấu trúc đã parse.** Mã lỗi nằm rải ở
 bốn nguồn viết theo bốn kiểu — `entry.http.errorCode` (payload HTTP), `error_code=` trong params của
 MoMoTracker, `errorCode=` trong TraceParameter của Grafana, và `"errorCode": 413` nằm trong thân JSON
