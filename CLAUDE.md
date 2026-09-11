@@ -188,27 +188,46 @@ phần dưới của chính stack trace đó. Giá trị nằm ở `entry.window
   Khối ticket có một dòng **"Đổi giữa chừng"** liệt kê những trường này khi chúng đổi: người đọc ticket
   cần biết điều đó TRƯỚC khi tin mấy con số phía trên, vì chúng đang cộng của cả hai bên.
 
-**Lỗi do CHÍNH miniapp báo về: đọc từ `MiniAppErrorContext`, và phải tự đóng map bị cắt cụt.** Dòng
-`[Module: MiniAppErrorContext] [<appId>] report error with params: {…} baseParams: {…}` mang
-`errorCode`, `errorMessage`, `issueDesc`, `miniAppVersion`, `featureCode`, `screenId`, `source` — một
-trong số rất ít chỗ trong log nói thẳng "lỗi gì" bằng câu người đọc được. Đo trên log production
-(`autoId=5956827`, 8541 dòng), chi phí **7.6ms**:
+**Lỗi do CHÍNH miniapp báo về: đọc từ `MiniAppErrorContext`, và lớp này ghi BA loại dòng.**
 
-- **7 dòng mang `MiniAppErrorContext` nhưng chỉ 2 dòng là lỗi thật.** 5 dòng còn lại là sổ sách của
-  chính lớp đó (`Add error context key: <uuid>`, `Remove error context <uuid> true`). Sàng bằng đúng
-  chuỗi `report error with params`, KHÔNG sàng theo tên module.
-- **Map thứ hai không đóng.** Dòng kết thúc ngay ở `errorStack=` (559 ký tự — chưa chạm ngưỡng cắt
-  10000 của logger, nên đây là hình dạng bình thường chứ không phải log hỏng). `parseKeyValueMap` đòi
-  ký tự cuối là `}` nên phải tự đóng trước khi parse; không thì mất sạch `errorCode`/`errorMessage`,
-  tức mất đúng thứ đáng đọc nhất của dòng.
+| loại | dạng | mang trường lỗi? |
+|---|---|---|
+| `add` | `Add error context key: <uuid> {errorMiniAppId=…, errorCode=…, errorMessage=…, errorStack=…` | **có, đủ** |
+| `report` | `report error with params: {…} baseParams: {…}` | **có, đủ** (thêm `screenId`, `source`) |
+| `remove` | `Remove error context <uuid> true` | không — đây mới là sổ sách |
+
+Đây là một trong số rất ít chỗ trong log nói thẳng "lỗi gì" bằng câu người đọc được, kèm
+`errorCode`, `miniAppVersion`, `featureCode`. Đo trên hai log production:
+
+- `autoId=5956827` (8541 dòng): 7 dòng của lớp này = **3 add + 2 report + 2 remove**, xếp theo thời
+  gian thành `add → (report) → remove` cho từng sự cố. Ra **2 nhóm**: `cinema/223` (2 add + 2 report =
+  **2 sự cố**) và `platform/40000 "Bạn hãy thử lại sau vài phút nhé."` (**chỉ có add**).
+- `autoId=5956906` (8357 dòng): cả log **đúng một dòng `add`**, không có `report` nào — lỗi
+  `groupfund/1407/223` kèm stack `java.lang.IllegalStateException: addViewAt: failed to insert view
+  [1964] into parent [1192] at index 1`.
+- Chi phí: **5.2ms** trên 8541 dòng.
+
+- **Một sự cố ghi ra tối đa MỘT dòng add và MỘT dòng report, nên cộng hai loại lại là đếm đôi.** Số lần
+  của một nhóm lấy `max(số add, số report)`: log chỉ có add thì ra số add, chỉ có report thì ra số
+  report. Chú giải của hàng nói ra cách đếm đó, không thì người đọc đếm dòng trong log rồi thấy lệch.
+- **Map cuối không đóng.** Dòng kết thúc ngay ở `errorStack=` hoặc cụt giữa stack (554–559 ký tự — chưa
+  chạm ngưỡng cắt 10000 của logger, nên đây là hình dạng bình thường chứ không phải log hỏng).
+  `parseKeyValueMap` đòi ký tự cuối là `}` nên phải tự đóng trước khi parse; không thì mất sạch
+  `errorCode`/`errorMessage`, tức mất đúng thứ đáng đọc nhất của dòng.
 - **Dòng ghi ở mức WARNING** nên nhóm chữ ký có đếm nhưng không bao giờ nêu bật — cùng loại với popup
   ghi ở mức INFO. Vì vậy nó có mục riêng ở tab Vấn đề và một mục riêng trong ticket, đặt TRƯỚC các
   nguồn lỗi khác.
 - Gom theo (miniapp, mã lỗi, câu lỗi): hai miniapp cùng dính một câu lỗi vẫn là hai hàng, vì lỗi của
-  miniapp nào là chuyện của đội đó. Khác hẳn cách gom của Grafana trace ngay trên (gom theo
-  `errorMessage` để một sự cố hạ tầng ở nhiều app về một hàng).
-- `errorStack` cắt còn 400 ký tự và chỉ nằm trong chú giải, **không vào ticket** — cùng luật với
-  payload thô.
+  miniapp nào là chuyện của đội đó. Khác hẳn cách gom của Grafana trace (gom theo `errorMessage` để một
+  sự cố hạ tầng ở nhiều app về một hàng). Dòng `report` mang thêm `screenId`/`source` mà dòng `add`
+  không có, nên điền bù vào chỗ còn trống của nhóm.
+- `errorStack` cắt còn 400 ký tự và chỉ nằm trong chú giải, **không vào ticket** — cùng luật với payload thô.
+
+*Một phép đo đã lừa, ghi lại kẻo lặp:* bản đầu chỉ đọc `report` vì tôi nhìn **220 ký tự đầu** của 5
+dòng add/remove rồi kết luận cả 5 là "sổ sách của lớp đó". Thật ra trường lỗi nằm sau ký tự thứ 220.
+Hậu quả: mất hẳn lỗi `40000` ở log trên, và log `5956906` thì mục này rỗng trơn dù có lỗi thật. Người
+dùng bắt được. **Đọc nguyên văn dòng trước khi phân loại nó** — cắt bớt để nhìn cho gọn là đang tự bịt
+mắt mình.
 
 **Version của miniapp: header chỉ thấy bản CUỐI, đường đi nằm ở dòng nạp bundle.** `map_miniAppVersion`
 trong header là version tại lúc gọi request, nên một miniapp cập nhật giữa log thì mục MiniApp chỉ hiện

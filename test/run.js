@@ -1621,8 +1621,16 @@ const dongLoiMiniApp = (gio) =>
 // là loại này.
 const dongSoSachLoi =
   '2026-01-02 16:34:00:100 GMT+07:00 WARNING [Module: [MiniAppFlow]] [Module: MiniAppErrorContext] ' +
-  '[DefaultMiniAppErrorContext][b@c73c9bc] Add error context key: 95c3f166-4e63-4544-9999-fd68dc111967 ' +
-  '{errorMiniAppId=vn.momo.cinema, errorMiniAppVersion=4042}';
+  '[DefaultMiniAppErrorContext][b@c73c9bc] Remove error context 95c3f166-4e63-4544-9999-fd68dc111967 true';
+
+// Dòng "mở context lỗi" — MANG ĐỦ trường lỗi chứ không phải sổ sách, và có sự cố chỉ có dòng này chứ
+// không bao giờ có dòng gửi báo cáo. Câu lỗi có dấu ngoặc vuông và stack Java, đúng hình dạng log thật.
+const dongMoContext = (gio, app, ver, fea, ma, cau) =>
+  '2026-01-02 ' + gio + ':356 GMT+07:00 WARNING [Module: [MiniAppFlow]] [Module: MiniAppErrorContext] ' +
+  '[DefaultMiniAppErrorContext][b@e86197f] Add error context key: 7253434b-fd7a-4e5c-8e31-ee1ed6fbb886 ' +
+  '{errorMiniAppId=' + app + ', errorMiniAppVersion=' + ver + ', errorFeatureCode=' + fea + ', errorCode=' +
+  ma + ', errorMessage=' + cau + ', errorStack=java.lang.IllegalStateException: addViewAt: failed to ' +
+  'insert view [1964] into parent [1192] at index 1';
 
 rows = [
   '2026-01-02 10:00:00:010 GMT+07:00 INFO    [Module: GiaLapDb] MomoDatabase init OK',
@@ -1632,8 +1640,11 @@ rows = [
   dongBundle('3420', ''),
   dongBundle('3449', '3420'),
   dongBundleGia,
+  dongMoContext('16:32:03', 'vn.momo.cinema', '4042', 'cinema_mini', '223', "Cannot read property 'status' of null"),
   dongLoiMiniApp('16:32:11'),
+  dongMoContext('16:33:00', 'vn.momo.cinema', '4042', 'cinema_mini', '223', "Cannot read property 'status' of null"),
   dongLoiMiniApp('16:33:02'),
+  dongMoContext('16:34:10', 'vn.momo.groupfund', '1407', 'fund_home', '40000', 'Bạn hãy thử lại sau vài phút nhé.'),
   dongSoSachLoi,
 ].map(makeRow);
 scan();
@@ -1803,17 +1814,27 @@ check('hang bundle tro duoc toi dong log cua no', () => {
 // — mà dòng lại ghi ở mức WARNING nên nhóm chữ ký không bao giờ nêu bật nó.
 check('doc duoc loi mini app bao ve, ke ca khi map bi cat cut', () => {
   const errors = L.lensState.data.miniAppErrors;
-  eq(errors.lineCount, 2, 'hai dong loi that — dong so sach khong duoc tinh');
-  eq(errors.rows.length, 1, 'cung mot loi thi gom lai mot hang');
+  eq(errors.lineCount, 5, 'nam dong mang truong loi — chi dong "Remove error context" bi bo');
+  eq(errors.rows.length, 2, 'hai loi khac nhau');
   const row = errors.rows[0];
-  eq(row.count, 2, 'so lan');
+  // Một sự cố ghi ra tối đa một dòng add và một dòng report: 2 add + 2 report là HAI sự cố, không phải bốn.
+  eq(row.adds, 2, 'so dong mo context');
+  eq(row.reports, 2, 'so dong gui bao cao');
+  eq(row.count, 2, 'so lan — lay so lon hon, khong cong lai');
   eq(row.code, '223', 'errorCode doc duoc du map khong dong');
   eq(row.message, "Cannot read property 'status' of null", 'errorMessage');
   eq(row.appId, 'vn.momo.cinema', 'miniapp nao');
   eq(row.version, '4042', 'version cua miniapp luc no loi');
   eq(row.featureCode, 'cinema_mini', 'featureCode');
   eq(row.screenId, 'Cinema', 'screenId');
-  eq(row.indices.length, 2, 'giu ca hai dong de duyet');
+  eq(row.indices.length, 4, 'giu ca bon dong de duyet');
+
+  // Sự cố chỉ có dòng mở context, không bao giờ có dòng gửi báo cáo — bản đầu bỏ lọt hẳn loại này.
+  const chiCoMoContext = errors.rows.find((item) => item.code === '40000');
+  ok(chiCoMoContext, 'phai bat duoc loi chi co dong mo context');
+  eq(chiCoMoContext.message, 'Bạn hãy thử lại sau vài phút nhé.', 'cau loi nguoi dung thay');
+  eq(chiCoMoContext.appId, 'vn.momo.groupfund', 'miniapp nao');
+  ok(chiCoMoContext.stack.indexOf('IllegalStateException') >= 0, 'stack Java doc duoc');
 });
 
 check('loi miniapp hien ra o tab Van de va vao ticket', () => {
@@ -1824,7 +1845,7 @@ check('loi miniapp hien ra o tab Van de va vao ticket', () => {
   ok(html.indexOf('vn.momo.cinema · version 4042') >= 0, 'app va version ngay duoi cau loi');
   // Hàng ứng với hai dòng log thì phải đưa cả hai vào thanh duyệt, không phải nhảy một dòng.
   const el = { dataset: { lines: L.lensState.data.miniAppErrors.rows[0].indices.join(',') } };
-  eq(L.aimIndicesFor(el).length, 2, 'tro toi ca hai dong');
+  eq(L.aimIndicesFor(el).length, 4, 'tro toi ca bon dong');
 
   const ticket = L.buildTicketSummary(L.lensState.data);
   const dong = ticket.split('\n').find((d) => d.indexOf('cinema') >= 0) || '';

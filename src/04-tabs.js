@@ -592,7 +592,8 @@ function renderMiniAppErrorSection(data) {
   }
   return secTitle('Lỗi miniapp báo về', errors.rows.length, 'err') +
     '<div class="fll-hint" style="margin-bottom:8px">Chính miniapp báo lỗi kèm <code>errorCode</code> ' +
-    'và câu mô tả, nhưng dòng ghi ở mức <b>WARNING</b> nên nhóm chữ ký bên dưới không nêu bật.</div>' +
+    'và câu mô tả, nhưng dòng ghi ở mức <b>WARNING</b> nên nhóm chữ ký bên dưới không nêu bật. ' +
+    'Đọc cả dòng mở context lỗi lẫn dòng gửi báo cáo — có sự cố chỉ có dòng đầu.</div>' +
     errors.rows.map(renderMiniAppErrorCard).join('');
 }
 
@@ -600,6 +601,9 @@ function renderMiniAppErrorCard(row, rowIndex) {
   const meta = [row.version ? 'version ' + row.version : '', row.screenId, row.featureCode, row.source]
     .filter(Boolean);
   const tip = [row.issueDesc && row.issueDesc !== row.message ? row.issueDesc : '',
+    // Nói ra cách đếm: một sự cố ghi ra tối đa một dòng "mở context" và một dòng "gửi báo cáo", nên
+    // số lần KHÔNG phải tổng số dòng. Không nói ra thì người đọc đếm dòng trong log rồi thấy lệch.
+    'Đọc từ ' + row.adds + ' dòng mở context lỗi và ' + row.reports + ' dòng gửi báo cáo',
     row.stack ? 'errorStack: ' + row.stack : ''].filter(Boolean).join('\n');
   return '<div class="fll-grp err" data-lines="' + row.indices.join(',') +
     '" data-label="' + escapeHtml((row.appId || 'miniapp') + (row.code ? ' · code ' + row.code : '')) +
