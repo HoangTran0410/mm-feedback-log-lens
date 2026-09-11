@@ -163,6 +163,9 @@ function renderPayloadBody(domIndex, tabsHtml) {
 
 function formatBytes(count) {
   if (count < 1024) return count + ' B';
+  // Gói bundle của miniapp tính bằng MB (1 619 017 B), để nguyên KB thì ra "1581 KB" — đọc không ra
+  // ngay là bao nhiêu.
+  if (count >= 1024 * 1024) return (count / (1024 * 1024)).toFixed(1) + ' MB';
   return (count / 1024).toFixed(count < 10240 ? 1 : 0) + ' KB';
 }
 

@@ -481,9 +481,15 @@ function handleLensClick(event) {
     return setMatches(item.indices, field.label + ': ' + item.value);
   }
   if (hit.dataset.envapp != null) {
-    const app = view.environment.miniApps[Number(hit.dataset.envapp)];
-    if (!app || !app.indices.length) return undefined;
-    return setMatches(app.indices, 'MiniApp: ' + app.appId);
+    const at = hit.dataset.envapp.split(':');
+    const app = view.environment.miniApps[Number(at[0])];
+    if (!app) return undefined;
+    const bundle = at.length > 1 ? app.bundles[Number(at[1])] : null;
+    const indices = bundle ? bundle.indices : app.indices;
+    if (!indices.length) return undefined;
+    return setMatches(indices, bundle
+      ? app.appId + ' build ' + bundle.buildNumber
+      : 'MiniApp: ' + app.appId);
   }
   if (hit.dataset.call) {
     const call = view.httpCalls[Number(hit.dataset.call)];

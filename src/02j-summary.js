@@ -40,6 +40,12 @@ function summaryEnvironment(data) {
   // con số phía trên, vì chúng đang cộng của cả hai bên.
   out += summaryLine('Đổi giữa chừng', env.changed
     .map((field) => field.label + ' (' + field.values.length + ')').join(' · '));
+  // Miniapp nhảy bản giữa log là thứ phải nằm trong ticket: "lỗi ở bản nào" là câu hỏi đầu tiên của
+  // team miniapp, mà header chỉ khai được bản cuối.
+  out += summaryLine('MiniApp đổi bản giữa log', env.miniApps
+    .filter(miniAppChangedBuild)
+    .map((app) => app.appId + ' ' + miniAppBuildPath(app))
+    .join(' · '));
   out += summaryLine('Mạng', context.Network);
   out += summaryLine('Màn / tính năng', [context.Feature, context.ScreenID, context.MiniApp]
     .filter(Boolean).join(' · '));

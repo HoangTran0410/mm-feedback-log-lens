@@ -70,9 +70,15 @@ function aimIndicesFor(el) {
     const item = field && field.values[Number(at[1])];
     return item ? item.indices : [];
   }
+  // "<thứ tự miniapp>" = mọi request của miniapp đó; "<miniapp>:<thứ tự bundle>" = những dòng nạp
+  // đúng bản build đó.
   if (data.envapp != null) {
-    const app = view.environment.miniApps[Number(data.envapp)];
-    return app ? app.indices : [];
+    const at = data.envapp.split(':');
+    const app = view.environment.miniApps[Number(at[0])];
+    if (!app) return [];
+    if (at.length < 2) return app.indices;
+    const bundle = app.bundles[Number(at[1])];
+    return bundle ? bundle.indices : [];
   }
   return [];
 }

@@ -90,7 +90,7 @@ function loadLens() {
     'claimLensOwnership,isLensOwner,isLensOutranked,LENS_RANK,LENS_OWNER_ATTR,' +
     'renderTraceFailSection,isBadHttpCall,setTimeWindowPreset,isWindowPresetActive,' +
     'formatWindowLabel,retargetTimeWindow,extractDurations,renderCorrelationList,' +
-    'filterByLevel};';
+    'filterByLevel,miniAppBuildPath,parseBundleExec};';
   const wired = src.replace(/\n\}\)\(\);\s*$/, '\n' + exportLine + '\n})();\n');
   if (wired === src) throw new Error('khong chen duoc dong export vao IIFE cua extension/lens.js');
   (0, eval)(wired);
@@ -1584,11 +1584,34 @@ const dongBodyRong =
   '2026-01-02 10:03:00:100 GMT+07:00 INFO    [Module: HTTP] [Method: GET] [URL: https://api.demo/vi/z] ' +
   '[RequestPayload: --encrypted: false --body: null --header: {"lang":"en","device-ip":"1.2.3.4"}]';
 
+// Nạp bundle của miniapp: bản đầu tải trọn gói, bản sau VÁ từ bản đầu — đúng hình dạng trên log thật.
+const dongBundle = (build, vaTu) =>
+  '2026-01-02 10:0' + (vaTu ? '4' : '3') + ':00:100 GMT+07:00 WARNING [Module: [MiniAppFlow]] ' +
+  '[Module: BundleLoader] [BundleExecutorManager][e@14ffac7] [vn.momo.myvoucher] execute version: ' +
+  '{deploymentTarget=150, cdnUrl=https://miniapp.demo/vn.momo.myvoucher/android/x.zip, url=, ' +
+  'trackingFlag=device_start, downloadUrls=[https://miniapp.demo/a.zip, https://cdn2.demo/a.zip], ' +
+  'debugHost=, jsBundlePath=/data/user/0/vn.momo/files/apps/main.jsbundle, buildNumber=' + build + ', ' +
+  'platform=android, bridgeMode=1, size=1619017, bundleSize=4096, appId=vn.momo.myvoucher, ' +
+  'checksum=22458c689f50ebbc84124572c0232568, signature=CHU-KY-BUNDLE-KHONG-DUOC-LO, installMode=1, ' +
+  'isDebugRemote=false, permissions=[], isShowedPopup=false, devicePermissions=null' +
+  (vaTu ? ', diffChange={url=https://demo/patch_' + vaTu + '_to_' + build + '.zip, ' +
+    'signature=CHU-KY-VA-KHONG-DUOC-LO, fromBuildNumber=' + vaTu + ', toBuildNumber=' + build +
+    ', size=544980}' : '') + '}';
+
+// Cùng chuỗi "execute version" nhưng KHÔNG phải map — trên log thật 20/54 dòng là loại này.
+const dongBundleGia =
+  '2026-01-02 10:05:00:100 GMT+07:00 INFO    [Module: [MiniAppFlow]] [Module: BundleLoader] ' +
+  '[BundleExecutorManager] [vn.momo.myvoucher] execute version.appId: vn.momo.myvoucher loaded event. ' +
+  'bridge data: com.facebook.react.runtime.ReactHostImpl@9a49155';
+
 rows = [
   '2026-01-02 10:00:00:010 GMT+07:00 INFO    [Module: GiaLapDb] MomoDatabase init OK',
   dongBody('5.13.1', 'cu', 'Asia/Ho_Chi_Minh', '13'),
   dongBody('5.15.0', 'moi', 'Asia/Bangkok', '14'),
   dongBodyRong,
+  dongBundle('3420', ''),
+  dongBundle('3449', '3420'),
+  dongBundleGia,
 ].map(makeRow);
 scan();
 renderAll('log chi khai ten may trong body');
@@ -1691,6 +1714,61 @@ check('tung gia tri trong danh sach tro duoc toi dong log cua no', () => {
   eq(L.aimIndicesFor(el).join(','), tz.values[1].indices.join(','), 'aim tro dung nhung dong do');
   // Dòng được trỏ tới phải có giờ, không thì vạch trên minimap tắt ngóm.
   const entry = L.lensState.data.entries[tz.values[1].indices[0]];
+  ok(entry && entry.ts, 'dong duoc tro toi phai co timestamp');
+});
+
+// Header request chỉ khai version của miniapp tại LÚC GỌI, tức chỉ thấy bản cuối. Đường đi giữa các
+// bản nằm ở dòng nạp bundle — đo trên log production (autoId=5956827): vn.momo.expense chạy 3420, vá
+// lên 3449 rồi vá tiếp lên 3494 ngay trong một log.
+check('doc duoc duong di version cua tung miniapp', () => {
+  const apps = L.lensState.data.environment.miniApps;
+  const app = apps.find((item) => item.appId === 'vn.momo.myvoucher');
+  ok(app, 'phai co miniapp trong danh sach');
+  eq(app.bundles.length, 2, 'hai ban build — dong "execute version.appId … loaded event" khong duoc tinh');
+  eq(app.bundles[0].buildNumber, '3420', 'ban dau');
+  eq(app.bundles[0].from, undefined, 'ban dau tai tron goi, khong co ban va');
+  eq(app.bundles[1].buildNumber, '3449', 'ban sau');
+  eq(app.bundles[1].from, '3420', 'va tu ban nao');
+  eq(app.bundles[1].to, '3449', 'len ban nao');
+  eq(app.bundles[1].patchSize, 544980, 'kich thuoc ban va');
+  eq(app.bundles[1].installMode, '1', 'installMode');
+});
+
+check('panel va ticket noi ra duoc chuyen doi ban giua log', () => {
+  const html = L.renderSummaryTab();
+  ok(html.indexOf('build 3449 ← 3420') >= 0, 'hang bundle phai ghi ro va tu ban nao');
+  ok(html.indexOf('532 KB') >= 0, 'kich thuoc ban va');
+  ok(html.indexOf('1.5 MB') >= 0, 'goi bundle tinh bang MB, khong phai "1581 KB"');
+  ok(html.indexOf('cập nhật bản build giữa log') >= 0, 'tieu de muc phai dem so miniapp da doi ban');
+
+  const ticket = L.buildTicketSummary(L.lensState.data);
+  ok(ticket.indexOf('vn.momo.myvoucher 3420 → 3449') >= 0,
+    'ticket phai ghi duong di version: ' + (ticket.split('\n').find((d) => d.indexOf('MiniApp đổi') >= 0) || ''));
+  // Cùng map đó có signature dài hơn 1000 ký tự — danh sách trắng, y như header.
+  ['CHU-KY-BUNDLE-KHONG-DUOC-LO', 'CHU-KY-VA-KHONG-DUOC-LO'].forEach((bimat) => {
+    ok((html + ticket).indexOf(bimat) < 0, 'lo mat: ' + bimat);
+  });
+});
+
+// Trên log thật (autoId=5956827) lần nạp ĐẦU TIÊN của vn.momo.expense đã là "3449 vá từ 3420":
+// liệt kê trơn số build sẽ ra "3449 → 3494" và bản gốc 3420 biến mất khỏi ticket.
+check('duong di version bat dau tu ban duoc va len', () => {
+  eq(L.miniAppBuildPath({ bundles: [{ buildNumber: '3449', from: '3420' },
+    { buildNumber: '3494', from: '3449' }] }), '3420 → 3449 → 3494', 'khong duoc mat ban goc');
+  eq(L.miniAppBuildPath({ bundles: [{ buildNumber: '3420' }] }), '3420', 'nap thang thi chi mot ban');
+  eq(L.miniAppBuildPath({ bundles: [] }), '', 'khong co lan nap nao');
+});
+
+check('hang bundle tro duoc toi dong log cua no', () => {
+  const apps = L.lensState.data.environment.miniApps;
+  const appIndex = apps.findIndex((item) => item.appId === 'vn.momo.myvoucher');
+  const bundle = apps[appIndex].bundles[1];
+  eq(L.aimIndicesFor({ dataset: { envapp: appIndex + ':1' } }).join(','), bundle.indices.join(','),
+    'aim tro dung dong nap ban 3449');
+  // Trỏ tới cả miniapp thì vẫn là danh sách request, không phải dòng bundle.
+  eq(L.aimIndicesFor({ dataset: { envapp: String(appIndex) } }).join(','), apps[appIndex].indices.join(','),
+    'khong co thu tu bundle thi van la request cua miniapp');
+  const entry = L.lensState.data.entries[bundle.indices[0]];
   ok(entry && entry.ts, 'dong duoc tro toi phai co timestamp');
 });
 

@@ -188,6 +188,33 @@ phần dưới của chính stack trace đó. Giá trị nằm ở `entry.window
   Khối ticket có một dòng **"Đổi giữa chừng"** liệt kê những trường này khi chúng đổi: người đọc ticket
   cần biết điều đó TRƯỚC khi tin mấy con số phía trên, vì chúng đang cộng của cả hai bên.
 
+**Version của miniapp: header chỉ thấy bản CUỐI, đường đi nằm ở dòng nạp bundle.** `map_miniAppVersion`
+trong header là version tại lúc gọi request, nên một miniapp cập nhật giữa log thì mục MiniApp chỉ hiện
+một con số. Dòng `[BundleExecutorManager] [<appId>] execute version: {…}` (Map.toString của Kotlin, đọc
+bằng `parseKeyValueMap`) mới nói ra cả `buildNumber`, `size`, `installMode`, `deploymentTarget`,
+`trackingFlag`, và quan trọng nhất là `diffChange={fromBuildNumber, toBuildNumber, size}` — tức bản này
+được **vá** lên từ bản nào. Đo trên log production (`autoId=5956827`): `vn.momo.expense` đi
+**3420 → 3449 → 3494** ngay trong một log; `vn.momo.bank` 10773 → 10808; `vn.momo.financial_hub`
+1868 → 1880. Chi phí **6.8ms** trên 8541 dòng.
+
+- **Phải đòi đúng `execute version:` rồi tới `{`.** Cùng chuỗi "execute version" còn một dòng khác hẳn:
+  `execute version.appId: vn.momo.expense loaded event. bridge data: …`. Đo trên log trên: 54 dòng chứa
+  chuỗi đó thì **20 dòng là loại này**. Sàng `indexOf` trước cho rẻ, rồi mới regex.
+- **Danh sách trắng, y như header.** Cùng map đó có `signature` dài hơn 1000 ký tự, `checksum`,
+  `cdnUrl`, `downloadUrls`, `jsBundlePath` — panel rộng 480px không có chỗ, mà ticket thì loãng. Có
+  phép thử quét cả panel lẫn ticket để bắt chữ ký lọt ra.
+- **Giữ thứ tự GẶP LẦN ĐẦU, đừng sắp theo số lần.** Câu chuyện ở đây là "đi từ bản nào lên bản nào";
+  sắp theo số lần là đọc ngược dòng thời gian.
+- **Đường đi phải bắt đầu từ `from` của lần nạp ĐẦU.** Trên log thật lần nạp đầu tiên của
+  `vn.momo.expense` đã là "3449 vá từ 3420" — liệt kê trơn số build ra "3449 → 3494" và bản gốc 3420
+  biến mất khỏi ticket. Cùng lý do, **một lần nạp duy nhất mà là bản vá thì vẫn tính là có đổi bản**.
+- **Miniapp chỉ thấy trong log nạp bundle mà chưa gọi request nào vẫn phải có mặt** trong mục MiniApp —
+  nó là một miniapp đã chạy. Hàng của nó không bấm được (không có request để duyệt), nên cũng không
+  được để con trỏ mời bấm.
+- Hàng bundle trỏ bằng `data-envapp="<miniapp>:<bundle>"`, hàng miniapp là `data-envapp="<miniapp>"`.
+  Hàng con nằm **phẳng** trong cùng khối `.fll-rank`, chỉ lùi đầu bằng ký tự `↳`: lồng thêm một lớp div
+  thì ô tìm nhanh và bước cắt bớt hàng của mục không còn nhận ra hàng nữa.
+
 **Nhãn hệ điều hành dựng trong `02i`, không ghép chữ ở renderer.** Bản cũ chỉ khớp User-Agent kiểu iOS
 (`MoMoPlatform … CFNetwork … Darwin`) rồi renderer tự ghép `'iOS ' + osVersion`. Đo trên một dòng log
 Android thật: ra được đúng `device_os` / `device_performance` / `lang`, mất sạch tên máy, `app_code`,
@@ -632,6 +659,11 @@ Panel từng bị rối vì mấy thói quen dưới đây, sửa rồi thì gi�
   không quét lại lúc rê chuột: rê chuột bắn liên tục, mà quét lại là đi qua cả vạn dòng mỗi lần. Đo
   trên log demo: rê vào "Asia/Bangkok" ra **35 vạch** nằm đúng nửa sau timeline, bấm vào ra
   `1/35 · Múi giờ: Asia/Bangkok` trong thanh duyệt.
+- **Thử mũi tên bằng sự kiện giả thì phải cuộn hàng vào TRONG panel và đổi phần tử đang trỏ trước.**
+  `drawAim()` cố ý không vẽ khi hàng nằm ngoài panel hoặc bị minimap che, còn `handleLensHover()` bỏ
+  qua khi rê lại đúng phần tử cũ (`hit === lensState.aimEl`). Bắn `mouseover` hai lần vào cùng một
+  hàng, hoặc vào hàng đang nằm dưới đáy panel, sẽ ra "aim không bật" — đã mất công đi tìm bug không
+  tồn tại đúng một lần vì chuyện này.
 - **`data-aim` = "trỏ tới dòng này, nhưng bấm vào thì làm việc khác".** Nó từng tồn tại chỉ để phục vụ
   hàng khoảng lặng (hồi đó bấm vào chỉ tới được một đầu), rồi bị bỏ khi hàng đó chuyển sang
   `data-lines`. Nay nó quay lại với nghĩa khác hẳn: **chip phiên app** bấm vào là LỌC, nhưng rê chuột

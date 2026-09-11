@@ -321,7 +321,19 @@ function buildEnvironment(entries, httpCalls) {
     indices: Array.from(pair[1].values()).reduce((all, item) => all.concat(item.indices), [])
       .sort((a, b) => a - b),
     count: Array.from(pair[1].values()).reduce((sum, item) => sum + item.count, 0),
-  })).sort((a, b) => b.count - a.count);
+    bundles: [],
+  }));
+  // Bản build của bundle đi kèm luôn vào từng miniapp: header chỉ khai version tại lúc gọi request,
+  // còn đường đi giữa các bản thì chỉ dòng nạp bundle mới nói ra (xem 02l).
+  buildMiniAppBundles(entries).forEach((list, appId) => {
+    const found = miniApps.find((app) => app.appId === appId);
+    if (found) found.bundles = list;
+    // Miniapp đã nạp bundle mà chưa gọi request nào thì vẫn là một miniapp đã chạy — bỏ qua là mất
+    // hẳn nó khỏi mục này.
+    else miniApps.push({ appId, versions: [], indices: [], count: 0, bundles: list });
+  });
+  const miniAppWeight = (app) => app.count + app.bundles.reduce((sum, item) => sum + item.count, 0);
+  miniApps.sort((a, b) => miniAppWeight(b) - miniAppWeight(a));
 
   // Mỗi trường đáng theo dõi kèm mọi giá trị của nó. Renderer chỉ cần một luật: đúng một giá trị thì
   // để trong bảng, từ hai trở lên thì tách thành danh sách — không phải nhớ tên từng trường nữa.

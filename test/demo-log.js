@@ -108,6 +108,23 @@ function demoHeader(appId, version, ip, timezone) {
     '"sessionKey":"---MoMo---","M-Timezone":"' + timezone + '","env":"production"}';
 }
 
+// Nạp bundle của miniapp: bản đầu tải trọn gói, hai bản sau vá dần lên — để mục MiniApp trong ảnh
+// chụp có đường đi version thật chứ không chỉ một con số.
+function bundleExec(appId, build, vaTu) {
+  line('WARNING', '[Module: [MiniAppFlow]] [Module: BundleLoader] [BundleExecutorManager][e@14ffac7] ' +
+    '[' + appId + '] execute version: {deploymentTarget=150, ' +
+    'cdnUrl=https://miniapp.demo/mini-apps/' + appId + '/android/' + build + '_android.zip, url=, ' +
+    'trackingFlag=device_start, downloadUrls=[https://miniapp.demo/a.zip, https://cdn2.demo/a.zip], ' +
+    'debugHost=, jsBundlePath=/data/user/0/vn.demo/files/apps/' + appId + '/android/main.jsbundle, ' +
+    'buildNumber=' + build + ', platform=android, bridgeMode=1, size=' + (1419017 + build * 37) + ', ' +
+    'bundleSize=4096, appId=' + appId + ', checksum=22458c689f50ebbc84124572c0232568, ' +
+    'signature=---MoMo---, installMode=1, isDebugRemote=false, permissions=[], isShowedPopup=false, ' +
+    'devicePermissions=null' +
+    (vaTu ? ', diffChange={url=https://demo/patch_' + vaTu + '_to_' + build + '.zip, ' +
+      'signature=---MoMo---, fromBuildNumber=' + vaTu + ', toBuildNumber=' + build +
+      ', size=' + (344980 + build * 11) + '}' : '') + '}');
+}
+
 function apiCall(api, screen, ok, ms) {
   const traceId = nextId('TRACE');
   const cmdId = nextId('CMD');
@@ -214,7 +231,11 @@ function build() {
   browse(96);
   line('INFO', '[Module: NhanRoiDemo] app vào nền, chờ người dùng quay lại', 7600);
   boot(2);
-  browse(74);
+  bundleExec('vn.demo.quy_dau_tu', 3420, 0);
+  browse(30);
+  bundleExec('vn.demo.quy_dau_tu', 3449, 3420);
+  browse(44);
+  bundleExec('vn.demo.quy_dau_tu', 3494, 3449);
   // Cấu hình đổi giữa chừng phiên — đúng thứ mà tab Cấu hình đánh dấu "2 giá trị khác nhau".
   line('INFO', '[Module: BaoLoiDemo] Persist SentryRemoteConfig key=sentry_remote_config raw=' +
     '{"enable":true,"handledRate":1.0,"unhandledRate":1.0,"anrRate":1.0,"enableANR":true,"ignoreList":[],' +

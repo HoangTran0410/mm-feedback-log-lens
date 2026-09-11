@@ -143,15 +143,41 @@ function renderEnvValueList(field, fieldIndex) {
       .join('') + '</div>';
 }
 
+// Một lần nạp bundle: "build 3449 ← 3420" khi nó được vá lên từ bản cũ, còn không thì chỉ số build.
+// Hàng con nằm PHẲNG trong cùng khối, chỉ lùi đầu bằng một ký tự: lồng thêm một lớp div thì ô tìm
+// nhanh và bước cắt bớt hàng của mục không còn nhận ra hàng nữa (xem luật ở CLAUDE.md).
+function renderMiniAppBundleRow(app, appIndex, bundle, bundleIndex) {
+  const size = bundle.patchSize ? 'vá ' + formatBytes(bundle.patchSize)
+    : (bundle.size ? formatBytes(Number(bundle.size)) : '');
+  const tip = [app.appId,
+    bundle.from ? 'vá từ bản ' + bundle.from + ' lên ' + (bundle.to || bundle.buildNumber) : 'nạp thẳng bản này',
+    bundle.size ? 'gói: ' + formatBytes(Number(bundle.size)) : '',
+    bundle.patchSize ? 'bản vá: ' + formatBytes(bundle.patchSize) : '',
+    bundle.installMode ? 'installMode ' + bundle.installMode : '',
+    bundle.deploymentTarget ? 'deploymentTarget ' + bundle.deploymentTarget : '',
+    bundle.trackingFlag ? 'nạp lúc: ' + bundle.trackingFlag : '',
+    bundle.platform || '',
+    'Bấm để duyệt ' + bundle.indices.length + ' dòng nạp bundle này.'].filter(Boolean).join('\n');
+  return envRankRow('↳ build ' + (bundle.buildNumber || '?') + (bundle.from ? ' ← ' + bundle.from : ''),
+    [size, formatClock(bundle.firstTs), bundle.count > 1 ? bundle.count + ' lần' : '']
+      .filter(Boolean).join(' · '),
+    tip, ' data-envapp="' + appIndex + ':' + bundleIndex + '"');
+}
+
 function renderEnvMiniApps(miniApps) {
   if (!miniApps.length) return '';
-  return '<div class="fll-hint" style="margin:10px 0 4px">MiniApp đã gọi request — <b>' +
-    miniApps.length + '</b></div>' +
+  const capNhat = miniApps.filter(miniAppChangedBuild).length;
+  return '<div class="fll-hint" style="margin:10px 0 4px">MiniApp — <b>' + miniApps.length + '</b>' +
+    (capNhat ? ', trong đó <b>' + capNhat + '</b> cập nhật bản build giữa log' : '') + '</div>' +
     '<div class="fll-rank">' + miniApps
       .map((app, appIndex) => envRankRow(app.appId, app.versions.map((item) => item.value).join(', '),
         app.appId + '\n' + app.versions.map((item) => 'version ' + item.value + ': ' + item.count + ' request')
-          .join('\n') + '\nBấm để duyệt ' + app.indices.length + ' request của miniapp này.',
-        ' data-envapp="' + appIndex + '"'))
+          .join('\n') + (app.indices.length
+          ? '\nBấm để duyệt ' + app.indices.length + ' request của miniapp này.'
+          : '\nMiniapp này có nạp bundle nhưng không có request nào trong tập đang xem.'),
+        app.indices.length ? ' data-envapp="' + appIndex + '"' : '') +
+        app.bundles.map((bundle, bundleIndex) =>
+          renderMiniAppBundleRow(app, appIndex, bundle, bundleIndex)).join(''))
       .join('') + '</div>';
 }
 

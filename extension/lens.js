@@ -2811,7 +2811,19 @@ function buildEnvironment(entries, httpCalls) {
     indices: Array.from(pair[1].values()).reduce((all, item) => all.concat(item.indices), [])
       .sort((a, b) => a - b),
     count: Array.from(pair[1].values()).reduce((sum, item) => sum + item.count, 0),
-  })).sort((a, b) => b.count - a.count);
+    bundles: [],
+  }));
+  // Bản build của bundle đi kèm luôn vào từng miniapp: header chỉ khai version tại lúc gọi request,
+  // còn đường đi giữa các bản thì chỉ dòng nạp bundle mới nói ra (xem 02l).
+  buildMiniAppBundles(entries).forEach((list, appId) => {
+    const found = miniApps.find((app) => app.appId === appId);
+    if (found) found.bundles = list;
+    // Miniapp đã nạp bundle mà chưa gọi request nào thì vẫn là một miniapp đã chạy — bỏ qua là mất
+    // hẳn nó khỏi mục này.
+    else miniApps.push({ appId, versions: [], indices: [], count: 0, bundles: list });
+  });
+  const miniAppWeight = (app) => app.count + app.bundles.reduce((sum, item) => sum + item.count, 0);
+  miniApps.sort((a, b) => miniAppWeight(b) - miniAppWeight(a));
 
   // Mỗi trường đáng theo dõi kèm mọi giá trị của nó. Renderer chỉ cần một luật: đúng một giá trị thì
   // để trong bảng, từ hai trở lên thì tách thành danh sách — không phải nhớ tên từng trường nữa.
@@ -2915,6 +2927,12 @@ function summaryEnvironment(data) {
   // con số phía trên, vì chúng đang cộng của cả hai bên.
   out += summaryLine('Đổi giữa chừng', env.changed
     .map((field) => field.label + ' (' + field.values.length + ')').join(' · '));
+  // Miniapp nhảy bản giữa log là thứ phải nằm trong ticket: "lỗi ở bản nào" là câu hỏi đầu tiên của
+  // team miniapp, mà header chỉ khai được bản cuối.
+  out += summaryLine('MiniApp đổi bản giữa log', env.miniApps
+    .filter(miniAppChangedBuild)
+    .map((app) => app.appId + ' ' + miniAppBuildPath(app))
+    .join(' · '));
   out += summaryLine('Mạng', context.Network);
   out += summaryLine('Màn / tính năng', [context.Feature, context.ScreenID, context.MiniApp]
     .filter(Boolean).join(' · '));
@@ -3079,6 +3097,101 @@ function buildErrorCodes(entries) {
     .map((bucket) => ({ code: bucket.code, count: bucket.count, indices: bucket.indices,
       firstTs: bucket.firstTs, modules: Array.from(bucket.modules) }))
     .sort((a, b) => b.count - a.count || a.code - b.code);
+}
+// @ts-check
+// "miniapp này đang chạy bản build nào, và nó vừa nhảy từ bản nào lên"
+//
+// Dòng nguồn là Map.toString() của Kotlin (không phải JSON), dùng chung lớp đọc với tracker và Grafana:
+//   [Module: BundleLoader] [BundleExecutorManager][e@14ffac7] [vn.momo.expense] execute version:
+//   {deploymentTarget=150, cdnUrl=…, buildNumber=3449, size=1619017, appId=vn.momo.expense,
+//    installMode=1, diffChange={url=…, fromBuildNumber=3420, toBuildNumber=3449, size=544980}}
+//
+// Vì sao đáng đọc riêng: header request chỉ khai `map_miniAppVersion` tại lúc gọi, tức chỉ thấy bản
+// CUỐI. Dòng này mới nói ra cả đường đi. Đo trên log production (autoId=5956827): `vn.momo.expense`
+// chạy 3420, vá lên 3449 rồi vá tiếp lên 3494 — ba bản trong một log, mà mục MiniApp cũ chỉ hiện một.
+//
+// Cùng chuỗi "execute version" còn một dòng KHÁC hẳn, không phải map:
+//   "execute version.appId: vn.momo.expense loaded event. bridge data: com.facebook.react…"
+// Đo trên log trên: 54 dòng chứa chuỗi đó thì **20 dòng là loại này**. Vì vậy phải đòi đúng dấu hai
+// chấm rồi tới dấu ngoặc (`RE_BUNDLE_EXEC`), sàng bằng indexOf trước cho rẻ.
+
+const BUNDLE_MARK = 'execute version';
+const RE_BUNDLE_EXEC = /execute version:\s*\{/;
+// Những khoá đáng hiện. Danh sách trắng chứ không phải "đọc hết": cùng map đó có `signature` dài hơn
+// 1000 ký tự và `checksum`, `jsBundlePath`, `cdnUrl`, `downloadUrls` — không có chỗ nào trên panel
+// rộng 480px cho chúng, mà đưa vào ticket thì chỉ làm loãng.
+const BUNDLE_KEYS = ['buildNumber', 'size', 'installMode', 'platform', 'deploymentTarget',
+  'trackingFlag', 'versionFromSource'];
+
+function bundleNumber(value) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+// Một dòng "execute version" -> thông tin gọn của lần nạp bundle đó, hoặc null nếu không phải dòng map.
+function parseBundleExec(raw) {
+  if (!raw || raw.indexOf(BUNDLE_MARK) < 0) return null;
+  const hit = RE_BUNDLE_EXEC.exec(raw);
+  if (!hit) return null;
+  const block = extractJsonBlock(raw.slice(hit.index));
+  const map = block ? parseKeyValueMap(block.text) : null;
+  if (!map || !map.appId) return null;
+  const info = { appId: String(map.appId) };
+  BUNDLE_KEYS.forEach((key) => {
+    if (map[key] != null && map[key] !== '') info[key] = String(map[key]);
+  });
+  // diffChange có nghĩa là bản này được VÁ từ một bản cũ chứ không tải trọn gói: đó chính là chỗ nhìn
+  // ra đường đi của version. Không có nó thì đây là lần nạp thẳng một bản.
+  const diff = map.diffChange && typeof map.diffChange === 'object' ? map.diffChange : null;
+  if (diff) {
+    info.from = String(diff.fromBuildNumber || '');
+    info.to = String(diff.toBuildNumber || '');
+    info.patchSize = bundleNumber(diff.size);
+  }
+  return info;
+}
+
+// Gom theo (miniapp, bản build, vá từ bản nào). Giữ thứ tự GẶP LẦN ĐẦU chứ không sắp theo số lần:
+// câu chuyện ở đây là "đi từ bản nào lên bản nào", sắp lại theo số lần là đọc ngược dòng thời gian.
+function buildMiniAppBundles(entries) {
+  const byApp = new Map();
+  entries.forEach((entry) => {
+    const info = parseBundleExec(entry.raw);
+    if (!info) return;
+    let list = byApp.get(info.appId);
+    if (!list) {
+      list = [];
+      byApp.set(info.appId, list);
+    }
+    const key = (info.buildNumber || '') + '|' + (info.from || '');
+    let seen = list.find((item) => item.key === key);
+    if (!seen) {
+      seen = Object.assign({ key, count: 0, indices: [], firstTs: entry.ts, lastTs: entry.ts }, info);
+      list.push(seen);
+    }
+    seen.count += 1;
+    seen.indices.push(entry.domIndex);
+    if (entry.ts) {
+      if (!seen.firstTs) seen.firstTs = entry.ts;
+      seen.lastTs = entry.ts;
+    }
+  });
+  return byApp;
+}
+
+// Miniapp có đổi bản trong tập đang xem không. Một lần nạp DUY NHẤT mà là bản vá thì vẫn là có đổi:
+// chính chữ "vá từ 3420 lên 3449" đã nói ra điều đó, không cần thấy đủ hai lần nạp.
+function miniAppChangedBuild(app) {
+  return app.bundles.length > 1 || !!(app.bundles[0] && app.bundles[0].from);
+}
+
+// Đường đi của version, ví dụ "3420 → 3449 → 3494". Phải bắt đầu từ bản ĐƯỢC VÁ LÊN của lần nạp đầu,
+// không thì mất mất bản gốc: trên log thật lần nạp đầu của vn.momo.expense đã là "3449 vá từ 3420",
+// liệt kê trơn số build sẽ ra "3449 → 3494" và bản 3420 biến mất.
+function miniAppBuildPath(app) {
+  const first = app.bundles[0];
+  if (!first) return '';
+  return (first.from ? [first.from] : []).concat(app.bundles.map((item) => item.buildNumber)).join(' → ');
 }
 // @ts-check
 // hằng số dùng chung, lensState, tắt tiếng chữ ký, hàm định dạng
@@ -4581,9 +4694,15 @@ function aimIndicesFor(el) {
     const item = field && field.values[Number(at[1])];
     return item ? item.indices : [];
   }
+  // "<thứ tự miniapp>" = mọi request của miniapp đó; "<miniapp>:<thứ tự bundle>" = những dòng nạp
+  // đúng bản build đó.
   if (data.envapp != null) {
-    const app = view.environment.miniApps[Number(data.envapp)];
-    return app ? app.indices : [];
+    const at = data.envapp.split(':');
+    const app = view.environment.miniApps[Number(at[0])];
+    if (!app) return [];
+    if (at.length < 2) return app.indices;
+    const bundle = app.bundles[Number(at[1])];
+    return bundle ? bundle.indices : [];
   }
   return [];
 }
@@ -5267,6 +5386,9 @@ function renderPayloadBody(domIndex, tabsHtml) {
 
 function formatBytes(count) {
   if (count < 1024) return count + ' B';
+  // Gói bundle của miniapp tính bằng MB (1 619 017 B), để nguyên KB thì ra "1581 KB" — đọc không ra
+  // ngay là bao nhiêu.
+  if (count >= 1024 * 1024) return (count / (1024 * 1024)).toFixed(1) + ' MB';
   return (count / 1024).toFixed(count < 10240 ? 1 : 0) + ' KB';
 }
 
@@ -5481,15 +5603,41 @@ function renderEnvValueList(field, fieldIndex) {
       .join('') + '</div>';
 }
 
+// Một lần nạp bundle: "build 3449 ← 3420" khi nó được vá lên từ bản cũ, còn không thì chỉ số build.
+// Hàng con nằm PHẲNG trong cùng khối, chỉ lùi đầu bằng một ký tự: lồng thêm một lớp div thì ô tìm
+// nhanh và bước cắt bớt hàng của mục không còn nhận ra hàng nữa (xem luật ở CLAUDE.md).
+function renderMiniAppBundleRow(app, appIndex, bundle, bundleIndex) {
+  const size = bundle.patchSize ? 'vá ' + formatBytes(bundle.patchSize)
+    : (bundle.size ? formatBytes(Number(bundle.size)) : '');
+  const tip = [app.appId,
+    bundle.from ? 'vá từ bản ' + bundle.from + ' lên ' + (bundle.to || bundle.buildNumber) : 'nạp thẳng bản này',
+    bundle.size ? 'gói: ' + formatBytes(Number(bundle.size)) : '',
+    bundle.patchSize ? 'bản vá: ' + formatBytes(bundle.patchSize) : '',
+    bundle.installMode ? 'installMode ' + bundle.installMode : '',
+    bundle.deploymentTarget ? 'deploymentTarget ' + bundle.deploymentTarget : '',
+    bundle.trackingFlag ? 'nạp lúc: ' + bundle.trackingFlag : '',
+    bundle.platform || '',
+    'Bấm để duyệt ' + bundle.indices.length + ' dòng nạp bundle này.'].filter(Boolean).join('\n');
+  return envRankRow('↳ build ' + (bundle.buildNumber || '?') + (bundle.from ? ' ← ' + bundle.from : ''),
+    [size, formatClock(bundle.firstTs), bundle.count > 1 ? bundle.count + ' lần' : '']
+      .filter(Boolean).join(' · '),
+    tip, ' data-envapp="' + appIndex + ':' + bundleIndex + '"');
+}
+
 function renderEnvMiniApps(miniApps) {
   if (!miniApps.length) return '';
-  return '<div class="fll-hint" style="margin:10px 0 4px">MiniApp đã gọi request — <b>' +
-    miniApps.length + '</b></div>' +
+  const capNhat = miniApps.filter(miniAppChangedBuild).length;
+  return '<div class="fll-hint" style="margin:10px 0 4px">MiniApp — <b>' + miniApps.length + '</b>' +
+    (capNhat ? ', trong đó <b>' + capNhat + '</b> cập nhật bản build giữa log' : '') + '</div>' +
     '<div class="fll-rank">' + miniApps
       .map((app, appIndex) => envRankRow(app.appId, app.versions.map((item) => item.value).join(', '),
         app.appId + '\n' + app.versions.map((item) => 'version ' + item.value + ': ' + item.count + ' request')
-          .join('\n') + '\nBấm để duyệt ' + app.indices.length + ' request của miniapp này.',
-        ' data-envapp="' + appIndex + '"'))
+          .join('\n') + (app.indices.length
+          ? '\nBấm để duyệt ' + app.indices.length + ' request của miniapp này.'
+          : '\nMiniapp này có nạp bundle nhưng không có request nào trong tập đang xem.'),
+        app.indices.length ? ' data-envapp="' + appIndex + '"' : '') +
+        app.bundles.map((bundle, bundleIndex) =>
+          renderMiniAppBundleRow(app, appIndex, bundle, bundleIndex)).join(''))
       .join('') + '</div>';
 }
 
@@ -7024,9 +7172,15 @@ function handleLensClick(event) {
     return setMatches(item.indices, field.label + ': ' + item.value);
   }
   if (hit.dataset.envapp != null) {
-    const app = view.environment.miniApps[Number(hit.dataset.envapp)];
-    if (!app || !app.indices.length) return undefined;
-    return setMatches(app.indices, 'MiniApp: ' + app.appId);
+    const at = hit.dataset.envapp.split(':');
+    const app = view.environment.miniApps[Number(at[0])];
+    if (!app) return undefined;
+    const bundle = at.length > 1 ? app.bundles[Number(at[1])] : null;
+    const indices = bundle ? bundle.indices : app.indices;
+    if (!indices.length) return undefined;
+    return setMatches(indices, bundle
+      ? app.appId + ' build ' + bundle.buildNumber
+      : 'MiniApp: ' + app.appId);
   }
   if (hit.dataset.call) {
     const call = view.httpCalls[Number(hit.dataset.call)];
