@@ -5372,8 +5372,12 @@ function renderEnvironmentSection(data) {
     ['Thiết bị', [env.device + (env.deviceModel ? ' (' + env.deviceModel + ')' : ''),
       env.osLabel || env.deviceOs].filter(Boolean).join(' · ')],
     ['Đời máy', env.performance],
-    ['Bản app', [env.appVersion, env.appBuild ? 'build ' + env.appBuild : '',
-      env.flavor ? 'build ' + env.flavor : ''].filter(Boolean).join(' · ')],
+    // Nhiều bản app trong cùng tập đang xem thì bảng này im, để danh sách bên dưới nói — đúng cách
+    // IP và deviceid đang làm. Một dòng "Bản app 5.13.1" ngay trên một danh sách ghi hai bản thì đọc
+    // ra là một khẳng định, mà nó chỉ là bản hay gặp nhất.
+    ['Bản app', env.appVersions.length > 1 ? ''
+      : [env.appVersion, env.appBuild ? 'build ' + env.appBuild : '',
+        env.flavor ? 'build ' + env.flavor : ''].filter(Boolean).join(' · ')],
     ['Mạng', context.Network || ''],
     ['Ngôn ngữ', env.lang],
     ['Múi giờ', env.timezone],
