@@ -266,6 +266,25 @@ kéo payload thô vào**, chỉ lấy trường đã hiển thị trên panel �
 Nó cũng luôn đọc `lensState.data` (đầy đủ) chứ không đọc view đang lọc: ticket phải mô tả cả log, không
 phải mô tả lát cắt người đọc đang mở.
 
+**macOS chặn DÁN khối ticket vào Terminal/VSCode — không phải lỗi của tool, và cũng đừng đi sửa
+định dạng để né.** Người dùng báo: bấm "Copy tóm tắt cho ticket" rồi dán vào VSCode thì macOS hiện
+*"Your copy and paste was blocked because it contains malware… Malicious instructions can look
+legitimate…"*. Đã đo trên máy thật, log production (`autoId=5956756`, khối ticket 2404 ký tự):
+
+- **Clipboard KHÔNG rỗng.** Dán vào một `<textarea>` ngay trong trình duyệt ra đủ **2404 ký tự**. Cùng
+  lúc đó `pbpaste` trong Terminal trả về **0 byte** và AppleScript ném lỗi pasteboard `-25133`. Tức
+  macOS chặn theo **ứng dụng đích**, không phải chặn lúc copy. Suýt kết luận ngược: thấy clipboard
+  "rỗng" qua `pbpaste` nên tưởng cú copy bị xoá trắng.
+- **Không khoanh được vào mục nào.** Bỏ mục Call HTTP, bỏ mục nhóm lỗi, bỏ mục bước cuối — **cả ba đều
+  vẫn bị chặn**. Bỏ sạch markdown (`##`, `**`, backtick, gạch đầu dòng) cũng **vẫn bị chặn**. Trong khi
+  một bản dựng lại 945 ký tự gồm ba mục tương tự thì **qua được**, và 945 ký tự chữ vô nghĩa cũng qua.
+- **Tín hiệu không ổn định.** Đúng một chuỗi 945 ký tự: lần đầu bị chặn, lần sau qua. Nên mọi kết luận
+  kiểu "backtick là thủ phạm" đều sai — đã suýt viết ra đúng câu đó.
+
+Vì vậy: **không đổi định dạng khối ticket để né bộ lọc này.** Sửa theo một tín hiệu không tái hiện được
+thì chỉ là mê tín, mà lại làm hỏng thứ đang đọc tốt. Cách dùng được ngay: **dán thẳng vào Jira/chat
+trên trình duyệt** (đã đo là chạy) — vốn cũng là nơi khối này sinh ra để đến.
+
 **Khoảng lặng ≠ app treo.** Trạng thái app chỉ nằm ghép trong dòng MQTT (`... - appState: BACKGROUND -`)
 — không có dòng lifecycle riêng nào (`didEnterBackground`, `willEnterForeground`, `onPause` đều **0 lần**
 trên cả ba log). `markBackgroundGaps()` gắn nhãn khoảng lặng nào là do user rời app. Đo trên ba log

@@ -22,9 +22,17 @@ function summaryEnvironment(data) {
   const context = data.feedback || {};
   let out = '';
   // env.osLabel chứ không ghép cứng chữ "iOS" ở đây: log Android sẽ ra "iOS 9".
-  out += summaryLine('Thiết bị', [env.device, env.osLabel, env.performance].filter(Boolean).join(' · '));
-  out += summaryLine('Bản app', [env.appVersion, env.appBuild ? 'build ' + env.appBuild : '',
-    env.flavor ? 'build ' + env.flavor : '', context['App Info']].filter(Boolean).join(' · '));
+  // Mã model đi kèm tên máy: tên thương mại thì không tra ngược được, còn mã model search ra đúng mẫu.
+  out += summaryLine('Thiết bị', [env.device + (env.deviceModel ? ' (' + env.deviceModel + ')' : ''),
+    env.osLabel, env.performance].filter(Boolean).join(' · '));
+  // Log phủ nhiều ngày thì người dùng có thể đã nâng cấp app giữa chừng. Bản cũ ghi bản HAY GẶP NHẤT
+  // rồi dán luôn App Info của feedback vào sau, ra "5.13.1 · build 51310 · 5.15.0 - 51500" — hai bản
+  // khác nhau nằm cạnh nhau mà không một chữ nào nói ra đó là hai bản.
+  const appLine = env.appVersions.length > 1
+    ? env.appVersions.length + ' bản trong log: ' + env.appVersions.map((item) => item.value).join(' / ')
+    : [env.appVersion, env.appBuild ? 'build ' + env.appBuild : ''].filter(Boolean).join(' · ');
+  out += summaryLine('Bản app', [appLine, env.flavor ? 'build ' + env.flavor : '',
+    context['App Info'] ? 'lúc gửi: ' + context['App Info'] : ''].filter(Boolean).join(' · '));
   // Version miniapp là thứ quyết định "chạy đoạn code nào" — thiếu nó thì ticket không tái hiện được.
   out += summaryLine('MiniApp', env.miniApps
     .map((app) => app.appId + ' ' + app.versions.map((item) => item.value).join('/')).join(' · '));

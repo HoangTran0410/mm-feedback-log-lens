@@ -1606,6 +1606,18 @@ check('ten may doc duoc tu --body khi header khong co device-name', () => {
     'ten may do nguoi dung tu dat khong duoc lay');
 });
 
+// Đọc nguyên văn khối ticket của một log production mới thấy: dòng "Bản app" ghi
+// "5.13.1 · build 51310 · 5.15.0 - 51500" — bản hay gặp nhất dính liền App Info của feedback, hai bản
+// khác nhau nằm cạnh nhau mà không một chữ nào nói ra.
+check('ticket phai noi ro co may ban app, va mang theo ma model', () => {
+  const ticket = L.buildTicketSummary(L.lensState.data);
+  const dong = ticket.split('\n').find((d) => d.indexOf('Bản app') >= 0) || '';
+  ok(dong.indexOf('5.13.1') >= 0 && dong.indexOf('5.15.0') >= 0, 'phai ghi ca hai ban: ' + dong);
+  ok(dong.indexOf('2 bản trong log') >= 0, 'phai noi ro la hai ban khac nhau: ' + dong);
+  const may = ticket.split('\n').find((d) => d.indexOf('Thiết bị') >= 0) || '';
+  ok(may.indexOf('Redmi Note 11 (2201117TG)') >= 0, 'ticket phai mang ca ma model: ' + may);
+});
+
 check('appId trong body la id cua MINIAPP, khong duoc doc thanh ban app', () => {
   const env = L.lensState.data.environment;
   eq(env.appVersion, '5.13.1', 'ban app lay tu appCode, khong phai tu appId');
