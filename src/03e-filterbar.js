@@ -51,7 +51,7 @@ function getActiveFilterFacets() {
     facets.push({ id: 'window', label: formatWindowLabel() });
   }
   if (filter.skipDuplicate) facets.push({ id: 'duplicate', label: 'bỏ khối lặp' });
-  if (filter.session) facets.push({ id: 'session', label: 'Phiên ' + filter.session });
+  if (filter.session) facets.push({ id: 'session', label: sessionLabel(filter.session) });
   if (filter.levels.size) facets.push({ id: 'levels', label: Array.from(filter.levels).join(' + ') });
   if (filter.modules.size) {
     facets.push({ id: 'modules', label: filter.modules.size === 1

@@ -192,7 +192,9 @@ function renderSummaryTab() {
     // nó dẫn sang Diễn biến trong khi chỗ chọn phiên lại nằm ở Lọc. Một phiên thì không có gì để
     // chọn, để nút bấm được chỉ làm người dùng bấm hụt.
     statCard(full.sessionCount, 'phiên app', '#3ddc97',
-      full.sessionCount > 1 ? 'data-act="gotoSessions"' : 'data-act="noop"') +
+      (full.sessionCount > 1 ? 'data-act="gotoSessions"' : 'data-act="noop"') +
+      (full.hasOrphanTail ? ' data-tip="' + escapeHtml('Trong đó có một đoạn không đếm được trọn vẹn. ' +
+        SESSION_ORPHAN_TIP) + '"' : '')) +
     statCard(data.gaps.filter((gap) => gap.cause !== 'background').length,
       'khoảng lặng ≥ ' + full.gapThresholdLabel, LEVEL_COLOR.WARNING,
       'data-act="gotoTimeline" data-tip="' +
@@ -662,7 +664,7 @@ function renderSessionChips() {
   const sessions = lensState.data.sessions;
   if (sessions.length < 2) return '';
   const picked = lensState.filter.session;
-  return secTitle('Phiên app', picked ? 'Phiên ' + picked : sessions.length + ' phiên', picked ? 'act' : '') +
+  return secTitle('Phiên app', picked ? sessionLabel(picked) : sessions.length + ' phiên', picked ? 'act' : '') +
     renderSessionChipRow();
 }
 
@@ -676,9 +678,14 @@ function renderSessionChipRow() {
     sessions
       .map((session) => {
         const count = tally.get(session.index) || 0;
+        // Đoạn mồ côi không có "bắt đầu" để ghi: mốc duy nhất biết chắc là chỗ nó kết thúc.
+        const tip = session.isOrphanTail
+          ? SESSION_ORPHAN_TIP + ' Đoạn này kết thúc lúc ' + formatClock(session.endTs) + '.'
+          : 'Bắt đầu ' + formatClock(session.startTs);
         return '<button class="fll-chip' + (lensState.filter.session === session.index ? ' on' : '') +
-          (count ? '' : ' dim') + '" data-act="setSession" data-value="' + session.index +
-          '" data-tip="Bắt đầu ' + formatClock(session.startTs) + '">Phiên ' + session.index +
+          (count ? '' : ' dim') + (session.isOrphanTail ? ' fll-chip-orphan' : '') +
+          '" data-act="setSession" data-value="' + session.index +
+          '" data-tip="' + escapeHtml(tip) + '">' + escapeHtml(sessionLabel(session.index)) +
           ' <em>' + count + '</em></button>';
       })
       .join('') +
@@ -858,6 +865,10 @@ function buildTimelineEvents(data) {
   // Khoảng lặng là một KHOẢNG, không phải một điểm. Trước đây hàng này hiện giờ của dòng TRƯỚC khoảng
   // lặng nhưng bấm (và mũi tên) lại trỏ tới dòng SAU nó — hai đầu cách nhau cả tiếng đồng hồ, nên nhìn
   // vào thấy giao diện tự mâu thuẫn. Nay hiện cả hai mốc, và mũi tên đánh dấu cả hai đầu trên minimap.
+  //
+  // Hàng này ứng với HAI dòng log, nên nó đưa cả hai vào thanh duyệt (`data-lines`) chứ không nhảy tới
+  // một dòng: bấm là tới dòng dừng lại, bấm `n` là sang thẳng dòng mở lại. Bản trước nhảy thẳng tới
+  // dòng SAU khoảng lặng trong khi chữ trên hàng là của dòng TRƯỚC, và không có đường nào xem dòng kia.
   data.gaps.forEach((gap) => {
     // Xuống nền và treo là HAI chuyện khác hẳn nhau; gọi chung một tên thì đọc log thành đoán mò.
     const isBackground = gap.cause === 'background';
@@ -867,7 +878,8 @@ function buildTimelineEvents(data) {
         ? 'xuống nền ' + formatClock(gap.downTs) + ', trở lại ' + formatClock(gap.upTs) +
           ' — im lặng vì user rời app, không phải app treo'
         : 'dừng sau: ' + gap.before.message.slice(0, 90),
-      index: gap.after.domIndex, aim: [gap.before.domIndex, gap.after.domIndex] });
+      lines: [gap.before.domIndex, gap.after.domIndex],
+      linesLabel: isBackground ? 'hai đầu đoạn xuống nền' : 'hai đầu khoảng lặng' });
   });
 
   data.groups.filter((group) => group.level === 'ERROR' && !isGroupMuted(group)).forEach((group) => {
@@ -959,8 +971,10 @@ function renderTimelineList() {
 
   const shown = events.slice(0, tabUiState.tlLimit);
   return found + '<div class="fll-tl">' + shown
-    .map((event) => '<div class="fll-ev ' + event.kind + '" data-jump="' + event.index + '"' +
-      (event.aim ? ' data-aim="' + event.aim.join(',') + '"' : '') + '>' +
+    .map((event) => '<div class="fll-ev ' + event.kind + '"' +
+      (event.lines
+        ? ' data-lines="' + event.lines.join(',') + '" data-label="' + escapeHtml(event.linesLabel) + '"'
+        : ' data-jump="' + event.index + '"') + '>' +
       '<div class="fll-ev-t">' + timelineIcon(event.kind) +
       (event.count > 1 ? '<span class="fll-jn">' + event.count + '&times;</span>' : '') +
       escapeHtml(event.title) +

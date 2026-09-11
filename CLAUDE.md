@@ -46,6 +46,22 @@ trong cùng một lần khởi động, cách nhau vài trăm ms — đếm từ
 "gặp lại đúng loại mốc đã thấy trong chùm" bắt trường hợp mở lại ngay — nhưng mới dựa trên bốn chùm
 quan sát được, nên **CHƯA XÁC MINH** rằng không log nào lặp một loại mốc giữa cùng một lần chạy.
 
+**Dòng đứng TRƯỚC mốc khởi động đầu tiên không thuộc phiên 1.** Chúng là đuôi của một lần chạy trước
+đó mà log không còn giữ điểm bắt đầu (file bị cắt bớt, hoặc app đã chạy từ lâu). Gộp vào phiên 1 là
+nói rằng chúng xảy ra SAU lần khởi động đó — sai cả thứ tự lẫn việc ta thật sự biết gì. Chúng mang
+`SESSION_ORPHAN_INDEX`, hiện ra là **"Đuôi phiên trước"** (không phải "Phiên -1"), chip có viền đứt
+bên trái, chú giải nói rõ là không có điểm bắt đầu trong file, và `summaryBlindSpots()` ghi nó vào mục
+"Log này không trả lời được" của ticket.
+
+Ba chỗ dễ sai khi sửa lại:
+- **Chỉ số âm chứ không phải 0.** `filter.session` được kiểm theo kiểu truthy ở rất nhiều chỗ
+  (`hasAnyFilterFacet`, `compiled.session`, `getVisibleTimeRange`, `Number(value) || null`), nên phiên 0
+  sẽ bị đọc thành "không lọc phiên nào" — lọc vào đúng đoạn đó thành ra không lọc gì.
+- **`buildSessions` phải đánh theo Map, không theo vị trí mảng.** `sessions[index - 1]` với index âm ghi
+  ra một *thuộc tính* chứ không phải phần tử, và `filter(Boolean)` sau đó nuốt luôn cả phiên.
+- **`sessionCount` đếm cả đoạn mồ côi** (nó là một lần chạy khác thật, chỉ là không thấy điểm đầu). Log
+  không có mốc nào vẫn ra đúng 1 như trước, chỉ khác ở chỗ đoạn đó nay tự khai là không rõ điểm đầu.
+
 **Ghép request/response HTTP theo THỨ TỰ DÒNG, không theo trục thời gian — và phải chừa một dòng lùi.**
 Logger ghi theo lô nên dòng `ResponsePayload` có thể nằm **trước** dòng `RequestPayload` của chính nó.
 Đo trên ba log thật: **0 / 3 / 16** cặp nằm ngược, và mọi cặp ngược quan sát được đều lệch **đúng một
@@ -379,6 +395,18 @@ Panel từng bị rối vì mấy thói quen dưới đây, sửa rồi thì gi�
 - **Hướng dẫn dài để trong `title`, không để giữa form.** Cách dùng minimap nằm ở tooltip của minimap,
   trong form chỉ còn một dòng ngắn.
 - **Chip hết dòng khớp thì làm mờ (`.fll-chip.dim`), không xoá.** Vẫn bấm được để nới rộng.
+- **"Có khoảng đang chọn trên minimap" phải hỏi `getVisibleTimeRange()`, đừng hỏi `timeFrom/timeTo`.**
+  Lọc theo **phiên app** cũng thu khoảng đang xem về đúng phiên đó (hàm trên cắt theo `startTs/endTs`
+  của phiên) mà không đụng tới hai trường kia. Hậu quả của việc hỏi nhầm: minimap vẫn tô mờ hai bên
+  đúng phiên nhưng **không hiện nút "phóng to"**, nên cách duy nhất để phóng vào một phiên là tự kéo
+  tay lại đúng khoảng mà chính tool vừa tô sẵn. Phần tô và cái nút phải trả lời cùng một câu hỏi:
+  `hasSelectedTimeRange()`.
+- **Hàng ứng với NHIỀU dòng log thì dùng `data-lines`, đừng dùng `data-jump`.** `data-jump` nhảy tới
+  một dòng và thanh dưới không có gì để duyệt. Hàng "Khoảng lặng" là ca kinh điển: nó có hai dòng
+  (dòng dừng lại và dòng mở lại), chữ trên hàng là của dòng ĐẦU mà cú bấm lại nhảy tới dòng CUỐI, và
+  đầu kia không có đường nào mở ra. Nay nó đưa cả hai vào thanh duyệt (`data-lines` + `data-label`):
+  bấm là tới dòng dừng lại, bấm `n` là sang dòng mở lại. Từng có thêm `data-aim` riêng cho đúng ca
+  này — bỏ rồi, vì `aimIndicesFor()` đọc `data-lines` cho ra cùng hai đầu đó.
 - **Bốn ô tìm, bốn timer riêng, hai mức chờ khác nhau.** `#fll-re` (lọc nội dung) chờ 180ms vì nó kéo
   theo cả lượt quét 4085 dòng; `#fll-q`, `#fll-modq` và `#fll-httpq` chờ 120ms vì chỉ vẽ lại một mảnh
   (`#fll-httpq` quét cả payload của mọi request, vẫn chỉ thay `#fll-http-list`).

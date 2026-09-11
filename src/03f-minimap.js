@@ -93,9 +93,9 @@ function updateMinimapRange() {
     Math.max(0, Math.min(100, ((range.from - bounds.from) / span) * 100)).toFixed(2) + '%';
   shadeRight.style.width =
     Math.max(0, Math.min(100, ((bounds.to - range.to) / span) * 100)).toFixed(2) + '%';
-  lensState.el.map.classList.toggle('fll-map-ranged', hasAnyTimeRange());
+  lensState.el.map.classList.toggle('fll-map-ranged', hasSelectedTimeRange());
   if (!lensState.el.mapText) return;
-  if (hasAnyTimeRange()) {
+  if (hasSelectedTimeRange()) {
     lensState.el.mapText.innerHTML = escapeHtml(formatClock(range.from) + ' → ' + formatClock(range.to) +
       ' · ' + formatDuration(range.to - range.from)) +
       (canZoomFurther(range, bounds) ? ' <button class="fll-mapzoom" data-act="mapZoomIn" ' +
@@ -117,6 +117,17 @@ function canZoomFurther(range, bounds) {
 
 function hasAnyTimeRange() {
   return lensState.filter.timeFrom !== null || lensState.filter.timeTo !== null;
+}
+
+// "Có khoảng đang chọn không" phải hỏi getVisibleTimeRange(), không hỏi riêng timeFrom/timeTo: lọc
+// theo PHIÊN APP cũng thu khoảng đang xem về đúng phiên đó (getVisibleTimeRange cắt theo start/endTs
+// của phiên) mà không đụng tới hai trường kia. Vì vậy minimap vẫn tô mờ hai bên đúng phiên nhưng lại
+// không hiện nút phóng to — muốn phóng vào một phiên thì phải tự kéo tay lại đúng khoảng đã được tô
+// sẵn. Hai câu hỏi đó phải cho cùng một câu trả lời, nếu không thì phần tô và cái nút nói khác nhau.
+function hasSelectedTimeRange() {
+  if (hasAnyTimeRange()) return true;
+  const range = getVisibleTimeRange();
+  return range.from > lensState.data.firstTs || range.to < lensState.data.lastTs;
 }
 
 /* ------------------------------------------- kéo chọn khoảng thời gian trên minimap */

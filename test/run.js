@@ -74,6 +74,7 @@ function loadLens() {
     'SECTION_SEARCH_MIN_ROWS,buildEnvironment,buildTicketSummary,journeySurfaceName,' +
     'PANEL_CSS,detachLens,serializeFilter,applyFilterPayload,describeTemplatePayload,' +
     'buildPermalink,applyPermalinkFromHash,PERMALINK_PREFIX,setMatches,resetTabUiState,' +
+    'hasSelectedTimeRange,hasAnyTimeRange,getVisibleTimeRange,buildSessions,sessionLabel,' +
     'renderTraceFailSection,isBadHttpCall,setTimeWindowPreset,isWindowPresetActive,' +
     'formatWindowLabel,retargetTimeWindow,extractDurations,renderCorrelationList};';
   const wired = src.replace(/\n\}\)\(\);\s*$/, '\n' + exportLine + '\n})();\n');
@@ -658,16 +659,26 @@ check('dong thoi gian: o tim loc theo ten moc', () => {
 
 // Bug thật: hàng "Khoảng lặng" hiện giờ của dòng TRƯỚC khoảng lặng, nhưng bấm (và mũi tên) lại trỏ
 // tới dòng SAU nó. Hai đầu có thể cách nhau cả tiếng đồng hồ -> nhìn vào thấy giao diện tự mâu thuẫn.
-check('khoang lang: hang hien ca hai dau moc, mui ten danh dau ca hai', () => {
+//
+// Bug thứ hai, cùng một hàng đó: một khoảng lặng có HAI dòng log nhưng bấm vào chỉ tới được một, đầu
+// kia không có đường nào mở ra. Nay hàng dùng data-lines nên cả hai vào thanh duyệt, bấm `n` là sang.
+check('khoang lang: hang mang ca hai dau vao thanh duyet, mui ten danh dau ca hai', () => {
   const gapEvent = L.buildTimelineEvents(L.lensState.data).find((event) => event.kind === 'gap');
   ok(gapEvent, 'fixture phai co it nhat mot khoang lang');
   ok(gapEvent.tsEnd && gapEvent.tsEnd > gapEvent.ts, 'phai co moc ket thuc, va no o sau moc bat dau');
-  eq(gapEvent.aim.length, 2, 'mui ten tro toi ca hai dau');
-  eq(gapEvent.aim[1], gapEvent.index, 'dau thu hai chinh la dong ma cu bam se nhay toi');
+  eq(gapEvent.lines.length, 2, 'hang ung voi dung hai dong log');
+  ok(gapEvent.lines[0] < gapEvent.lines[1], 'dau khoang lang phai dung truoc cuoi khoang lang');
+  ok(gapEvent.linesLabel, 'phai co nhan de thanh duoi noi dang duyet cai gi');
   const html = L.renderTimelineTab();
-  ok(html.indexOf('data-aim="' + gapEvent.aim.join(',') + '"') >= 0, 'thuoc tinh data-aim phai co trong HTML');
-  eq(L.aimIndicesFor({ dataset: { aim: gapEvent.aim.join(','), jump: String(gapEvent.index) } }).length, 2,
-    'data-aim phai duoc doc TRUOC data-jump');
+  ok(html.indexOf('data-lines="' + gapEvent.lines.join(',') + '"') >= 0,
+    'thuoc tinh data-lines phai co trong HTML — no la thu dua ca hai dong vao thanh duyet');
+  ok(html.indexOf('data-label="' + gapEvent.linesLabel + '"') >= 0, 'kem nhan cho thanh duoi');
+  eq(L.aimIndicesFor({ dataset: { lines: gapEvent.lines.join(',') } }).length, 2,
+    'mui ten van danh dau ca hai dau');
+  // Bấm vào hàng đó phải đứng ở ĐẦU khoảng lặng — đúng dòng mà chữ trên hàng đang nói tới.
+  L.setMatches(gapEvent.lines, gapEvent.linesLabel);
+  eq(L.lensState.matches.length, 2, 'thanh duoi co hai dong de duyet');
+  eq(L.lensState.data.entries[L.lensState.matches[0]].domIndex, gapEvent.lines[0], 'dung o dau khoang lang');
 });
 
 // "14182s" không ai đọc ra là gần bốn tiếng.
@@ -1041,6 +1052,22 @@ check('mau bo loc va permalink mang duoc "bo khoi lap"', () => {
   L.lensState.filter.levels = new Set();
 });
 
+// Bug thật: lọc theo PHIÊN APP thu khoảng đang xem về đúng phiên đó (getVisibleTimeRange cắt theo
+// start/endTs của phiên) nên minimap vẫn tô mờ hai bên — nhưng nút "phóng to" lại hỏi riêng
+// timeFrom/timeTo nên không bao giờ hiện. Muốn phóng vào một phiên phải tự kéo tay lại đúng khoảng
+// mà chính tool đã tô sẵn. Hai câu hỏi đó phải cho cùng một câu trả lời.
+check('loc theo phien app cung duoc coi la "dang co khoang chon" tren minimap', () => {
+  L.lensState.filter.session = 2;
+  ok(!L.hasAnyTimeRange(), 'loc theo phien khong dat timeFrom/timeTo');
+  ok(L.hasSelectedTimeRange(), 'nhung van la mot khoang dang chon');
+  const range = L.getVisibleTimeRange();
+  ok(range.from > L.lensState.data.firstTs || range.to < L.lensState.data.lastTs,
+    'khoang do phai hep hon ca log');
+  ok(L.canZoomFurther(range, L.minimapBounds()), 'va phai con cho de phong to vao');
+  L.lensState.filter.session = null;
+  ok(!L.hasSelectedTimeRange(), 'bo loc phien thi khong con khoang nao dang chon');
+});
+
 /* --------------------------------------------- permalink: link phải mang đúng thứ đang thấy */
 
 // Mở link giống hệt lúc trang vừa tải: bộ lọc về mặc định rồi mới đọc hash.
@@ -1337,6 +1364,44 @@ renderAll('log khong co tracker');
 check('log khong tracker: journey rong nhung khong ngã', () => {
   eq(L.lensState.data.journey.steps.length, 0, 'so buoc');
   eq(L.lensState.data.journey.apiTotal, 0, 'apiTotal');
+});
+
+// Log bị cắt đầu: hai dòng của một lần chạy trước rồi mới tới mốc khởi động đầu tiên. Trước đây chúng
+// bị gộp thẳng vào phiên 1, tức nói rằng chúng xảy ra SAU lần khởi động đó.
+rows = ['2026-01-02 09:59:58:010 GMT+07:00 INFO    [Module: ViDemo] dang o giua mot phien truoc do',
+  '2026-01-02 09:59:59:010 GMT+07:00 ERROR   [Module: ViDemo] loi cua phien truoc do']
+  .concat(fixture.build()).map(makeRow);
+scan();
+renderAll('log bi cat dau');
+check('dong truoc moc khoi dong dau tien khong duoc gop vao phien 1', () => {
+  const d = L.lensState.data;
+  eq(d.hasOrphanTail, true, 'phai nhan ra doan cut dau');
+  eq(d.entries[0].session, -1, 'dong dau thuoc doan cut dau');
+  eq(d.entries[1].session, -1, 'ca dong thu hai nua');
+  eq(d.entries[2].session, 1, 'tu moc khoi dong tro di moi la phien 1');
+  eq(d.sessions[0].index, -1, 'doan cut dau dung dau danh sach phien');
+  eq(d.sessions[0].isOrphanTail, true, 'va tu khai la khong thay diem bat dau');
+  eq(d.sessions[0].lineCount, 2, 'dung hai dong vua them');
+  eq(d.sessionCount, 3, '2 lan khoi dong thay duoc + 1 doan cut dau');
+  eq(L.sessionLabel(-1), 'Đuôi phiên trước', 'ten hien ra khong duoc la "Phien -1"');
+});
+
+// Chỉ số âm chứ không phải 0: filter.session được kiểm theo kiểu truthy ở nhiều chỗ nên phiên 0 sẽ bị
+// đọc thành "khong loc phien nao".
+check('loc duoc rieng doan cut dau', () => {
+  L.lensState.filter.session = -1;
+  const result = L.applyFilter(false);
+  eq(result.visible.length, 2, 'chi con hai dong cua doan do');
+  ok(L.renderFilterTab().indexOf('Đuôi phiên trước') >= 0, 'chip phai goi thang ten');
+  ok(L.hasSelectedTimeRange(), 'minimap phai coi day la mot khoang dang chon');
+  L.lensState.filter.session = null;
+  L.applyFilter(false);
+});
+
+// Ticket đi thẳng ra ngoài repo: chỗ này đúng là thứ "log không trả lời được".
+check('ticket noi ro khong thay diem bat dau cua phien dau', () => {
+  const out = L.buildTicketSummary(L.lensState.data);
+  ok(out.indexOf('trước lần khởi động đầu tiên') >= 0, 'phai co trong muc khong tra loi duoc');
 });
 
 // log rỗng

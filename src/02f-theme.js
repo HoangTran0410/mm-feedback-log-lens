@@ -352,6 +352,9 @@ const PANEL_CSS = [
   '.fll-chip.on{background:var(--acc);border-color:var(--acc);color:#fff}',
   /* Chip không còn dòng nào khớp trong ngữ cảnh hiện tại: vẫn bấm được nhưng không đòi nhìn. */
   '.fll-chip.dim{opacity:.42}',
+  /* Phiên không thấy điểm bắt đầu: viền đứt ở mép trái, đọc ra là "đoạn này bị cắt cụt đầu". Cố ý
+     KHÔNG tô accent — accent để dành riêng cho thanh bộ lọc. */
+  '.fll-chip-orphan{border-left-style:dashed;border-left-width:2px;border-left-color:var(--mut)}',
   '.fll-chip.dim:hover{opacity:1}',
   '.fll-chip em{font-style:normal;opacity:.75;font-variant-numeric:tabular-nums}',
   '.fll-sw{width:8px;height:8px;border-radius:2px;flex:0 0 auto}',

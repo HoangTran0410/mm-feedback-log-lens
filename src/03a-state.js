@@ -124,6 +124,16 @@ function escapeHtml(text) {
   });
 }
 
+// Tên một phiên app. Đoạn đầu log nằm trước mốc khởi động đầu tiên không có số thứ tự nào đúng cả:
+// nó là đuôi của một lần chạy mà log không giữ được điểm bắt đầu, nên gọi thẳng ra như vậy.
+function sessionLabel(index) {
+  return index === SESSION_ORPHAN_INDEX ? 'Đuôi phiên trước' : 'Phiên ' + index;
+}
+
+const SESSION_ORPHAN_TIP = 'Đoạn đầu log, nằm trước lần khởi động đầu tiên thấy được — không có điểm ' +
+  'bắt đầu phiên trong file này (log bị cắt bớt, hoặc app đã chạy từ trước đó). Số liệu của nó là số ' +
+  'liệu của một phần phiên, không phải cả phiên.';
+
 function formatClock(ts) {
   if (!ts) return '--:--:--';
   const date = new Date(ts + 7 * 3600000);

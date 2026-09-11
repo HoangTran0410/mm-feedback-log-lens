@@ -45,6 +45,13 @@ const SESSION_MARKERS = [
 ];
 const SESSION_BURST_MS = 5000;
 
+// Dòng nằm TRƯỚC mốc khởi động đầu tiên không thuộc phiên 1: chúng là phần đuôi của một lần chạy
+// trước đó mà log không còn giữ điểm bắt đầu (log bị cắt bớt, hoặc app đã chạy từ lâu trước khi
+// khoảng log này bắt đầu). Gộp chúng vào phiên 1 là nói rằng chúng xảy ra SAU lần khởi động đó —
+// sai cả thứ tự lẫn việc ta thật sự biết gì. Chỉ số âm chứ không phải 0, vì bộ lọc kiểm phiên bằng
+// `filter.session` theo kiểu truthy ở nhiều chỗ: phiên 0 sẽ bị đọc thành "không lọc phiên nào".
+const SESSION_ORPHAN_INDEX = -1;
+
 function sessionMarkerKind(message) {
   for (let i = 0; i < SESSION_MARKERS.length; i += 1) {
     if (SESSION_MARKERS[i].re.test(message)) return SESSION_MARKERS[i].kind;
@@ -446,6 +453,7 @@ function analyzeLog(gapThresholdMs) {
   // rằng không log nào lặp lại một loại mốc giữa chừng một lần chạy.
   let sessionCount = 0;
   let lastMarkerTs = 0;
+  let hasOrphanTail = false;
   let burstKinds = new Set();
   entries.forEach((entry) => {
     const kind = sessionMarkerKind(entry.message);
@@ -459,7 +467,8 @@ function analyzeLog(gapThresholdMs) {
       burstKinds.add(kind);
       if (entry.ts) lastMarkerTs = entry.ts;
     }
-    entry.session = Math.max(1, sessionCount);
+    entry.session = sessionCount || SESSION_ORPHAN_INDEX;
+    if (entry.session === SESSION_ORPHAN_INDEX) hasOrphanTail = true;
   });
 
   let outOfOrder = 0;
@@ -488,7 +497,10 @@ function analyzeLog(gapThresholdMs) {
     rowEls,
     entries,
     container: getLogScrollContainer(rowEls[0]),
-    sessionCount: Math.max(1, sessionCount),
+    // Đếm cả đoạn mồ côi: nó là một lần chạy khác thật, chỉ là không thấy điểm bắt đầu. Log không có
+    // mốc nào thì ra đúng 1 như trước, chỉ khác ở chỗ đoạn đó nay tự khai là không rõ điểm đầu.
+    sessionCount: sessionCount + (hasOrphanTail ? 1 : 0),
+    hasOrphanTail,
     duplicate,
     outOfOrder,
     batchCount: entries.filter((entry) => entry.kind === 'batch').length,
@@ -592,15 +604,18 @@ function buildCorrelations(entries) {
     .sort((a, b) => b.indices.length - a.indices.length);
 }
 
+// Đánh theo Map chứ không theo vị trí trong mảng: phiên mồ côi mang chỉ số âm (SESSION_ORPHAN_INDEX),
+// mà `sessions[index - 1]` với index âm ghi ra một thuộc tính chứ không phải phần tử — filter(Boolean)
+// sau đó sẽ nuốt luôn cả phiên đó. Sắp theo chỉ số nên đoạn mồ côi đứng đầu, đúng thứ tự nó nằm trong log.
 function buildSessions(entries) {
-  const sessions = [];
+  const byIndex = new Map();
   entries.forEach((entry) => {
     if (!entry.level) return;
-    let session = sessions[entry.session - 1];
+    let session = byIndex.get(entry.session);
     if (!session) {
       session = { index: entry.session, firstIndex: entry.domIndex, startTs: entry.ts, endTs: entry.ts, lineCount: 0,
-        errorCount: 0 };
-      sessions[entry.session - 1] = session;
+        errorCount: 0, isOrphanTail: entry.session === SESSION_ORPHAN_INDEX };
+      byIndex.set(entry.session, session);
     }
     session.lineCount += 1;
     if (entry.level === 'ERROR') session.errorCount += 1;
@@ -609,7 +624,7 @@ function buildSessions(entries) {
       if (!session.endTs || entry.ts > session.endTs) session.endTs = entry.ts;
     }
   });
-  return sessions.filter(Boolean);
+  return Array.from(byIndex.values()).sort((a, b) => a.index - b.index);
 }
 
 // Metadata của feedback nằm ngay trên trang dưới dạng <span class="ant-tag">Nhãn: giá trị</span>.
@@ -1909,6 +1924,9 @@ const PANEL_CSS = [
   '.fll-chip.on{background:var(--acc);border-color:var(--acc);color:#fff}',
   /* Chip không còn dòng nào khớp trong ngữ cảnh hiện tại: vẫn bấm được nhưng không đòi nhìn. */
   '.fll-chip.dim{opacity:.42}',
+  /* Phiên không thấy điểm bắt đầu: viền đứt ở mép trái, đọc ra là "đoạn này bị cắt cụt đầu". Cố ý
+     KHÔNG tô accent — accent để dành riêng cho thanh bộ lọc. */
+  '.fll-chip-orphan{border-left-style:dashed;border-left-width:2px;border-left-color:var(--mut)}',
   '.fll-chip.dim:hover{opacity:1}',
   '.fll-chip em{font-style:normal;opacity:.75;font-variant-numeric:tabular-nums}',
   '.fll-sw{width:8px;height:8px;border-radius:2px;flex:0 0 auto}',
@@ -2511,6 +2529,10 @@ function summaryBlindSpots(data) {
   if (data.outOfOrder) {
     notes.push(data.outOfOrder + ' dòng có timestamp lùi về trước — thứ tự dòng không phải thứ tự thời gian');
   }
+  if (data.hasOrphanTail) {
+    notes.push('đoạn đầu log nằm trước lần khởi động đầu tiên thấy được — không biết phiên đó bắt đầu ' +
+      'lúc nào và đã chạy bao lâu trước đó');
+  }
   const spanMs = data.lastTs - data.firstTs;
   if (spanMs > 0) {
     notes.push('log chỉ phủ ' + formatDuration(spanMs) + ' (' + formatClock(data.firstTs) + ' → ' +
@@ -2724,6 +2746,16 @@ function escapeHtml(text) {
     return '&#39;';
   });
 }
+
+// Tên một phiên app. Đoạn đầu log nằm trước mốc khởi động đầu tiên không có số thứ tự nào đúng cả:
+// nó là đuôi của một lần chạy mà log không giữ được điểm bắt đầu, nên gọi thẳng ra như vậy.
+function sessionLabel(index) {
+  return index === SESSION_ORPHAN_INDEX ? 'Đuôi phiên trước' : 'Phiên ' + index;
+}
+
+const SESSION_ORPHAN_TIP = 'Đoạn đầu log, nằm trước lần khởi động đầu tiên thấy được — không có điểm ' +
+  'bắt đầu phiên trong file này (log bị cắt bớt, hoặc app đã chạy từ trước đó). Số liệu của nó là số ' +
+  'liệu của một phần phiên, không phải cả phiên.';
 
 function formatClock(ts) {
   if (!ts) return '--:--:--';
@@ -3254,7 +3286,7 @@ function describeTemplatePayload(payload) {
   else if (payload.f >= 0 || payload.tt >= 0) parts.push('khoảng thời gian cố định');
   if (payload.d) parts.push('bỏ khối lặp');
   if (payload.h === 0) parts.push('không ẩn dòng khác');
-  if (payload.s) parts.push('phiên ' + payload.s);
+  if (payload.s) parts.push(sessionLabel(payload.s).toLowerCase());
   if (payload.lv && payload.lv.length) parts.push(payload.lv.join(' + '));
   if (payload.md && payload.md.length) {
     parts.push(payload.md.length === 1 ? payload.md[0] : payload.md.length + ' module');
@@ -3322,7 +3354,7 @@ function getActiveFilterFacets() {
     facets.push({ id: 'window', label: formatWindowLabel() });
   }
   if (filter.skipDuplicate) facets.push({ id: 'duplicate', label: 'bỏ khối lặp' });
-  if (filter.session) facets.push({ id: 'session', label: 'Phiên ' + filter.session });
+  if (filter.session) facets.push({ id: 'session', label: sessionLabel(filter.session) });
   if (filter.levels.size) facets.push({ id: 'levels', label: Array.from(filter.levels).join(' + ') });
   if (filter.modules.size) {
     facets.push({ id: 'modules', label: filter.modules.size === 1
@@ -3500,9 +3532,9 @@ function updateMinimapRange() {
     Math.max(0, Math.min(100, ((range.from - bounds.from) / span) * 100)).toFixed(2) + '%';
   shadeRight.style.width =
     Math.max(0, Math.min(100, ((bounds.to - range.to) / span) * 100)).toFixed(2) + '%';
-  lensState.el.map.classList.toggle('fll-map-ranged', hasAnyTimeRange());
+  lensState.el.map.classList.toggle('fll-map-ranged', hasSelectedTimeRange());
   if (!lensState.el.mapText) return;
-  if (hasAnyTimeRange()) {
+  if (hasSelectedTimeRange()) {
     lensState.el.mapText.innerHTML = escapeHtml(formatClock(range.from) + ' → ' + formatClock(range.to) +
       ' · ' + formatDuration(range.to - range.from)) +
       (canZoomFurther(range, bounds) ? ' <button class="fll-mapzoom" data-act="mapZoomIn" ' +
@@ -3524,6 +3556,17 @@ function canZoomFurther(range, bounds) {
 
 function hasAnyTimeRange() {
   return lensState.filter.timeFrom !== null || lensState.filter.timeTo !== null;
+}
+
+// "Có khoảng đang chọn không" phải hỏi getVisibleTimeRange(), không hỏi riêng timeFrom/timeTo: lọc
+// theo PHIÊN APP cũng thu khoảng đang xem về đúng phiên đó (getVisibleTimeRange cắt theo start/endTs
+// của phiên) mà không đụng tới hai trường kia. Vì vậy minimap vẫn tô mờ hai bên đúng phiên nhưng lại
+// không hiện nút phóng to — muốn phóng vào một phiên thì phải tự kéo tay lại đúng khoảng đã được tô
+// sẵn. Hai câu hỏi đó phải cho cùng một câu trả lời, nếu không thì phần tô và cái nút nói khác nhau.
+function hasSelectedTimeRange() {
+  if (hasAnyTimeRange()) return true;
+  const range = getVisibleTimeRange();
+  return range.from > lensState.data.firstTs || range.to < lensState.data.lastTs;
 }
 
 /* ------------------------------------------- kéo chọn khoảng thời gian trên minimap */
@@ -3905,7 +3948,7 @@ function handleShortcut(event) {
 // Vẽ bằng MỘT lớp SVG phủ lên cả panel (pointer-events:none) chứ không chèn thẻ vào từng hàng: như vậy
 // không renderer nào phải biết đến chuyện này, và tab mới thêm sau này tự động có luôn.
 
-const AIM_SELECTOR = '[data-aim],[data-lines],[data-jump],[data-bucket],[data-group],[data-call],' +
+const AIM_SELECTOR = '[data-lines],[data-jump],[data-bucket],[data-group],[data-call],' +
   '[data-saw],[data-apifail],[data-jscreen],[data-jtap],[data-jload],[data-tracefail]';
 // Một nhóm lỗi có thể có hàng trăm dòng. Vẽ hết thì minimap thành một mảng đỏ đặc, nhìn không ra gì;
 // 60 vạch đã đủ dày để thấy "rải đều" hay "dồn một chỗ".
@@ -3916,9 +3959,10 @@ const AIM_MAX_TICKS = 60;
 function aimIndicesFor(el) {
   const view = getView();
   const data = el.dataset;
-  // data-aim đi trước data-jump: có những hàng trỏ tới một KHOẢNG (khoảng lặng có đầu và cuối) trong
-  // khi cứ bấm thì chỉ nhảy tới một dòng. Mũi tên phải đánh dấu cả khoảng đó.
-  if (data.aim != null) return data.aim.split(',').map(Number).filter((index) => !Number.isNaN(index));
+  // data-lines đi trước data-jump: hàng ứng với nhiều dòng (nhóm lỗi, hai đầu một khoảng lặng) thì mũi
+  // tên phải đánh dấu hết, không chỉ dòng đầu. Từng có thêm data-aim riêng cho khoảng lặng, vì hồi đó
+  // bấm vào hàng khoảng lặng chỉ nhảy được tới một đầu nên hai danh sách khác nhau thật; nay hàng đó
+  // cũng dùng data-lines nên data-aim không còn ai sinh ra.
   if (data.lines != null) return data.lines.split(',').map(Number).filter((index) => !Number.isNaN(index));
   if (data.jump != null) return [Number(data.jump)];
   if (data.bucket != null) return Number(data.bucket) >= 0 ? [Number(data.bucket)] : [];
@@ -4809,7 +4853,9 @@ function renderSummaryTab() {
     // nó dẫn sang Diễn biến trong khi chỗ chọn phiên lại nằm ở Lọc. Một phiên thì không có gì để
     // chọn, để nút bấm được chỉ làm người dùng bấm hụt.
     statCard(full.sessionCount, 'phiên app', '#3ddc97',
-      full.sessionCount > 1 ? 'data-act="gotoSessions"' : 'data-act="noop"') +
+      (full.sessionCount > 1 ? 'data-act="gotoSessions"' : 'data-act="noop"') +
+      (full.hasOrphanTail ? ' data-tip="' + escapeHtml('Trong đó có một đoạn không đếm được trọn vẹn. ' +
+        SESSION_ORPHAN_TIP) + '"' : '')) +
     statCard(data.gaps.filter((gap) => gap.cause !== 'background').length,
       'khoảng lặng ≥ ' + full.gapThresholdLabel, LEVEL_COLOR.WARNING,
       'data-act="gotoTimeline" data-tip="' +
@@ -5279,7 +5325,7 @@ function renderSessionChips() {
   const sessions = lensState.data.sessions;
   if (sessions.length < 2) return '';
   const picked = lensState.filter.session;
-  return secTitle('Phiên app', picked ? 'Phiên ' + picked : sessions.length + ' phiên', picked ? 'act' : '') +
+  return secTitle('Phiên app', picked ? sessionLabel(picked) : sessions.length + ' phiên', picked ? 'act' : '') +
     renderSessionChipRow();
 }
 
@@ -5293,9 +5339,14 @@ function renderSessionChipRow() {
     sessions
       .map((session) => {
         const count = tally.get(session.index) || 0;
+        // Đoạn mồ côi không có "bắt đầu" để ghi: mốc duy nhất biết chắc là chỗ nó kết thúc.
+        const tip = session.isOrphanTail
+          ? SESSION_ORPHAN_TIP + ' Đoạn này kết thúc lúc ' + formatClock(session.endTs) + '.'
+          : 'Bắt đầu ' + formatClock(session.startTs);
         return '<button class="fll-chip' + (lensState.filter.session === session.index ? ' on' : '') +
-          (count ? '' : ' dim') + '" data-act="setSession" data-value="' + session.index +
-          '" data-tip="Bắt đầu ' + formatClock(session.startTs) + '">Phiên ' + session.index +
+          (count ? '' : ' dim') + (session.isOrphanTail ? ' fll-chip-orphan' : '') +
+          '" data-act="setSession" data-value="' + session.index +
+          '" data-tip="' + escapeHtml(tip) + '">' + escapeHtml(sessionLabel(session.index)) +
           ' <em>' + count + '</em></button>';
       })
       .join('') +
@@ -5475,6 +5526,10 @@ function buildTimelineEvents(data) {
   // Khoảng lặng là một KHOẢNG, không phải một điểm. Trước đây hàng này hiện giờ của dòng TRƯỚC khoảng
   // lặng nhưng bấm (và mũi tên) lại trỏ tới dòng SAU nó — hai đầu cách nhau cả tiếng đồng hồ, nên nhìn
   // vào thấy giao diện tự mâu thuẫn. Nay hiện cả hai mốc, và mũi tên đánh dấu cả hai đầu trên minimap.
+  //
+  // Hàng này ứng với HAI dòng log, nên nó đưa cả hai vào thanh duyệt (`data-lines`) chứ không nhảy tới
+  // một dòng: bấm là tới dòng dừng lại, bấm `n` là sang thẳng dòng mở lại. Bản trước nhảy thẳng tới
+  // dòng SAU khoảng lặng trong khi chữ trên hàng là của dòng TRƯỚC, và không có đường nào xem dòng kia.
   data.gaps.forEach((gap) => {
     // Xuống nền và treo là HAI chuyện khác hẳn nhau; gọi chung một tên thì đọc log thành đoán mò.
     const isBackground = gap.cause === 'background';
@@ -5484,7 +5539,8 @@ function buildTimelineEvents(data) {
         ? 'xuống nền ' + formatClock(gap.downTs) + ', trở lại ' + formatClock(gap.upTs) +
           ' — im lặng vì user rời app, không phải app treo'
         : 'dừng sau: ' + gap.before.message.slice(0, 90),
-      index: gap.after.domIndex, aim: [gap.before.domIndex, gap.after.domIndex] });
+      lines: [gap.before.domIndex, gap.after.domIndex],
+      linesLabel: isBackground ? 'hai đầu đoạn xuống nền' : 'hai đầu khoảng lặng' });
   });
 
   data.groups.filter((group) => group.level === 'ERROR' && !isGroupMuted(group)).forEach((group) => {
@@ -5576,8 +5632,10 @@ function renderTimelineList() {
 
   const shown = events.slice(0, tabUiState.tlLimit);
   return found + '<div class="fll-tl">' + shown
-    .map((event) => '<div class="fll-ev ' + event.kind + '" data-jump="' + event.index + '"' +
-      (event.aim ? ' data-aim="' + event.aim.join(',') + '"' : '') + '>' +
+    .map((event) => '<div class="fll-ev ' + event.kind + '"' +
+      (event.lines
+        ? ' data-lines="' + event.lines.join(',') + '" data-label="' + escapeHtml(event.linesLabel) + '"'
+        : ' data-jump="' + event.index + '"') + '>' +
       '<div class="fll-ev-t">' + timelineIcon(event.kind) +
       (event.count > 1 ? '<span class="fll-jn">' + event.count + '&times;</span>' : '') +
       escapeHtml(event.title) +

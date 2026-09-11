@@ -213,7 +213,7 @@ function describeTemplatePayload(payload) {
   else if (payload.f >= 0 || payload.tt >= 0) parts.push('khoảng thời gian cố định');
   if (payload.d) parts.push('bỏ khối lặp');
   if (payload.h === 0) parts.push('không ẩn dòng khác');
-  if (payload.s) parts.push('phiên ' + payload.s);
+  if (payload.s) parts.push(sessionLabel(payload.s).toLowerCase());
   if (payload.lv && payload.lv.length) parts.push(payload.lv.join(' + '));
   if (payload.md && payload.md.length) {
     parts.push(payload.md.length === 1 ? payload.md[0] : payload.md.length + ' module');

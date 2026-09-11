@@ -93,15 +93,18 @@ function buildCorrelations(entries) {
     .sort((a, b) => b.indices.length - a.indices.length);
 }
 
+// Đánh theo Map chứ không theo vị trí trong mảng: phiên mồ côi mang chỉ số âm (SESSION_ORPHAN_INDEX),
+// mà `sessions[index - 1]` với index âm ghi ra một thuộc tính chứ không phải phần tử — filter(Boolean)
+// sau đó sẽ nuốt luôn cả phiên đó. Sắp theo chỉ số nên đoạn mồ côi đứng đầu, đúng thứ tự nó nằm trong log.
 function buildSessions(entries) {
-  const sessions = [];
+  const byIndex = new Map();
   entries.forEach((entry) => {
     if (!entry.level) return;
-    let session = sessions[entry.session - 1];
+    let session = byIndex.get(entry.session);
     if (!session) {
       session = { index: entry.session, firstIndex: entry.domIndex, startTs: entry.ts, endTs: entry.ts, lineCount: 0,
-        errorCount: 0 };
-      sessions[entry.session - 1] = session;
+        errorCount: 0, isOrphanTail: entry.session === SESSION_ORPHAN_INDEX };
+      byIndex.set(entry.session, session);
     }
     session.lineCount += 1;
     if (entry.level === 'ERROR') session.errorCount += 1;
@@ -110,7 +113,7 @@ function buildSessions(entries) {
       if (!session.endTs || entry.ts > session.endTs) session.endTs = entry.ts;
     }
   });
-  return sessions.filter(Boolean);
+  return Array.from(byIndex.values()).sort((a, b) => a.index - b.index);
 }
 
 // Metadata của feedback nằm ngay trên trang dưới dạng <span class="ant-tag">Nhãn: giá trị</span>.

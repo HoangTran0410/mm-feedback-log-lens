@@ -8,7 +8,7 @@
 // Vẽ bằng MỘT lớp SVG phủ lên cả panel (pointer-events:none) chứ không chèn thẻ vào từng hàng: như vậy
 // không renderer nào phải biết đến chuyện này, và tab mới thêm sau này tự động có luôn.
 
-const AIM_SELECTOR = '[data-aim],[data-lines],[data-jump],[data-bucket],[data-group],[data-call],' +
+const AIM_SELECTOR = '[data-lines],[data-jump],[data-bucket],[data-group],[data-call],' +
   '[data-saw],[data-apifail],[data-jscreen],[data-jtap],[data-jload],[data-tracefail]';
 // Một nhóm lỗi có thể có hàng trăm dòng. Vẽ hết thì minimap thành một mảng đỏ đặc, nhìn không ra gì;
 // 60 vạch đã đủ dày để thấy "rải đều" hay "dồn một chỗ".
@@ -19,9 +19,10 @@ const AIM_MAX_TICKS = 60;
 function aimIndicesFor(el) {
   const view = getView();
   const data = el.dataset;
-  // data-aim đi trước data-jump: có những hàng trỏ tới một KHOẢNG (khoảng lặng có đầu và cuối) trong
-  // khi cứ bấm thì chỉ nhảy tới một dòng. Mũi tên phải đánh dấu cả khoảng đó.
-  if (data.aim != null) return data.aim.split(',').map(Number).filter((index) => !Number.isNaN(index));
+  // data-lines đi trước data-jump: hàng ứng với nhiều dòng (nhóm lỗi, hai đầu một khoảng lặng) thì mũi
+  // tên phải đánh dấu hết, không chỉ dòng đầu. Từng có thêm data-aim riêng cho khoảng lặng, vì hồi đó
+  // bấm vào hàng khoảng lặng chỉ nhảy được tới một đầu nên hai danh sách khác nhau thật; nay hàng đó
+  // cũng dùng data-lines nên data-aim không còn ai sinh ra.
   if (data.lines != null) return data.lines.split(',').map(Number).filter((index) => !Number.isNaN(index));
   if (data.jump != null) return [Number(data.jump)];
   if (data.bucket != null) return Number(data.bucket) >= 0 ? [Number(data.bucket)] : [];

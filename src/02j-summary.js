@@ -53,6 +53,10 @@ function summaryBlindSpots(data) {
   if (data.outOfOrder) {
     notes.push(data.outOfOrder + ' dòng có timestamp lùi về trước — thứ tự dòng không phải thứ tự thời gian');
   }
+  if (data.hasOrphanTail) {
+    notes.push('đoạn đầu log nằm trước lần khởi động đầu tiên thấy được — không biết phiên đó bắt đầu ' +
+      'lúc nào và đã chạy bao lâu trước đó');
+  }
   const spanMs = data.lastTs - data.firstTs;
   if (spanMs > 0) {
     notes.push('log chỉ phủ ' + formatDuration(spanMs) + ' (' + formatClock(data.firstTs) + ' → ' +

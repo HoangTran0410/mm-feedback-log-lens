@@ -44,6 +44,13 @@ const SESSION_MARKERS = [
 ];
 const SESSION_BURST_MS = 5000;
 
+// Dòng nằm TRƯỚC mốc khởi động đầu tiên không thuộc phiên 1: chúng là phần đuôi của một lần chạy
+// trước đó mà log không còn giữ điểm bắt đầu (log bị cắt bớt, hoặc app đã chạy từ lâu trước khi
+// khoảng log này bắt đầu). Gộp chúng vào phiên 1 là nói rằng chúng xảy ra SAU lần khởi động đó —
+// sai cả thứ tự lẫn việc ta thật sự biết gì. Chỉ số âm chứ không phải 0, vì bộ lọc kiểm phiên bằng
+// `filter.session` theo kiểu truthy ở nhiều chỗ: phiên 0 sẽ bị đọc thành "không lọc phiên nào".
+const SESSION_ORPHAN_INDEX = -1;
+
 function sessionMarkerKind(message) {
   for (let i = 0; i < SESSION_MARKERS.length; i += 1) {
     if (SESSION_MARKERS[i].re.test(message)) return SESSION_MARKERS[i].kind;
@@ -445,6 +452,7 @@ function analyzeLog(gapThresholdMs) {
   // rằng không log nào lặp lại một loại mốc giữa chừng một lần chạy.
   let sessionCount = 0;
   let lastMarkerTs = 0;
+  let hasOrphanTail = false;
   let burstKinds = new Set();
   entries.forEach((entry) => {
     const kind = sessionMarkerKind(entry.message);
@@ -458,7 +466,8 @@ function analyzeLog(gapThresholdMs) {
       burstKinds.add(kind);
       if (entry.ts) lastMarkerTs = entry.ts;
     }
-    entry.session = Math.max(1, sessionCount);
+    entry.session = sessionCount || SESSION_ORPHAN_INDEX;
+    if (entry.session === SESSION_ORPHAN_INDEX) hasOrphanTail = true;
   });
 
   let outOfOrder = 0;
@@ -487,7 +496,10 @@ function analyzeLog(gapThresholdMs) {
     rowEls,
     entries,
     container: getLogScrollContainer(rowEls[0]),
-    sessionCount: Math.max(1, sessionCount),
+    // Đếm cả đoạn mồ côi: nó là một lần chạy khác thật, chỉ là không thấy điểm bắt đầu. Log không có
+    // mốc nào thì ra đúng 1 như trước, chỉ khác ở chỗ đoạn đó nay tự khai là không rõ điểm đầu.
+    sessionCount: sessionCount + (hasOrphanTail ? 1 : 0),
+    hasOrphanTail,
     duplicate,
     outOfOrder,
     batchCount: entries.filter((entry) => entry.kind === 'batch').length,
