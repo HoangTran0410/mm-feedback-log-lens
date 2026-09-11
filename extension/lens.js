@@ -6317,12 +6317,48 @@ const LENS_GLOBAL_KEY = '__feedbackLogLens';
 const LENS_OWNER_ATTR = 'data-fll-owner';
 const lensInstanceId = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 
+// Từ khi WebAdmin nhúng sẵn lens.js vào trang, trên cùng một tab có thể có HAI bản cùng chạy: bản của
+// trang (page world) và bản extension của người đang sửa tool (isolated world). Hai bên không thấy
+// `window` của nhau nên chỉ còn thẻ html để nhường quyền.
+//
+// "Ai chạy sau thì thắng" là sai cho ca này: trang chở một bản CỐ ĐỊNH, còn người đang sửa cần bản mới
+// của mình ăn trước — mà thứ tự nạp thì không kiểm soát được (bundle của SPA có thể chạy sau
+// document_idle). Vì vậy quyền sở hữu có XẾP HẠNG, và hạng cao luôn thắng bất kể thứ tự.
+//
+// Nhận diện bằng `chrome.runtime.id`: chỉ content script mới có. Page world của một trang có thể có
+// `chrome` và cả `chrome.runtime`, nhưng `id` là undefined — đã đo, xem CLAUDE.md.
+// Đọc qua `globalThis` chứ không viết thẳng tên `chrome`: trình duyệt không có biến đó (page world của
+// Firefox/Safari) sẽ ném ReferenceError ngay lúc nạp file, mà đây là dòng chạy đầu tiên.
+const LENS_RANK = (function detectLensRank() {
+  const api = /** @type {any} */ (globalThis).chrome;
+  return api && api.runtime && api.runtime.id ? 2 : 1;
+}());
+
+function lensOwnerMark() {
+  return document.documentElement.getAttribute(LENS_OWNER_ATTR) || '';
+}
+
+// Hạng của bản đang giữ quyền. Nhãn cũ (chưa có hạng) đọc ra 0 nên bản mới luôn giành được.
+function currentOwnerRank() {
+  const rank = Number(lensOwnerMark().split(':')[0]);
+  return Number.isFinite(rank) ? rank : 0;
+}
+
+// Có bản hạng CAO HƠN đang giữ quyền: mình phải đứng ngoài hẳn. Hạng bằng nhau thì vẫn theo luật cũ
+// (ai claim sau thì thắng) — đó là ca reload extension, thế hệ mới phải thay được thế hệ cũ.
+function isLensOutranked() {
+  return !isLensOwner() && currentOwnerRank() > LENS_RANK;
+}
+
 function claimLensOwnership() {
-  document.documentElement.setAttribute(LENS_OWNER_ATTR, lensInstanceId);
+  if (isLensOutranked()) return false;
+  document.documentElement.setAttribute(LENS_OWNER_ATTR, LENS_RANK + ':' + lensInstanceId);
+  return true;
 }
 
 function isLensOwner() {
-  return document.documentElement.getAttribute(LENS_OWNER_ATTR) === lensInstanceId;
+  const mark = lensOwnerMark();
+  return mark.slice(mark.indexOf(':') + 1) === lensInstanceId;
 }
 
 // WebAdmin là SPA React: bấm từ danh sách sang feedback detail KHÔNG tải lại tài liệu,
@@ -6582,6 +6618,12 @@ function detachLens() {
 }
 
 function tickPageWatcher() {
+  // Kiểm quyền TRƯỚC mọi thứ khác: bản bị vượt hạng phải rút lui kể cả khi nó chưa gắn được vào trang
+  // nào. Để sau nhánh "chưa gắn" thì nó cứ thử gắn lại mỗi nhịp trong khi đã có chủ khác.
+  if (isLensOutranked()) {
+    disposeSelf(false);
+    return;
+  }
   if (!lensState.data || !lensState.el.root) {
     if (!lensState.isDismissed && hasLogRows()) startLens(!lensState.wasPanelOpen);
     return;
@@ -7059,7 +7101,13 @@ function handleLensInput(event) {
 function startLens(startMinimized) {
   // Nhận quyền TRƯỚC khi dọn: nếu dọn xong mới nhận, nhịp watcher của instance cũ chạm vào đúng khe hở
   // đó sẽ tưởng root của nó bị gỡ oan và dựng lại ngay.
-  claimLensOwnership();
+  // Không giành được (có bản hạng cao hơn đang chạy) thì đứng ngoài hẳn: không dựng panel, không quét
+  // 4000 dòng, và bỏ luôn watcher của mình.
+  if (!claimLensOwnership()) {
+    if (pageWatcher) clearInterval(pageWatcher);
+    pageWatcher = null;
+    return;
+  }
   disposePreviousInstance();
   registerInstance();
 

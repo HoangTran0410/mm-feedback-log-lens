@@ -29,8 +29,17 @@ function installFakeDom() {
   global.document = {
     querySelectorAll: (sel) => (String(sel).indexOf('logRow') >= 0 ? rows : []),
     querySelector: () => null,
-    documentElement: { getAttribute: () => null, setAttribute: noop,
-      classList: { add: noop, remove: noop, toggle: noop } },
+    // Thuộc tính phải nhớ được thật: cơ chế nhường quyền giữa bản của trang và bản extension đi qua
+    // đúng một thuộc tính trên thẻ html, stub trả null thì không kiểm được gì.
+    documentElement: (() => {
+      const attrs = new Map();
+      return {
+        getAttribute: (name) => (attrs.has(name) ? attrs.get(name) : null),
+        setAttribute: (name, value) => attrs.set(name, String(value)),
+        removeAttribute: (name) => attrs.delete(name),
+        classList: { add: noop, remove: noop, toggle: noop },
+      };
+    })(),
     scrollingElement: scroller,
     body: { appendChild: noop },
     getElementById: () => null,
@@ -78,6 +87,7 @@ function loadLens() {
     'updateMinimapRange,renderSessionChipRow,indexRowElements,handlePageRowHover,handlePageLeave,' +
     'buildErrorCodes,buildCaptureTally,regexCaptureCount,renderErrorCodeSection,' +
     'logicalPayloadText,buildPayloadSections,' +
+    'claimLensOwnership,isLensOwner,isLensOutranked,LENS_RANK,LENS_OWNER_ATTR,' +
     'renderTraceFailSection,isBadHttpCall,setTimeWindowPreset,isWindowPresetActive,' +
     'formatWindowLabel,retargetTimeWindow,extractDurations,renderCorrelationList};';
   const wired = src.replace(/\n\}\)\(\);\s*$/, '\n' + exportLine + '\n})();\n');
@@ -1745,6 +1755,41 @@ check('khoi JSON nhieu dong khong lam sai thong ke', () => {
   // windowTs: dòng trong khối thừa hưởng giờ của dòng mở khối, để cửa sổ thời gian không xén mất khối.
   eq(data.entries[5].windowTs, data.entries[1].ts, 'dong giua khoi thua huong gio cua dong mo khoi');
   eq(data.entries[5].ts, null, 'nhung ts van phai la null');
+});
+
+// WebAdmin nhúng sẵn lens.js vào trang, nên trên cùng một tab có thể có HAI bản: bản của trang (page
+// world) và bản extension của người đang sửa tool (isolated world). Hai bên không thấy window của nhau
+// nên chỉ còn thẻ html để nhường quyền — và "ai chạy sau thì thắng" là sai cho ca này, vì thứ tự nạp
+// không kiểm soát được. Bản extension phải luôn thắng.
+check('nhuong quyen: ban hang cao hon luon thang, bat ke thu tu nap', () => {
+  const html = document.documentElement;
+  // Trong node không có chrome.runtime.id nên đây là "bản của trang".
+  eq(L.LENS_RANK, 1, 'chay ngoai extension thi hang 1');
+
+  html.removeAttribute(L.LENS_OWNER_ATTR);
+  ok(L.claimLensOwnership(), 'chua ai giu thi gianh duoc');
+  ok(L.isLensOwner(), 'va minh la chu');
+  eq(html.getAttribute(L.LENS_OWNER_ATTR).split(':')[0], '1', 'nhan phai mang hang o dau');
+
+  // Bản extension (hạng 2) tiếp quản: bản của trang phải nhận ra mình bị vượt hạng và không giành lại.
+  html.setAttribute(L.LENS_OWNER_ATTR, '2:ban-extension');
+  ok(L.isLensOutranked(), 'phai biet la minh bi vuot hang');
+  ok(!L.isLensOwner(), 'va khong con la chu');
+  eq(L.claimLensOwnership(), false, 'khong duoc gianh lai');
+  eq(html.getAttribute(L.LENS_OWNER_ATTR), '2:ban-extension', 'nhan cua ban kia phai con nguyen');
+
+  // Cùng hạng thì vẫn theo luật cũ: ai claim sau thì thắng. Đây là ca reload extension — thế hệ mới
+  // phải thay được thế hệ cũ.
+  html.setAttribute(L.LENS_OWNER_ATTR, '1:the-he-cu');
+  ok(!L.isLensOutranked(), 'cung hang thi khong coi la bi vuot');
+  ok(L.claimLensOwnership(), 'va gianh duoc');
+  ok(L.isLensOwner(), 'thanh chu moi');
+
+  // Nhãn kiểu CŨ (chưa có hạng) đọc ra hạng 0 nên bản mới luôn giành được — không kẹt khi nâng cấp.
+  html.setAttribute(L.LENS_OWNER_ATTR, 'id-kieu-cu-khong-co-hang');
+  ok(!L.isLensOutranked(), 'nhan cu khong duoc chan ban moi');
+  ok(L.claimLensOwnership(), 'gianh duoc');
+  html.removeAttribute(L.LENS_OWNER_ATTR);
 });
 
 // log rỗng

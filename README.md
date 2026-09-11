@@ -23,8 +23,10 @@ Chỉ khi muốn chạy bản mới hơn bản trang đang chở (đang sửa to
 2. **Load unpacked** → chọn thư mục `extension/`
 
 Lúc đó hai bản cùng sống: bản của trang chạy ở page world, bản extension ở isolated world. Chúng không
-thấy `window` của nhau nên việc nhường quyền đi qua `data-fll-owner` trên thẻ `html` — bản mới ghi tên
-mình vào đó, bản cũ đọc thấy tên khác thì tự rút lui. Xem [CLAUDE.md](CLAUDE.md).
+thấy `window` của nhau nên việc nhường quyền đi qua `data-fll-owner` trên thẻ `html`, và nhãn đó mang
+theo **hạng**: bản extension hạng 2, bản nhúng trong trang hạng 1 — **hạng cao luôn thắng bất kể bản
+nào nạp trước**, bản thua tự gỡ panel và dừng hẳn trong vòng một nhịp watcher. Nên cứ `./build.sh` rồi
+bấm reload extension là thấy bản mới, không cần trang gỡ bản cũ ra. Xem [CLAUDE.md](CLAUDE.md).
 
 Phím tắt: `Alt+L` mở lại panel đã đóng, `n` / `p` đi tới lui giữa các dòng đang duyệt, `Esc` thu panel về pill.
 

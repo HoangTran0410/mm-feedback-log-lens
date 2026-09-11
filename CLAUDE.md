@@ -678,9 +678,29 @@ bookmarklet đã bỏ, nhưng **chưa xác minh** được reload extension lúc
 
 **Và từ khi WebAdmin nhúng thẳng `extension/lens.js` vào trang, ca hai-world đó quay lại đúng như cũ**:
 bản của trang chạy ở **page world**, bản extension (người đang sửa tool vẫn load unpacked) chạy ở
-**isolated world**. Đây lại là lý do sống của `data-fll-owner`, không còn là di sản của bookmarklet
-nữa. **CHƯA XÁC MINH** cặp đôi mới này: chưa chạy thử đồng thời một bản nhúng trong trang và một bản
-extension trên cùng một tab. Trước khi gỡ hay sửa cơ chế nhường quyền, phải thử đúng ca đó.
+**isolated world**. Đây lại là lý do sống của `data-fll-owner`, không còn là di sản của bookmarklet.
+
+**Quyền sở hữu có XẾP HẠNG, vì "ai chạy sau thì thắng" là sai cho ca này.** Trang chở một bản CỐ ĐỊNH,
+còn người đang sửa tool cần bản mới của mình ăn trước — mà thứ tự nạp thì không kiểm soát được (bundle
+của SPA hoàn toàn có thể chạy sau `document_idle`). Nhãn nay là `"<hạng>:<id>"`: bản extension hạng 2,
+bản nhúng trong trang hạng 1, **hạng cao luôn thắng bất kể thứ tự**. Hạng bằng nhau thì vẫn theo luật
+cũ (ai claim sau thì thắng) — đó là ca reload extension, thế hệ mới phải thay được thế hệ cũ. Nhãn kiểu
+cũ (chưa có hạng) đọc ra hạng 0 nên bản mới luôn giành được, không kẹt lúc nâng cấp.
+
+Ba chỗ phải giữ đúng, sai một cái là hỏng:
+- **Bản thua đứng ngoài HẲN**: `startLens()` thất bại lúc claim thì không dựng panel, không quét 4000
+  dòng, và tự dừng watcher của mình. Không thì nó cứ thử gắn lại mỗi nhịp trong khi đã có chủ khác.
+- **Kiểm quyền ở ĐẦU `tickPageWatcher()`**, trước nhánh "chưa gắn được". Để sau thì bản bị vượt hạng mà
+  chưa gắn vào trang nào sẽ không bao giờ đi tới chỗ kiểm.
+- **Đọc `chrome` qua `globalThis`**, đừng viết thẳng tên biến: trình duyệt không có nó sẽ ném
+  `ReferenceError` ngay lúc nạp file, mà đây là dòng chạy đầu tiên.
+
+Đã đo (Chrome, page world thật, bằng cách chèn thẻ `<script>` vào trang): `typeof chrome` là `object`
+nhưng **`chrome.runtime` là `undefined`** → hạng tính ra đúng 1. Và mô phỏng bản hạng 2 xuất hiện giữa
+chừng: bản của trang **gỡ panel của mình trong vòng một nhịp watcher và không giành lại** ở các nhịp
+sau. **CHƯA XÁC MINH:** chưa chạy thật một bản extension (isolated world) song song với bản nhúng trong
+trang — nửa còn lại của phép thử là `chrome.runtime.id` CÓ giá trị trong content script, cái đó mới chỉ
+dựa trên tài liệu của Chrome chứ chưa đo tại chỗ.
 
 Ba chi tiết trong cơ chế đó, sai một cái là hỏng:
 
