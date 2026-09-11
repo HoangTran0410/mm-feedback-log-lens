@@ -1567,14 +1567,15 @@ check('token trong header khong duoc lot ra panel hay ticket', () => {
 
 // Đo trên log production 9609 dòng (autoId=5956756): "device-name" trong header 0 dòng, "deviceName"
 // trong body 153 dòng. Không đọc body thì panel chỉ ghi được mã máy trong User-Agent ("2201117TG").
-const dongBody = (appCode, tuKhoa) =>
+const dongBody = (appCode, tuKhoa, muiGio, banAndroid) =>
   '2026-01-02 10:0' + (appCode === '5.13.1' ? '1' : '2') + ':00:100 GMT+07:00 INFO    [Module: HTTP] ' +
   '[Method: POST] [URL: https://api.demo/vi/' + tuKhoa + '] [RequestPayload: --encrypted: false ' +
   '--body: {"appCode":"' + appCode + '","appId":"vn.momo.myvoucher","appVer":51310,"buildNumber":0,' +
   '"channel":"APP","lang":"vi","deviceName":"Redmi Note 11","deviceOS":"android",' +
   '"deviceNameSetting":"May cua Nam"} --encryptedBody:  --header: ' +
-  '{"map_appId":"vn.momo.myvoucher","map_miniAppVersion":"12","User-Agent":' +
-  '"momotransfer/5.13.1.51310 Dalvik/2.1.0 (Linux; U; Android 13; 2201117TG Build/TKQ1.221114.001)"}]';
+  '{"map_appId":"vn.momo.myvoucher","map_miniAppVersion":"12","M-Timezone":"' + muiGio + '","User-Agent":' +
+  '"momotransfer/5.13.1.51310 Dalvik/2.1.0 (Linux; U; Android ' + banAndroid +
+  '; 2201117TG Build/TKQ1.221114.001)"}]';
 
 // Dòng này có "--body: null" rồi mới tới map header: đi tìm dấu { đầu tiên kể từ nhãn --body là vớ
 // luôn map header của chính dòng đó. "lang" nằm trong CẢ HAI danh sách nên nếu cái bẫy đó còn thì
@@ -1585,8 +1586,8 @@ const dongBodyRong =
 
 rows = [
   '2026-01-02 10:00:00:010 GMT+07:00 INFO    [Module: GiaLapDb] MomoDatabase init OK',
-  dongBody('5.13.1', 'cu'),
-  dongBody('5.15.0', 'moi'),
+  dongBody('5.13.1', 'cu', 'Asia/Ho_Chi_Minh', '13'),
+  dongBody('5.15.0', 'moi', 'Asia/Bangkok', '14'),
   dongBodyRong,
 ].map(makeRow);
 scan();
@@ -1623,6 +1624,51 @@ check('appId trong body la id cua MINIAPP, khong duoc doc thanh ban app', () => 
   eq(env.appVersion, '5.13.1', 'ban app lay tu appCode, khong phai tu appId');
   eq(env.appVersions.length, 2, 'log nay co hai ban app');
   ok(L.renderSummaryTab().indexOf('vn.momo.myvoucher') >= 0, 'miniapp van hien o danh sach miniapp');
+});
+
+// Một trường đáng lẽ KHÔNG được đổi trong một log mà lại đổi thì đó chính là phát hiện, không phải
+// thứ để chọn đại lấy cái hay gặp nhất. Trước đây chỉ IP / deviceid / agent_id được giữ cả danh sách.
+check('truong doi giua chung thi giu ca danh sach, bang im', () => {
+  const env = L.lensState.data.environment;
+  const co = (key) => env.watched.find((field) => field.key === key);
+  eq(co('M-Timezone').values.length, 2, 'hai mui gio');
+  eq(co('osLabel').values.length, 2, 'hai ban Android — suy tu danh sach User-Agent');
+  eq(co('lang').values.length, 1, 'ngon ngu khong doi thi van la mot gia tri');
+  eq(env.changed.map((field) => field.label).sort().join(','), 'Bản app,Hệ điều hành,Múi giờ',
+    'dung ba truong doi giua chung');
+
+  const html = L.renderSummaryTab();
+  ok(html.indexOf('Asia/Ho_Chi_Minh') >= 0 && html.indexOf('Asia/Bangkok') >= 0, 'phai hien ca hai mui gio');
+  ok(html.indexOf('Android 13') >= 0 && html.indexOf('Android 14') >= 0, 'phai hien ca hai ban Android');
+  // Bảng ghi một giá trị trong khi ngay dưới là danh sách hai giá trị thì đọc ra là một khẳng định.
+  const bang = html.slice(html.indexOf('Máy &amp; môi trường'), html.indexOf('giá trị khác nhau'));
+  ok(bang.indexOf('Múi giờ') < 0, 'bang phai im ve mui gio khi co hai gia tri');
+
+  const ticket = L.buildTicketSummary(L.lensState.data);
+  const dong = ticket.split('\n').find((d) => d.indexOf('Đổi giữa chừng') >= 0) || '';
+  ok(dong.indexOf('Múi giờ (2)') >= 0, 'ticket phai noi ra la co doi giua chung: ' + dong);
+});
+
+// Gom mọi trường về một cơ chế thì rất dễ bỏ mất đường dự phòng của từng trường — log không có header
+// vẫn phải đọc được ngôn ngữ và đời máy từ chữ trong chính dòng log.
+const rowsCoHeader = rows;
+rows = ['2026-01-02 10:00:00:010 GMT+07:00 INFO    [Module: GiaLapDb] MomoDatabase init OK',
+  '2026-01-02 10:00:01:010 GMT+07:00 INFO    [Module: DeviceProfileManager] ' +
+  'device_performance: high-end, "lang":"en", device_os: ANDROID',
+].map(makeRow);
+scan();
+const envKhongHeader = L.lensState.data.environment;
+const htmlKhongHeader = L.renderSummaryTab();
+// Trả lại NGAY, ngoài check(): phép thử hỏng thì cũng không được để log hai dòng này dính sang phép
+// thử sau — đã dính đúng chuyện đó một lần.
+rows = rowsCoHeader;
+scan();
+
+check('log khong co header van doc duoc ngon ngu va doi may', () => {
+  const co = (key) => envKhongHeader.watched.find((field) => field.key === key);
+  eq(co('device_performance').values[0].value, 'high-end', 'doi may doc tu chu trong dong log');
+  eq(co('lang').values[0].value, 'en', 'ngon ngu doc tu chu trong dong log');
+  ok(htmlKhongHeader.indexOf('high-end') >= 0, 'phai hien ra tren panel');
 });
 
 // Mục "Máy & môi trường" từng đọc thẳng lensState.data nên lọc kiểu gì nó cũng đứng yên. Trên log

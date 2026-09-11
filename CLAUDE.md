@@ -161,11 +161,30 @@ phần dưới của chính stack trace đó. Giá trị nằm ở `entry.window
   máy — đọc nó là bóc một khối JSON to cho mỗi call mà không được gì.
 - **Cặp (`map_appId`, `map_miniAppVersion`) phải đọc TRONG CÙNG một dòng.** Gom riêng hai danh sách rồi
   ghép lại là gán nhầm version của miniapp này cho miniapp kia.
-- **Một khoá nhiều giá trị thì giữ CẢ DANH SÁCH, đừng lấy cái hay gặp nhất.** IP đổi giữa chừng là đổi
-  mạng; `deviceid` đổi là log đã bị trộn từ hai máy; **bản app đổi là người dùng vừa nâng cấp giữa log**
-  nên mọi con số phía trên đang trộn hai bản (log trên có cả `5.13.1` lẫn `5.15.0`, cách nhau 4 ngày).
-  Panel hiện đúng một giá trị thì để trong bảng, từ hai giá trị trở lên thì tách thành danh sách kèm
-  số lần.
+- **Một khoá nhiều giá trị thì giữ CẢ DANH SÁCH, đừng lấy cái hay gặp nhất — và luật này áp cho MỌI
+  trường đáng lẽ không đổi, không riêng bốn cái.** Panel hiện đúng một giá trị thì để trong bảng, từ
+  hai giá trị trở lên thì **bảng im** và tách thành danh sách kèm số lần: bảng ghi một giá trị trong
+  khi ngay dưới là danh sách hai giá trị thì đọc ra là một khẳng định, còn nó chỉ là cái hay gặp nhất.
+  Danh sách trường nằm ở `ENV_WATCHED_FIELDS` (`src/02i`), mỗi trường kèm sẵn câu nói rõ **đổi thì
+  nghĩa là gì** — một danh sách trần không gắn với câu hỏi nào thì người đọc chỉ thấy hai dòng chữ:
+  tên máy / hệ điều hành / đời máy / bản app / ngôn ngữ / múi giờ / kênh / môi trường / agent_id /
+  deviceid / IP. Thêm trường mới thì khai ở đó, renderer tự có — nó chỉ biết một luật, không nhớ tên
+  từng trường.
+
+  Ba chỗ dễ sai, cả ba đều đã dính:
+  - **Hệ điều hành phải gộp theo NHÃN, không theo chuỗi User-Agent.** Đo trên log thật: **8 chuỗi UA
+    khác nhau mà chỉ một hệ điều hành** — chúng chỉ khác cái đuôi `AgentID/…`. Lấy UA thô làm danh sách
+    thì log nào cũng báo "8 giá trị khác nhau".
+  - **Đừng bỏ đường dự phòng của từng trường khi gom về một cơ chế.** `lang` còn có `M-Lang` và một
+    đường quét chữ trong dòng log, `env` còn có `app_type`, `device_performance` còn có đường quét —
+    chúng sinh ra cho log **không có request HTTP nào**. Gom xong mà chỉ đọc đúng một khoá là mất sạch.
+    Cùng lý do, `available` phải tính cả `watched.length`, không thì đọc được rồi nhưng mục không hiện.
+  - **Cố ý KHÔNG theo dõi:** `map_screen_name` (đổi theo từng request — đó là bản chất của nó, không
+    phải "thay đổi"), `map_appId`/`map_miniAppVersion` (đã có mục MiniApp riêng, nhiều miniapp là bình
+    thường), `User-Agent` thô (lý do ngay trên).
+
+  Khối ticket có một dòng **"Đổi giữa chừng"** liệt kê những trường này khi chúng đổi: người đọc ticket
+  cần biết điều đó TRƯỚC khi tin mấy con số phía trên, vì chúng đang cộng của cả hai bên.
 
 **Nhãn hệ điều hành dựng trong `02i`, không ghép chữ ở renderer.** Bản cũ chỉ khớp User-Agent kiểu iOS
 (`MoMoPlatform … CFNetwork … Darwin`) rồi renderer tự ghép `'iOS ' + osVersion`. Đo trên một dòng log

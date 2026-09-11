@@ -126,12 +126,14 @@ function envRankRow(left, right, tip) {
 // hay gặp nhất: IP đổi giữa chừng = đổi mạng, deviceid đổi = log đã bị trộn từ hai máy, bản app đổi =
 // người dùng vừa nâng cấp giữa log nên mọi con số phía trên đang trộn hai bản.
 // Đúng một giá trị thì nó đã nằm ở bảng trên rồi, không lặp lại ở đây.
-function renderEnvValueList(label, list) {
-  if (list.length < 2) return '';
-  return '<div class="fll-hint" style="margin:10px 0 4px">' + escapeHtml(label) + ' — <b>' +
-    list.length + '</b> giá trị khác nhau</div>' +
-    '<div class="fll-rank">' + list
-      .map((item) => envRankRow(envShortValue(item.value), item.count + ' lần', item.value))
+function renderEnvValueList(field) {
+  if (field.values.length < 2) return '';
+  return '<div class="fll-hint" style="margin:10px 0 4px"' +
+    (field.tip ? ' data-tip="' + escapeHtml(field.tip) + '"' : '') + '>' + escapeHtml(field.label) +
+    ' — <b>' + field.values.length + '</b> giá trị khác nhau, đổi giữa chừng</div>' +
+    '<div class="fll-rank">' + field.values
+      .map((item) => envRankRow(envShortValue(item.value), item.count + ' lần',
+        item.value + (field.tip ? '\n' + field.tip : '')))
       .join('') + '</div>';
 }
 
@@ -160,40 +162,44 @@ function renderEnvironmentSection(data) {
         'dòng request HTTP nào mang thông tin máy');
   }
   const context = data.feedback || {};
-  const only = (list) => (list.length === 1 ? list[0].value : '');
+  const byKey = new Map(env.watched.map((field) => [field.key, field]));
+  // Đúng một giá trị thì để trong bảng; từ hai trở lên thì bảng IM, danh sách bên dưới nói. Bảng mà
+  // vẫn ghi một giá trị trong khi ngay dưới là danh sách hai giá trị thì đọc ra là một khẳng định,
+  // còn nó chỉ là cái hay gặp nhất.
+  const one = (key) => {
+    const field = byKey.get(key);
+    return field && field.values.length === 1 ? field.values[0].value : '';
+  };
+  const deviceName = one('device-name');
   const rows = [
-    // Hai cái tên của cùng một cái máy: tên người đọc được và mã máy trong User-Agent. Giữ cả hai,
-    // xem chú thích ở buildEnvironment.
-    ['Thiết bị', [env.device + (env.deviceModel ? ' (' + env.deviceModel + ')' : ''),
-      env.osLabel || env.deviceOs].filter(Boolean).join(' · ')],
-    ['Đời máy', env.performance],
-    // Nhiều bản app trong cùng tập đang xem thì bảng này im, để danh sách bên dưới nói — đúng cách
-    // IP và deviceid đang làm. Một dòng "Bản app 5.13.1" ngay trên một danh sách ghi hai bản thì đọc
-    // ra là một khẳng định, mà nó chỉ là bản hay gặp nhất.
-    ['Bản app', env.appVersions.length > 1 ? ''
-      : [env.appVersion, env.appBuild ? 'build ' + env.appBuild : '',
-        env.flavor ? 'build ' + env.flavor : ''].filter(Boolean).join(' · ')],
+    ['Thiết bị', [deviceName
+      ? deviceName + (env.deviceModel ? ' (' + env.deviceModel + ')' : '')
+      : (byKey.has('device-name') ? env.deviceModel : env.device),
+      one('osLabel') || (byKey.has('osLabel') ? '' : env.deviceOs)].filter(Boolean).join(' · ')],
+    ['Đời máy', one('device_performance')],
+    ['Bản app', one('app_code')
+      ? [env.appVersion, env.appBuild ? 'build ' + env.appBuild : '',
+        env.flavor ? 'build ' + env.flavor : ''].filter(Boolean).join(' · ')
+      : ''],
     ['Mạng', context.Network || ''],
-    ['Ngôn ngữ', env.lang],
-    ['Múi giờ', env.timezone],
-    ['Môi trường', [env.envName, env.channel].filter(Boolean).join(' · ')],
+    ['Ngôn ngữ', one('lang')],
+    ['Múi giờ', one('M-Timezone')],
+    ['Môi trường', [one('env'), one('channel')].filter(Boolean).join(' · ')],
     ['CFNetwork / Darwin', [env.cfNetwork, env.darwin].filter(Boolean).join(' / ')],
-    ['Agent ID', only(env.agentIds)],
+    ['Agent ID', one('agent_id')],
     // Cắt ở đây chứ không cắt trong 02i: nguyên văn vẫn phải còn trong dữ liệu để chú giải hiện ra
     // được và để ai đọc code sau không tưởng tool chỉ đọc được một phần deviceid.
-    ['Device ID', envShortValue(only(env.deviceIds)), only(env.deviceIds)],
-    ['IP', only(env.ips)],
+    ['Device ID', envShortValue(one('deviceid')), one('deviceid')],
+    ['IP', one('device-ip')],
     ['Host đã gọi', env.hostCount
       ? env.hostCount + ' host' + (env.nonProdHosts.length
         ? ' · ' + env.nonProdHosts.length + ' host có dấu hiệu uat/dev: ' + env.nonProdHosts.join(', ')
         : ' · không host nào có dấu hiệu uat/dev')
       : ''],
   ].filter((row) => row[1]);
-  const lists = renderEnvValueList('Bản app', env.appVersions) +
-    renderEnvValueList('Agent ID', env.agentIds) +
-    renderEnvValueList('Device ID', env.deviceIds) +
-    renderEnvValueList('IP', env.ips) +
-    renderEnvMiniApps(env.miniApps);
+  // Một luật cho MỌI trường đáng theo dõi, không phải nhớ tên từng cái ở đây: thêm trường mới thì khai
+  // ở ENV_WATCHED_FIELDS trong 02i, chỗ này tự có.
+  const lists = env.watched.map(renderEnvValueList).join('') + renderEnvMiniApps(env.miniApps);
   if (!rows.length && !lists) return '';
 
   // Bản build và host là HAI chuyện khác nhau — chỉ nói ra sự thật quan sát được, không kết luận hộ.

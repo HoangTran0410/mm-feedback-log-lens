@@ -36,6 +36,10 @@ function summaryEnvironment(data) {
   // Version miniapp là thứ quyết định "chạy đoạn code nào" — thiếu nó thì ticket không tái hiện được.
   out += summaryLine('MiniApp', env.miniApps
     .map((app) => app.appId + ' ' + app.versions.map((item) => item.value).join('/')).join(' · '));
+  // Những trường đáng lẽ không đổi mà lại đổi: đây là thứ người đọc ticket cần biết TRƯỚC khi tin mấy
+  // con số phía trên, vì chúng đang cộng của cả hai bên.
+  out += summaryLine('Đổi giữa chừng', env.changed
+    .map((field) => field.label + ' (' + field.values.length + ')').join(' · '));
   out += summaryLine('Mạng', context.Network);
   out += summaryLine('Màn / tính năng', [context.Feature, context.ScreenID, context.MiniApp]
     .filter(Boolean).join(' · '));

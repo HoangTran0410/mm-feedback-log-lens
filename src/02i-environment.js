@@ -205,13 +205,66 @@ function envTop(headers, key) {
   return list.length ? list[0].value : '';
 }
 
+// Nhãn hệ điều hành dựng từ MỘT chuỗi User-Agent. Tách riêng vì còn phải chạy lên cả danh sách UA:
+// log phủ cả tuần thì người dùng hoàn toàn có thể lên đời hệ điều hành giữa chừng.
+function osLabelFromUa(ua) {
+  const parsed = RE_ENV_UA.exec(ua || '');
+  const ios = parseEnvDevice(parsed ? parsed[5] : '');
+  if (ios.osVersion) return 'iOS ' + ios.osVersion;
+  const android = RE_ENV_ANDROID.exec(ua || '');
+  return android ? 'Android ' + android[1] : '';
+}
+
+// Gộp danh sách User-Agent lại theo nhãn hệ điều hành: cùng một Android 13 nhưng khác AgentID thì UA
+// là hai chuỗi khác nhau — đo trên log thật có 8 chuỗi UA mà chỉ một hệ điều hành.
+function envOsLabels(uaValues) {
+  const byLabel = new Map();
+  uaValues.forEach((item) => {
+    const label = osLabelFromUa(item.value);
+    if (label) byLabel.set(label, (byLabel.get(label) || 0) + item.count);
+  });
+  return Array.from(byLabel, (pair) => ({ value: pair[0], count: pair[1] }))
+    .sort((a, b) => b.count - a.count);
+}
+
+// Những trường ĐÁNG LẼ không đổi trong suốt một log. Đổi là có chuyện đáng kể ra, nên mỗi trường ở đây
+// đều đi kèm câu nói rõ "đổi thì nghĩa là gì" — một danh sách trần không gắn với câu hỏi nào thì người
+// đọc chỉ thấy hai dòng chữ mà không biết nên nghĩ gì.
+//
+// Cố ý KHÔNG đưa vào đây: map_screen_name (đổi theo từng request, đó là bản chất của nó, không phải
+// "thay đổi"), map_appId / map_miniAppVersion (đã có mục MiniApp riêng, và nhiều miniapp là bình
+// thường), User-Agent thô (8 chuỗi khác nhau trên log thật mà chỉ khác đuôi AgentID).
+const ENV_WATCHED_FIELDS = [
+  { key: 'device-name', label: 'Tên máy',
+    tip: 'Hai tên máy trong cùng một log nghĩa là log đã bị trộn từ hai máy — mọi con số phía trên đang cộng của cả hai.' },
+  { key: 'osLabel', label: 'Hệ điều hành',
+    tip: 'Hệ điều hành lên đời giữa log. Lỗi chỉ xuất hiện ở một bên là một manh mối.' },
+  { key: 'device_performance', label: 'Đời máy', scan: RE_ENV_PERF,
+    tip: 'Đời máy đổi thì không còn là một máy nữa — cùng loại với việc đổi deviceid.' },
+  { key: 'app_code', label: 'Bản app',
+    tip: 'Người dùng nâng cấp app giữa log — mọi con số phía trên đang trộn hai bản.' },
+  { key: 'lang', label: 'Ngôn ngữ', alt: ['M-Lang'], scan: RE_ENV_LANG,
+    tip: 'Người dùng đổi ngôn ngữ app giữa chừng. Chữ trên màn và cả nội dung BE trả về đều đổi theo.' },
+  { key: 'M-Timezone', label: 'Múi giờ',
+    tip: 'Múi giờ đổi: người dùng đi vùng khác, tự sửa giờ máy, hoặc máy vừa đồng bộ lại giờ. Mọi mốc thời gian trong log đọc theo múi giờ này.' },
+  { key: 'channel', label: 'Kênh',
+    tip: 'Kênh gọi request đổi giữa chừng.' },
+  { key: 'env', label: 'Môi trường', alt: ['app_type'],
+    tip: 'Môi trường đổi giữa log (production ↔ uat) — app không được phép làm vậy trong một lần chạy.' },
+  { key: 'agent_id', label: 'Agent ID',
+    tip: 'Nhiều agent_id: người dùng đăng nhập tài khoản khác, hoặc log gộp nhiều người.' },
+  { key: 'deviceid', label: 'Device ID',
+    tip: 'deviceid đổi nghĩa là log đã bị trộn từ hai máy.' },
+  { key: 'device-ip', label: 'IP',
+    tip: 'IP đổi giữa chừng = đổi mạng (wifi sang 4G, hoặc đổi wifi).' },
+];
+
 function buildEnvironment(entries, httpCalls) {
   const headers = collectEnvHeaders(entries);
 
   const ua = envTop(headers, 'User-Agent') || envFirst(entries, RE_ENV_UA, 0);
   const parsed = ua ? RE_ENV_UA.exec(ua) : null;
   const iosDevice = parseEnvDevice(parsed ? parsed[5] : '');
-  const androidHit = ua ? RE_ENV_ANDROID.exec(ua) : null;
   const androidModel = ua ? RE_ENV_ANDROID_MODEL.exec(ua) : null;
 
   const hosts = new Map();
@@ -225,8 +278,8 @@ function buildEnvironment(entries, httpCalls) {
   const deviceOs = envTop(headers, 'device_os') || envFirst(entries, RE_ENV_OS);
   // Nhãn hệ điều hành do đây dựng, không để renderer tự ghép chữ "iOS": ghép cứng ở đó thì log Android
   // hiện ra "iOS 9". Không đoán được phiên bản thì chỉ ghi tên hệ điều hành.
-  const osLabel = iosDevice.osVersion ? 'iOS ' + iosDevice.osVersion
-    : (androidHit ? 'Android ' + androidHit[1] : '');
+  const osLabels = envOsLabels(envPick(headers, 'User-Agent'));
+  const osLabel = osLabelFromUa(ua) || (osLabels.length ? osLabels[0].value : '');
 
   // Hai cái tên của cùng một cái máy: tên người đọc được ("Redmi Note 11") và mã máy trong
   // User-Agent ("2201117TG"). Giữ cả hai — tên để người đọc nhận ra, mã để tra cứu và để so với
@@ -242,9 +295,36 @@ function buildEnvironment(entries, httpCalls) {
     count: Array.from(pair[1].values()).reduce((sum, n) => sum + n, 0),
   })).sort((a, b) => b.count - a.count);
 
+  // Mỗi trường đáng theo dõi kèm mọi giá trị của nó. Renderer chỉ cần một luật: đúng một giá trị thì
+  // để trong bảng, từ hai trở lên thì tách thành danh sách — không phải nhớ tên từng trường nữa.
+  // `alt` và `scan` là những đường dự phòng vốn có của từng trường, đừng bỏ khi gom về một cơ chế:
+  // không có header thì `lang` còn đọc được từ chữ trong dòng log, `env` còn có `app_type`.
+  const watchedValues = (field) => {
+    if (field.key === 'osLabel') return osLabels;
+    let values = envPick(headers, field.key);
+    (field.alt || []).forEach((key) => {
+      if (!values.length) values = envPick(headers, key);
+    });
+    if (!values.length && field.scan) {
+      const hit = envFirst(entries, field.scan);
+      // Đường quét bằng regex chỉ trả về giá trị ĐẦU TIÊN gặp, nên không đếm được số lần — và cũng
+      // không dùng để nói "đổi giữa chừng", nó luôn là một giá trị.
+      if (hit) values = [{ value: hit, count: 1 }];
+    }
+    return values;
+  };
+  const watched = ENV_WATCHED_FIELDS
+    .map((field) => Object.assign({}, field, { values: watchedValues(field) }))
+    .filter((field) => field.values.length);
+
   return {
+    watched,
+    // Những trường đổi giữa chừng, để ticket nói ra được mà không phải kể lại cả bảng.
+    changed: watched.filter((field) => field.values.length > 1),
     // Rỗng hết thì tab không vẽ mục này — log production cắt giữa chừng có thể không có request nào.
-    available: !!(parsed || hosts.size || headers.lineCount || headers.bodyLineCount),
+    // watched.length cũng tính: log không có request HTTP nào vẫn có thể khai máy trong chữ của chính
+    // dòng log (DeviceProfileManager), và mấy đường quét dự phòng sinh ra là để đọc đúng ca đó.
+    available: !!(parsed || hosts.size || headers.lineCount || headers.bodyLineCount || watched.length),
     flavor,
     appVersion: (parsed ? parsed[2] : '') || envTop(headers, 'app_code'),
     appVersions,
