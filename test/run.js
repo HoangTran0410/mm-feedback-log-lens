@@ -1563,6 +1563,18 @@ check('re chuot tren bang log: panel mo di, minimap chi dung dong do', () => {
   L.lensState.el = {};
 });
 
+// Accent (#ff2e88) cùng hệ hồng với cột ERROR của minimap (#ff5f6d): vạch vị trí tô accent thì đặt
+// đúng vào chỗ có lỗi là chìm nghỉm — mà đó lại là chỗ hay phải nhìn nhất. Vạch của mũi tên đã đổi sang
+// trắng từ trước, .fll-cursor hồi đó bị bỏ sót.
+check('vach vi tri tren minimap khong duoc to accent', () => {
+  const css = L.PANEL_CSS;
+  const at = css.indexOf('.fll-cursor{');
+  ok(at >= 0, 'phai co rule vach vi tri');
+  const rule = css.slice(at, css.indexOf('}', at));
+  ok(rule.indexOf('var(--acc)') < 0, 'khong duoc dung accent: trung he mau voi cot ERROR');
+  ok(rule.indexOf('background:#fff') >= 0, 'phai la mau sang, giong vach cua mui ten');
+});
+
 // Cái bẫy của cách làm này: opacity gộp cả cây con thành MỘT lớp, con không bao giờ sáng hơn cha. Đặt
 // opacity lên chính .fll-panel là minimap mờ theo — mà minimap đúng là thứ cần nhìn rõ lúc đó.
 check('xuyen thau khong duoc dat opacity len chinh panel', () => {

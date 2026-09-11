@@ -1709,8 +1709,13 @@ const PANEL_CSS = [
   '.fll-maptext{font-variant-numeric:tabular-nums;opacity:.75}',
   '.fll-map-ranged + .fll-maplbl .fll-maptext{opacity:1;color:var(--acc);font-weight:650}',
   '.fll-maptext.aiming{opacity:1;color:#fff;font-weight:700;font-variant-numeric:tabular-nums}',
-  '.fll-cursor{position:absolute;top:0;bottom:0;width:2px;background:var(--acc);pointer-events:none;',
-  'box-shadow:0 0 10px var(--acc);opacity:0;transition:.12s}',
+  /* Vạch vị trí TRẮNG, không accent. Accent (#ff2e88) cùng hệ hồng với cột ERROR của minimap (#ff5f6d)
+     nên đặt lên đúng chỗ có lỗi là chìm nghỉm — mà chỗ có lỗi lại chính là chỗ hay phải nhìn nhất.
+     Cùng lý do đã đổi vạch của mũi tên sang trắng; hồi đó .fll-cursor bị bỏ sót. Viền tối mảnh bao
+     quanh để trên cột trắng/vàng vẫn tách ra được. Accent ở minimap từ nay chỉ còn nghĩa "khoảng đang
+     bị cắt bởi bộ lọc" (mép vùng chọn), đúng với luật một-thứ-accent-một-lúc. */
+  '.fll-cursor{position:absolute;top:0;bottom:0;width:2px;background:#fff;pointer-events:none;',
+  'box-shadow:0 0 0 1px rgba(10,8,14,.55),0 0 10px rgba(255,255,255,.75);opacity:0;transition:.12s}',
   /* Tooltip tự vẽ. position:fixed và nằm trong #fll-root (không phải .fll-panel, panel có
      overflow:hidden sẽ cắt mất nó). z-index trên cả tấm trượt lẫn lớp mũi tên. */
   '.fll-tip{position:fixed;z-index:2147483001;max-width:300px;padding:7px 10px;border-radius:8px;',
@@ -1801,9 +1806,10 @@ const PANEL_CSS = [
   /* ---------- mũi tên từ mục đang di chuột lên minimap ---------- */
   /* Một lớp SVG phủ lên cả panel. pointer-events:none để không chặn chuột; z-index cao hơn .fll-sheet
      (8) vì đường kẻ phải đi TỪ trong tấm trượt RA đến minimap nằm ngoài nó. */
-  /* Mũi tên từng tô accent — cùng hệ hồng với cột ERROR của minimap (#ff5f6d) và với chính
-     .fll-cursor (vạch vị trí cuộn, cũng accent), nên đặt lên minimap là chìm nghỉm. Nay tô TRẮNG kèm
-     viền màu nền panel: trên cột hồng, cột vàng hay chỗ trống đều nổi, và không lẫn với vạch cuộn. */
+  /* Mũi tên từng tô accent — cùng hệ hồng với cột ERROR của minimap (#ff5f6d), nên đặt lên minimap là
+     chìm nghỉm. Nay tô TRẮNG kèm viền màu nền panel: trên cột hồng, cột vàng hay chỗ trống đều nổi.
+     .fll-cursor nay cũng trắng vì đúng một lý do đó; hai cái không lẫn nhau vì khác hình: vạch vị trí
+     là đường dọc 2px suốt chiều cao, còn dấu của mũi tên là những ô ngắn. */
   '.fll-aim{position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;z-index:9;',
   'opacity:0;transition:opacity .12s}',
   '.fll-aim.on{opacity:1}',
