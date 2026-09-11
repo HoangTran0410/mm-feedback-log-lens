@@ -195,8 +195,24 @@ function filterSectionRows(box) {
   const rows = sectionRows(container, box);
   const more = sectionBody.querySelector('.fll-secmore');
   let shown = 0;
-  rows.forEach((node) => {
-    const hit = !query || (node.textContent || '').toLowerCase().indexOf(query) >= 0;
+  // Hàng con (.sub) đi theo hàng cha, cả hai chiều: gõ tên miniapp thì mấy hàng bản build của nó phải
+  // còn, mà gõ số build thì hàng miniapp chứa nó cũng phải còn — không thì hàng build hiện ra trơ trọi,
+  // không biết của app nào. Phải quét HAI LƯỢT vì lượt một chưa biết hàng con phía sau có khớp không.
+  const own = rows.map((node) => !query || (node.textContent || '').toLowerCase().indexOf(query) >= 0);
+  const keep = own.slice();
+  let parentAt = -1;
+  rows.forEach((node, index) => {
+    const isSub = node.classList.contains('sub');
+    if (!isSub) {
+      parentAt = index;
+      return;
+    }
+    if (parentAt < 0) return;
+    if (own[parentAt]) keep[index] = true;
+    if (own[index]) keep[parentAt] = true;
+  });
+  rows.forEach((node, index) => {
+    const hit = keep[index];
     // Đang gõ tìm thì bỏ qua giới hạn cắt: gõ đúng tên một hàng bị cắt mà vẫn "không mục nào khớp"
     // là kiểu sai khó chịu nhất. Xoá ô tìm thì trả lại trạng thái cắt cũ.
     node.hidden = query ? !hit : !!node.getAttribute('data-capped');

@@ -236,6 +236,10 @@ function build() {
   bundleExec('vn.demo.quy_dau_tu', 3449, 3420);
   browse(44);
   bundleExec('vn.demo.quy_dau_tu', 3494, 3449);
+  // Vài miniapp khác chỉ nạp một bản: mục MiniApp phải đủ dài để có ô tìm nhanh (ngưỡng 6 hàng).
+  bundleExec('vn.demo.rap_phim', 4042, 0);
+  bundleExec('vn.demo.ngan_hang', 10773, 0);
+  bundleExec('vn.demo.ngan_hang', 10808, 10773);
   // Cấu hình đổi giữa chừng phiên — đúng thứ mà tab Cấu hình đánh dấu "2 giá trị khác nhau".
   line('INFO', '[Module: BaoLoiDemo] Persist SentryRemoteConfig key=sentry_remote_config raw=' +
     '{"enable":true,"handledRate":1.0,"unhandledRate":1.0,"anrRate":1.0,"enableANR":true,"ignoreList":[],' +

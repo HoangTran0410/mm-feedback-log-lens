@@ -2012,6 +2012,13 @@ const PANEL_CSS = [
   '.fll-rk u{position:absolute;left:0;top:0;bottom:0;background:rgba(255,46,136,.16);text-decoration:none}',
   '.fll-rk span{position:relative;flex:1;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
   '.fll-rk b{position:relative;font-size:12.5px;color:var(--mut);font-variant-numeric:tabular-nums}',
+  /* Hàng con (bản build của một miniapp): thụt lề bằng CSS chứ không lồng thêm một lớp div — lồng thì
+     ô tìm nhanh và bước cắt bớt hàng của mục không còn nhận ra hàng nữa. Vạch dọc bên trái để mắt bám
+     được là nó thuộc hàng ngay trên. */
+  '.fll-rk.sub{margin-left:16px;background:transparent;border-left:2px solid var(--bg2);',
+  'border-radius:0 8px 8px 0;padding-left:10px}',
+  '.fll-rk.sub:hover{border-color:transparent;border-left-color:var(--acc);background:var(--bg2)}',
+  '.fll-rk.sub span{font-size:12.5px}',
 
   /* ---------- thẻ nhóm vấn đề ---------- */
   '.fll-grp{border:1px solid var(--line);border-left:3px solid var(--warn);border-radius:11px;',
@@ -5005,8 +5012,24 @@ function filterSectionRows(box) {
   const rows = sectionRows(container, box);
   const more = sectionBody.querySelector('.fll-secmore');
   let shown = 0;
-  rows.forEach((node) => {
-    const hit = !query || (node.textContent || '').toLowerCase().indexOf(query) >= 0;
+  // Hàng con (.sub) đi theo hàng cha, cả hai chiều: gõ tên miniapp thì mấy hàng bản build của nó phải
+  // còn, mà gõ số build thì hàng miniapp chứa nó cũng phải còn — không thì hàng build hiện ra trơ trọi,
+  // không biết của app nào. Phải quét HAI LƯỢT vì lượt một chưa biết hàng con phía sau có khớp không.
+  const own = rows.map((node) => !query || (node.textContent || '').toLowerCase().indexOf(query) >= 0);
+  const keep = own.slice();
+  let parentAt = -1;
+  rows.forEach((node, index) => {
+    const isSub = node.classList.contains('sub');
+    if (!isSub) {
+      parentAt = index;
+      return;
+    }
+    if (parentAt < 0) return;
+    if (own[parentAt]) keep[index] = true;
+    if (own[index]) keep[parentAt] = true;
+  });
+  rows.forEach((node, index) => {
+    const hit = keep[index];
     // Đang gõ tìm thì bỏ qua giới hạn cắt: gõ đúng tên một hàng bị cắt mà vẫn "không mục nào khớp"
     // là kiểu sai khó chịu nhất. Xoá ô tìm thì trả lại trạng thái cắt cũ.
     node.hidden = query ? !hit : !!node.getAttribute('data-capped');
@@ -5578,8 +5601,9 @@ function envShortValue(value) {
 
 // attrs khác rỗng = hàng này trỏ tới những dòng log cụ thể: rê chuột thì vạch lên minimap, bấm thì
 // đưa vào thanh duyệt. Hàng không trỏ đi đâu thì giữ con trỏ mặc định, đừng mời bấm một chỗ không bấm được.
-function envRankRow(left, right, tip, attrs) {
-  return '<div class="fll-rk" style="cursor:' + (attrs ? 'pointer' : 'default') + '"' + (attrs || '') +
+function envRankRow(left, right, tip, attrs, extraClass) {
+  return '<div class="fll-rk' + (extraClass ? ' ' + extraClass : '') +
+    '" style="cursor:' + (attrs ? 'pointer' : 'default') + '"' + (attrs || '') +
     (tip ? ' data-tip="' + escapeHtml(tip) + '"' : '') + '>' +
     '<span>' + escapeHtml(left) + '</span><b style="color:var(--txt)">' + escapeHtml(right) + '</b></div>';
 }
@@ -5618,17 +5642,33 @@ function renderMiniAppBundleRow(app, appIndex, bundle, bundleIndex) {
     bundle.trackingFlag ? 'nạp lúc: ' + bundle.trackingFlag : '',
     bundle.platform || '',
     'Bấm để duyệt ' + bundle.indices.length + ' dòng nạp bundle này.'].filter(Boolean).join('\n');
-  return envRankRow('↳ build ' + (bundle.buildNumber || '?') + (bundle.from ? ' ← ' + bundle.from : ''),
+  return envRankRow('build ' + (bundle.buildNumber || '?') + (bundle.from ? ' ← ' + bundle.from : ''),
     [size, formatClock(bundle.firstTs), bundle.count > 1 ? bundle.count + ' lần' : '']
       .filter(Boolean).join(' · '),
-    tip, ' data-envapp="' + appIndex + ':' + bundleIndex + '"');
+    tip, ' data-envapp="' + appIndex + ':' + bundleIndex + '"', 'sub');
 }
 
-function renderEnvMiniApps(miniApps) {
-  if (!miniApps.length) return '';
-  const capNhat = miniApps.filter(miniAppChangedBuild).length;
-  return '<div class="fll-hint" style="margin:10px 0 4px">MiniApp — <b>' + miniApps.length + '</b>' +
-    (capNhat ? ', trong đó <b>' + capNhat + '</b> cập nhật bản build giữa log' : '') + '</div>' +
+// MiniApp có mục RIÊNG chứ không nằm chung trong "Máy & môi trường", vì ba lý do đo được: mục chung
+// có bốn khối .fll-rank nên bộ quét hàng dùng chung đếm ra 4 hàng — dưới ngưỡng 6 nên KHÔNG bao giờ
+// được chèn ô tìm và cũng không bao giờ bị cắt bớt; danh sách miniapp kèm bản build dài gấp đôi phần
+// còn lại của mục; và mục riêng thì mặc định thu lại, mở ra mới thấy.
+function renderMiniAppSection(data) {
+  const miniApps = data.environment.miniApps;
+  const full = lensState.data ? lensState.data.environment.miniApps : miniApps;
+  if (!miniApps.length) {
+    if (miniApps === full || !full.length) return '';
+    return secTitle('MiniApp', 'bị lọc hết') +
+      emptyBecauseOfFilter(full.length, 'miniapp nào');
+  }
+  const changed = miniApps.filter(miniAppChangedBuild);
+  return secTitle('MiniApp', miniApps.length, changed.length ? 'warn' : '') +
+    '<div class="fll-hint" style="margin-bottom:8px">' +
+    (changed.length
+      ? '<b>' + changed.length + '</b> miniapp đổi bản build ngay trong log này: ' +
+        escapeHtml(changed.map((app) => app.appId.replace(/^vn\.[a-z0-9]+\./, '') + ' ' +
+          miniAppBuildPath(app)).join(' · '))
+      : 'Bản build lấy từ dòng nạp bundle, version lấy từ header request — hai cách đánh số khác nhau.') +
+    '</div>' +
     '<div class="fll-rank">' + miniApps
       .map((app, appIndex) => envRankRow(app.appId, app.versions.map((item) => item.value).join(', '),
         app.appId + '\n' + app.versions.map((item) => 'version ' + item.value + ': ' + item.count + ' request')
@@ -5692,7 +5732,7 @@ function renderEnvironmentSection(data) {
   ].filter((row) => row[1]);
   // Một luật cho MỌI trường đáng theo dõi, không phải nhớ tên từng cái ở đây: thêm trường mới thì khai
   // ở ENV_WATCHED_FIELDS trong 02i, chỗ này tự có.
-  const lists = env.watched.map(renderEnvValueList).join('') + renderEnvMiniApps(env.miniApps);
+  const lists = env.watched.map(renderEnvValueList).join('');
   if (!rows.length && !lists) return '';
 
   // Bản build và host là HAI chuyện khác nhau — chỉ nói ra sự thật quan sát được, không kết luận hộ.
@@ -5820,6 +5860,7 @@ function renderSummaryTab() {
   // người dùng nâng cấp giữa chừng), đọc theo cả log thì panel ghi bản hay gặp nhất — tức bản CŨ,
   // trong khi feedback được gửi từ bản mới.
   html += renderEnvironmentSection(data);
+  html += renderMiniAppSection(data);
   html += renderSlowSections();
   html += secTitle('Module nói nhiều nhất', data.modules.length) +
     renderRankList(data.modules, 'data-module');

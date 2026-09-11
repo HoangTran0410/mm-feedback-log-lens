@@ -1739,7 +1739,11 @@ check('panel va ticket noi ra duoc chuyen doi ban giua log', () => {
   ok(html.indexOf('build 3449 ← 3420') >= 0, 'hang bundle phai ghi ro va tu ban nao');
   ok(html.indexOf('532 KB') >= 0, 'kich thuoc ban va');
   ok(html.indexOf('1.5 MB') >= 0, 'goi bundle tinh bang MB, khong phai "1581 KB"');
-  ok(html.indexOf('cập nhật bản build giữa log') >= 0, 'tieu de muc phai dem so miniapp da doi ban');
+  ok(html.indexOf('miniapp đổi bản build ngay trong log này') >= 0,
+    'muc MiniApp phai noi ngay ra co bao nhieu app doi ban');
+  // MiniApp là mục RIÊNG: mục chung có bốn khối .fll-rank nên không bao giờ được chèn ô tìm.
+  ok(html.indexOf('data-sec="MiniApp"') >= 0, 'phai la mot muc rieng');
+  ok(html.indexOf('myvoucher 3420 → 3449') >= 0, 'duong di version ngay tren dau muc');
 
   const ticket = L.buildTicketSummary(L.lensState.data);
   ok(ticket.indexOf('vn.momo.myvoucher 3420 → 3449') >= 0,

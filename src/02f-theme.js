@@ -390,6 +390,13 @@ const PANEL_CSS = [
   '.fll-rk u{position:absolute;left:0;top:0;bottom:0;background:rgba(255,46,136,.16);text-decoration:none}',
   '.fll-rk span{position:relative;flex:1;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
   '.fll-rk b{position:relative;font-size:12.5px;color:var(--mut);font-variant-numeric:tabular-nums}',
+  /* Hàng con (bản build của một miniapp): thụt lề bằng CSS chứ không lồng thêm một lớp div — lồng thì
+     ô tìm nhanh và bước cắt bớt hàng của mục không còn nhận ra hàng nữa. Vạch dọc bên trái để mắt bám
+     được là nó thuộc hàng ngay trên. */
+  '.fll-rk.sub{margin-left:16px;background:transparent;border-left:2px solid var(--bg2);',
+  'border-radius:0 8px 8px 0;padding-left:10px}',
+  '.fll-rk.sub:hover{border-color:transparent;border-left-color:var(--acc);background:var(--bg2)}',
+  '.fll-rk.sub span{font-size:12.5px}',
 
   /* ---------- thẻ nhóm vấn đề ---------- */
   '.fll-grp{border:1px solid var(--line);border-left:3px solid var(--warn);border-radius:11px;',

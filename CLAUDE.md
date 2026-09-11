@@ -212,8 +212,20 @@ bằng `parseKeyValueMap`) mới nói ra cả `buildNumber`, `size`, `installMod
   nó là một miniapp đã chạy. Hàng của nó không bấm được (không có request để duyệt), nên cũng không
   được để con trỏ mời bấm.
 - Hàng bundle trỏ bằng `data-envapp="<miniapp>:<bundle>"`, hàng miniapp là `data-envapp="<miniapp>"`.
-  Hàng con nằm **phẳng** trong cùng khối `.fll-rank`, chỉ lùi đầu bằng ký tự `↳`: lồng thêm một lớp div
-  thì ô tìm nhanh và bước cắt bớt hàng của mục không còn nhận ra hàng nữa.
+  Hàng con nằm **phẳng** trong cùng khối `.fll-rank`, thụt lề bằng class `.fll-rk.sub` (lề trái + vạch
+  dọc) chứ không lồng thêm div: lồng thì ô tìm nhanh và bước cắt bớt hàng của mục không còn nhận ra
+  hàng nữa. Bản đầu chỉ lùi bằng ký tự `↳` — nhìn ra một danh sách phẳng dài thượt, không thấy hàng
+  nào thuộc hàng nào.
+- **MiniApp là MỤC RIÊNG, không nằm trong "Máy & môi trường".** Lý do đo được: mục chung có **bốn khối
+  `.fll-rank`** (bảng, danh sách trường đổi, danh sách miniapp) mà `sectionRowContainer()` chỉ gỡ được
+  **đúng một** khối bọc — nhiều khối thì nó đếm ra 4 "hàng", dưới ngưỡng 6 nên mục đó **không bao giờ**
+  được chèn ô tìm và cũng không bao giờ bị cắt bớt. Tách ra thì mục MiniApp có đúng một khối, tự có ô
+  tìm, tự bị cắt ở 12 hàng, có badge riêng, và **mặc định thu lại** như mọi mục khác.
+- **Ô tìm: hàng con đi theo hàng cha, CẢ HAI CHIỀU.** Gõ tên miniapp thì mấy hàng bản build của nó phải
+  còn (chữ trong hàng con không hề chứa tên app), mà gõ số build thì hàng miniapp chứa nó cũng phải còn
+  — không thì hàng build hiện ra trơ trọi, không biết của app nào. Phải quét **hai lượt**: lượt một
+  chưa biết hàng con phía sau có khớp không. Đo trong Chrome: gõ `ngan_hang` ra hàng app + 2 hàng
+  build; gõ `3449` ra hàng app `quy_dau_tu` + 2 hàng build có số đó.
 
 **Nhãn hệ điều hành dựng trong `02i`, không ghép chữ ở renderer.** Bản cũ chỉ khớp User-Agent kiểu iOS
 (`MoMoPlatform … CFNetwork … Darwin`) rồi renderer tự ghép `'iOS ' + osVersion`. Đo trên một dòng log
