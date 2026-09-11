@@ -14,9 +14,17 @@ ra kết luận sai, kèm số đo trên log thật.
 
 ## Cài
 
+**Không cần cài gì**: trang WebAdmin đã nhúng sẵn `extension/lens.js`. Mở một feedback, đợi bảng log
+render xong là có pill ở góc dưới phải — bấm để mở panel.
+
+Chỉ khi muốn chạy bản mới hơn bản trang đang chở (đang sửa tool chẳng hạn) thì mới cần bản extension:
+
 1. `chrome://extensions` (Brave: `brave://extensions`) → bật **Developer mode**
 2. **Load unpacked** → chọn thư mục `extension/`
-3. Mở một feedback. Khi bảng log render xong sẽ có một pill ở góc dưới phải — bấm để mở panel.
+
+Lúc đó hai bản cùng sống: bản của trang chạy ở page world, bản extension ở isolated world. Chúng không
+thấy `window` của nhau nên việc nhường quyền đi qua `data-fll-owner` trên thẻ `html` — bản mới ghi tên
+mình vào đó, bản cũ đọc thấy tên khác thì tự rút lui. Xem [CLAUDE.md](CLAUDE.md).
 
 Phím tắt: `Alt+L` mở lại panel đã đóng, `n` / `p` đi tới lui giữa các dòng đang duyệt, `Esc` thu panel về pill.
 

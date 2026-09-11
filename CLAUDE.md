@@ -676,6 +676,12 @@ world, hai bên không thấy `window` của nhau nên `window.__feedbackLogLens
 bookmarklet đã bỏ, nhưng **chưa xác minh** được reload extension lúc tab đang mở thì thế hệ cũ nằm ở
 đâu, nên vẫn giữ mốc DOM này thay vì gỡ theo suy đoán.
 
+**Và từ khi WebAdmin nhúng thẳng `extension/lens.js` vào trang, ca hai-world đó quay lại đúng như cũ**:
+bản của trang chạy ở **page world**, bản extension (người đang sửa tool vẫn load unpacked) chạy ở
+**isolated world**. Đây lại là lý do sống của `data-fll-owner`, không còn là di sản của bookmarklet
+nữa. **CHƯA XÁC MINH** cặp đôi mới này: chưa chạy thử đồng thời một bản nhúng trong trang và một bản
+extension trên cùng một tab. Trước khi gỡ hay sửa cơ chế nhường quyền, phải thử đúng ca đó.
+
 Ba chi tiết trong cơ chế đó, sai một cái là hỏng:
 
 - **Nhận quyền trước, dọn sau.** Dọn trước rồi mới nhận thì có một khe hở để nhịp watcher bên cũ
