@@ -247,6 +247,15 @@ bằng chuỗi liên tiếp dài nhất. Hai điều đã học khi làm:
   chỉ nhận ra được **491** dòng.
 - **Không tự động bỏ khối lặp.** Báo trước, để người đọc bấm — khử nhầm một khối không lặp thì số liệu
   cũng sai, chỉ là sai theo hướng khác và lúc đó không còn dấu hiệu nào để nhận ra.
+- **Chỉ dòng CÓ GIỜ RIÊNG mới được bỏ phiếu và mới tính là khớp.** Nội dung lặp không phải file lặp:
+  app fetch config hai lần thì in ra hai khối JSON vài trăm dòng giống hệt nhau, mà dòng bên trong khối
+  JSON không có giờ riêng. Log bị nối đôi thì ngược lại — chính những dòng CÓ giờ lặp lại nguyên xi
+  (md5 hai nửa bằng nhau). Gặp thật: người dùng báo một log production bị cảnh báo lặp ngay chỗ khối
+  JSON xuống dòng. Dựng lại đúng hình đó (khối config 300 dòng, in hai lần, cách nhau 30 dòng): bản cũ
+  báo **"khối lặp 301 dòng, 91 dòng khớp"** — tức nói rằng cả file bị nối đôi và mọi con số đang đếm
+  gấp đôi. Sau khi lọc theo `ts`: khối JSON hết phiếu, còn log nối đôi thật vẫn nhận ra (**92 dòng
+  khớp**, gấp đôi ngưỡng 40). Đánh đổi đã biết: log nối đôi mà phần lặp *toàn* dòng không có giờ thì
+  nay sẽ bị bỏ sót — thà sót còn hơn báo sai, vì cảnh báo này đi thẳng vào ticket.
 
 **Đặt tên một bước hành trình: đi theo bậc, không lấy một trường duy nhất.** `pickJourneyLabel()`
 lấy trường đầu tiên không rỗng theo thứ tự *"càng riêng cho bước này và càng giống thứ user nhìn thấy

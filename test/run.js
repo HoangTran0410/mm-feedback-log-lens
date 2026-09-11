@@ -799,7 +799,10 @@ check('nhan buoc: cat bot nhan qua dai', () => {
 
 // Một log feedback production thật dài 4222 dòng hoá ra là 2111 dòng đầu LẶP LẠI y hệt (md5 hai nửa
 // bằng nhau). Tool không biết nên đếm gấp đôi mọi thứ: "lỗi này 4 lần" thật ra 2 lần.
-const fakeEntries = (texts) => texts.map((raw, index) => ({ raw, lineNo: index + 1, isDuplicate: false }));
+// ts: dòng log thật có giờ riêng, dòng trống thì không. Bộ dò chỉ tính phiếu cho dòng CÓ giờ — xem
+// phép thử "khoi JSON in nhieu dong khong bi doc thanh log noi doi" ở dưới.
+const fakeEntries = (texts) => texts.map((raw, index) => ({
+  raw, lineNo: index + 1, isDuplicate: false, ts: raw ? 1767322800000 + index * 10 : null }));
 const dongDai = (n) => 'dong log gia du dai de khong bi coi la trung ngau nhien #' + n;
 
 check('khoi lap: nhan ra khoi bi noi doi', () => {
@@ -833,6 +836,35 @@ check('khoi lap: log sach thi khong bao gi', () => {
   for (let i = 0; i < 200; i += 1) leTe.push(i % 25 === 0 ? dongDai(0) : dongDai(i));
   eq(L.findDuplicateBlock(fakeEntries(leTe)), null, 'trung le te khong phai khoi lap');
   eq(L.findDuplicateBlock(fakeEntries([])), null, 'log rong');
+});
+
+// Bug thật, người dùng gặp trên log production: app fetch config hai lần, mỗi lần in ra một khối JSON
+// vài trăm dòng — tool báo "khối lặp 301 dòng" tức là nói rằng CẢ FILE bị nối đôi và mọi con số đang
+// đếm gấp đôi. Nội dung lặp không phải file lặp: dòng bên trong khối JSON không có giờ riêng, còn log
+// nối đôi thì chính những dòng CÓ giờ lặp lại nguyên xi (md5 hai nửa bằng nhau).
+check('khoi JSON in nhieu dong khong bi doc thanh log noi doi', () => {
+  const khoi = [];
+  for (let i = 0; i < 30; i += 1) {
+    khoi.push('"countryName": "Quoc gia so ' + i + ' ten dai cho du 24 ky tu",');
+    khoi.push('"flagUrl": "https://static.demo/files/abcdef/image/img_flag_' + i + '.png",');
+    khoi.push('"supportEmail": "hotro@demo.vn - dong nay dai qua 24 ky tu"');
+  }
+  const dongCoGio = (n) => ({ raw: dongDai(n), lineNo: n, isDuplicate: false, ts: 1767322800000 + n * 10 });
+  const dongJson = (raw, n) => ({ raw, lineNo: n, isDuplicate: false, ts: null });
+  const entries = [];
+  let so = 0;
+  const themKhoi = () => khoi.forEach((raw) => entries.push(dongJson(raw, so += 1)));
+  for (let i = 0; i < 30; i += 1) entries.push(dongCoGio(so += 1));
+  themKhoi();
+  for (let i = 0; i < 30; i += 1) entries.push(dongCoGio(so += 1));
+  themKhoi();          // cùng một khối config, in lần thứ hai
+  for (let i = 0; i < 30; i += 1) entries.push(dongCoGio(so += 1));
+  eq(L.findDuplicateBlock(entries), null, 'noi dung lap khong phai file lap');
+
+  // Đối chứng: đúng những dòng đó mà CÓ giờ lặp lại nguyên xi thì vẫn phải nhận ra.
+  const coGio = entries.map((entry, index) => ({ raw: entry.raw, lineNo: index + 1, isDuplicate: false,
+    ts: 1767322800000 + index * 10 }));
+  ok(L.findDuplicateBlock(coGio.concat(coGio)), 'log noi doi that van phai nhan ra');
 });
 
 check('khoi lap: log fixture khong bi lap', () => {
