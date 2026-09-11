@@ -379,7 +379,28 @@ function renderIssuesTab() {
     'Bấm &#128263; để tắt tiếng chữ ký nhiễu — nhớ luôn cho các feedback mở sau này.</div>' +
     '<div id="fll-issue-list">' + renderIssueList() + '</div>' +
     renderTelemetryNoiseSection(data) +
+    renderErrorCodeSection(data) +
     renderHttpSection();
+}
+
+// Mã lỗi đang nằm rải ở bốn nguồn (payload HTTP, params tracker, TraceParameter của Grafana, thân JSON
+// của response) và không chỗ nào cộng lại. Mục này trả lời "log có những mã nào, mã nào nổ nhiều nhất,
+// mã nào chỉ nổ đúng một lần" — câu hay hỏi nhất khi mở một log lạ, mà trước đây phải tự đọc từng mục
+// rồi cộng tay.
+function renderErrorCodeSection(data) {
+  const codes = data.errorCodes || [];
+  if (!codes.length) return '';
+  const tong = codes.reduce((sum, item) => sum + item.count, 0);
+  return secTitle('Mọi mã lỗi', codes.length + ' mã · ' + tong + ' lần', 'err') +
+    '<div class="fll-hint" style="margin-bottom:8px">Bấm một mã để duyệt những dòng có nó. ' +
+    'Mã <b>0</b> không tính — đó là mã của call thành công.</div>' +
+    '<div class="fll-rank">' + codes
+      .map((item) => '<div class="fll-rk" data-lines="' + item.indices.slice(0, 200).join(',') +
+        '" data-label="mã lỗi ' + item.code + '" data-tip="' +
+        escapeHtml((item.modules.length ? item.modules.join(', ') + ' · ' : '') +
+          (item.firstTs ? 'lần đầu ' + formatClock(item.firstTs) : 'không có giờ')) + '">' +
+        '<span>' + item.code + '</span><b style="color:var(--txt)">' + item.count + ' lần</b></div>')
+      .join('') + '</div>';
 }
 
 // Đo trên 50 feedback PRODUCTION thật: 1267/2488 dòng ERROR (51%) không phải lỗi user gặp mà là lỗi
@@ -759,6 +780,26 @@ function correlationBucketsInView() {
   return buckets.filter((bucket) => bucket.indices.some((index) => inView.has(index)));
 }
 
+// Ô tìm regex vốn đã là bộ trích xuất vạn năng, chỉ thiếu bước gom: nó hiện ra DÒNG chứ không hiện ra
+// GIÁ TRỊ. Mục này chỉ xuất hiện khi mẫu có nhóm bắt — tức chỉ khi người dùng đã cố ý hỏi "liệt kê giá
+// trị", nên không tốn gì cho những lần tìm bình thường.
+function renderCaptureSection(result) {
+  const tally = buildCaptureTally(result.visible);
+  if (!tally || !tally.values.length) return '';
+  const gioiHan = (tally.cappedLines ? ' · chỉ quét ' + tally.scannedLines + ' dòng đầu' : '') +
+    (tally.cappedValues ? ' · đã cắt ở ' + tally.values.length + ' giá trị' : '');
+  return secTitle('Giá trị bắt được', tally.values.length + ' giá trị · ' + tally.total + ' lần', 'act') +
+    '<div class="fll-hint" style="margin-bottom:8px">Nhóm bắt đầu tiên trong mẫu regex, gom theo giá ' +
+    'trị' + gioiHan + '. Bấm một giá trị để duyệt những dòng có nó.</div>' +
+    '<div class="fll-rank">' + tally.values
+      .map((item) => '<div class="fll-rk" data-lines="' + item.indices.slice(0, 100).join(',') +
+        '" data-label="' + escapeHtml(item.value.slice(0, 40)) + '" data-tip="' +
+        escapeHtml(item.value) + '">' +
+        '<span>' + escapeHtml(envShortValue(item.value)) + '</span>' +
+        '<b style="color:var(--txt)">' + item.count + '</b></div>')
+      .join('') + '</div>';
+}
+
 function renderCorrelationList() {
   const all = lensState.data.correlations;
   if (!all.length) return '';
@@ -852,6 +893,7 @@ function renderFilterTab() {
     '<button class="fll-chip' + (filter.hideOthers ? ' on' : '') +
     '" data-act="tglHide">Ẩn dòng không khớp</button></div>' +
     (result.isBadPattern ? '<div class="fll-hint" style="color:var(--err)">Regex không hợp lệ.</div>' : '') +
+    renderCaptureSection(result) +
 
     renderCorrelationList() +
 

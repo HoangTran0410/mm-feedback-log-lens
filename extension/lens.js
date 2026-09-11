@@ -1556,6 +1556,7 @@ function deriveStats(entries, gaps) {
     events: countBy(entries, (entry) => entry.event),
     journey: buildJourney(entries, gaps),
     traceIssues: buildTraceIssues(entries),
+    errorCodes: buildErrorCodes(entries),
     configs: buildConfigs(entries, httpCalls),
     environment: buildEnvironment(entries, httpCalls),
   };
@@ -2766,6 +2767,51 @@ function buildTicketSummary(fullData) {
   return out;
 }
 // @ts-check
+// gom MỌI mã lỗi xuất hiện trong log về một chỗ
+//
+// Mã lỗi đang nằm rải ở bốn nguồn khác nhau và không chỗ nào đếm chúng lại: `entry.http.errorCode`
+// (payload HTTP), `error_code` trong params của MoMoTracker, `errorCode` trong TraceParameter của
+// Grafana, và `"errorCode": 413` nằm trong thân JSON của response hoặc của một khối config. Muốn biết
+// "log này có những mã nào, mã nào nổ nhiều nhất" thì phải tự đọc từng mục một rồi cộng tay.
+//
+// Vì vậy đọc bằng MỘT regex chung trên chính dòng text, thay vì đi gom từ bốn cấu trúc đã parse: bốn
+// nguồn đó viết mã lỗi theo bốn kiểu (`errorCode=`, `error_code=`, `"errorCode":`, `"errorCode": "`)
+// nhưng đều là cùng một chữ. Sàng bằng indexOf trước vì đại đa số dòng không có chữ nào trong hai chữ
+// đó — cùng lý do với chữ ký lỗi và với buildCorrelations.
+const RE_ERROR_CODE_ANY = /(?:errorCode|error_code)"?\s*[=:]\s*"?(-?\d+)/g;
+
+// Mã 0 và mã rỗng nghĩa là KHÔNG lỗi: `ops_receive_be` ghi `error_code=0` cho mọi call thành công, để
+// lẫn vào thì mã hay gặp nhất trong log luôn là 0 và mục này thành vô dụng.
+function buildErrorCodes(entries) {
+  const byCode = new Map();
+  entries.forEach((entry) => {
+    const raw = entry.raw;
+    if (!raw || (raw.indexOf('errorCode') < 0 && raw.indexOf('error_code') < 0)) return;
+    RE_ERROR_CODE_ANY.lastIndex = 0;
+    let hit = RE_ERROR_CODE_ANY.exec(raw);
+    while (hit) {
+      const code = Number(hit[1]);
+      if (code !== 0) {
+        let bucket = byCode.get(code);
+        if (!bucket) {
+          bucket = { code, count: 0, indices: [], firstTs: entry.ts || entry.windowTs || 0, modules: new Set() };
+          byCode.set(code, bucket);
+        }
+        bucket.count += 1;
+        if (entry.module) bucket.modules.add(entry.module);
+        // Một dòng có thể ghi cùng một mã hai lần (payload lồng nhau); chỉ giữ dòng một lần để bấm vào
+        // duyệt không bị lặp.
+        if (bucket.indices[bucket.indices.length - 1] !== entry.domIndex) bucket.indices.push(entry.domIndex);
+      }
+      hit = RE_ERROR_CODE_ANY.exec(raw);
+    }
+  });
+  return Array.from(byCode.values())
+    .map((bucket) => ({ code: bucket.code, count: bucket.count, indices: bucket.indices,
+      firstTs: bucket.firstTs, modules: Array.from(bucket.modules) }))
+    .sort((a, b) => b.count - a.count || a.code - b.code);
+}
+// @ts-check
 // hằng số dùng chung, lensState, tắt tiếng chữ ký, hàm định dạng
 // Tách ra từ src/03-shell.js (992 dòng / 67 hàm). Các file src/*.js được build.sh nối lại
 // theo thứ tự tên file và bọc trong MỘT IIFE nên vẫn dùng chung scope — tách chỉ để đọc,
@@ -3210,6 +3256,81 @@ function computeFilteredIndices() {
   lensState.lastFilterResult = { visible, isBadPattern };
   buildView();
   return lensState.lastFilterResult;
+}
+
+/* ------------------------------------------- gom giá trị bắt được từ ô tìm regex */
+
+// Ô tìm regex vốn đã là bộ trích xuất vạn năng, chỉ thiếu một bước: nó hiện ra DÒNG, không hiện ra
+// GIÁ TRỊ. Thêm bước này thì gõ `(\d+\.\d+\.\d+\.\d+)` là ra danh sách IP, gõ `agent_id":"(\d+)"`
+// là ra danh sách agent — mà không phải đoán trước xem loại nào đáng quét, không tốn gì lúc khởi động,
+// và không có mục nào nằm thường trực trên panel.
+const CAPTURE_MAX_LINES = 5000;
+const CAPTURE_MAX_VALUES = 300;
+
+// Cách chuẩn để đếm số nhóm bắt mà không phải tự parse regex: thêm một nhánh rỗng vào cuối rồi khớp
+// chuỗi rỗng — nhánh đó luôn khớp, nên mảng kết quả có đúng (số nhóm + 1) phần tử.
+function regexCaptureCount(source) {
+  try {
+    const probe = new RegExp(source + '|').exec('');
+    return probe ? probe.length - 1 : 0;
+  } catch (error) {
+    return 0;
+  }
+}
+
+// Nhóm đầu tiên CÓ giá trị, không phải nhóm 1: với regex có nhánh (`a(x)|b(y)`) thì nhóm 1 rỗng khi
+// nhánh sau khớp, lấy cứng hit[1] là ra một danh sách toàn undefined.
+function firstCapture(hit) {
+  for (let i = 1; i < hit.length; i += 1) {
+    if (hit[i] !== undefined) return hit[i];
+  }
+  return undefined;
+}
+
+function buildCaptureTally(visible) {
+  const filter = lensState.filter;
+  if (!filter.text || !filter.useRegex || !lensState.data) return null;
+  if (regexCaptureCount(filter.text) < 1) return null;
+  let re;
+  try {
+    re = new RegExp(filter.text, 'gi');
+  } catch (error) {
+    return null;
+  }
+  const entries = lensState.data.entries;
+  const byValue = new Map();
+  const lines = Math.min(visible.length, CAPTURE_MAX_LINES);
+  let total = 0;
+  for (let i = 0; i < lines; i += 1) {
+    const entry = entries[visible[i]];
+    if (!entry || !entry.raw) continue;
+    re.lastIndex = 0;
+    let hit = re.exec(entry.raw);
+    while (hit) {
+      // Regex khớp chuỗi RỖNG (ví dụ `(\d*)`) thì lastIndex không tiến, vòng lặp treo cứng trang.
+      if (hit[0] === '') re.lastIndex += 1;
+      const value = firstCapture(hit);
+      if (value !== undefined) {
+        total += 1;
+        let bucket = byValue.get(value);
+        if (!bucket) {
+          if (byValue.size >= CAPTURE_MAX_VALUES) break;
+          bucket = { value, count: 0, indices: [] };
+          byValue.set(value, bucket);
+        }
+        bucket.count += 1;
+        if (bucket.indices[bucket.indices.length - 1] !== entry.domIndex) bucket.indices.push(entry.domIndex);
+      }
+      hit = re.exec(entry.raw);
+    }
+  }
+  return {
+    values: Array.from(byValue.values()).sort((a, b) => b.count - a.count),
+    total,
+    scannedLines: lines,
+    cappedLines: visible.length > lines,
+    cappedValues: byValue.size >= CAPTURE_MAX_VALUES,
+  };
 }
 
 // Vẽ lại tab Lọc không được tự quét lại 4085 dòng: mọi đường đổi bộ lọc đều đã gọi
@@ -5307,7 +5428,28 @@ function renderIssuesTab() {
     'Bấm &#128263; để tắt tiếng chữ ký nhiễu — nhớ luôn cho các feedback mở sau này.</div>' +
     '<div id="fll-issue-list">' + renderIssueList() + '</div>' +
     renderTelemetryNoiseSection(data) +
+    renderErrorCodeSection(data) +
     renderHttpSection();
+}
+
+// Mã lỗi đang nằm rải ở bốn nguồn (payload HTTP, params tracker, TraceParameter của Grafana, thân JSON
+// của response) và không chỗ nào cộng lại. Mục này trả lời "log có những mã nào, mã nào nổ nhiều nhất,
+// mã nào chỉ nổ đúng một lần" — câu hay hỏi nhất khi mở một log lạ, mà trước đây phải tự đọc từng mục
+// rồi cộng tay.
+function renderErrorCodeSection(data) {
+  const codes = data.errorCodes || [];
+  if (!codes.length) return '';
+  const tong = codes.reduce((sum, item) => sum + item.count, 0);
+  return secTitle('Mọi mã lỗi', codes.length + ' mã · ' + tong + ' lần', 'err') +
+    '<div class="fll-hint" style="margin-bottom:8px">Bấm một mã để duyệt những dòng có nó. ' +
+    'Mã <b>0</b> không tính — đó là mã của call thành công.</div>' +
+    '<div class="fll-rank">' + codes
+      .map((item) => '<div class="fll-rk" data-lines="' + item.indices.slice(0, 200).join(',') +
+        '" data-label="mã lỗi ' + item.code + '" data-tip="' +
+        escapeHtml((item.modules.length ? item.modules.join(', ') + ' · ' : '') +
+          (item.firstTs ? 'lần đầu ' + formatClock(item.firstTs) : 'không có giờ')) + '">' +
+        '<span>' + item.code + '</span><b style="color:var(--txt)">' + item.count + ' lần</b></div>')
+      .join('') + '</div>';
 }
 
 // Đo trên 50 feedback PRODUCTION thật: 1267/2488 dòng ERROR (51%) không phải lỗi user gặp mà là lỗi
@@ -5687,6 +5829,26 @@ function correlationBucketsInView() {
   return buckets.filter((bucket) => bucket.indices.some((index) => inView.has(index)));
 }
 
+// Ô tìm regex vốn đã là bộ trích xuất vạn năng, chỉ thiếu bước gom: nó hiện ra DÒNG chứ không hiện ra
+// GIÁ TRỊ. Mục này chỉ xuất hiện khi mẫu có nhóm bắt — tức chỉ khi người dùng đã cố ý hỏi "liệt kê giá
+// trị", nên không tốn gì cho những lần tìm bình thường.
+function renderCaptureSection(result) {
+  const tally = buildCaptureTally(result.visible);
+  if (!tally || !tally.values.length) return '';
+  const gioiHan = (tally.cappedLines ? ' · chỉ quét ' + tally.scannedLines + ' dòng đầu' : '') +
+    (tally.cappedValues ? ' · đã cắt ở ' + tally.values.length + ' giá trị' : '');
+  return secTitle('Giá trị bắt được', tally.values.length + ' giá trị · ' + tally.total + ' lần', 'act') +
+    '<div class="fll-hint" style="margin-bottom:8px">Nhóm bắt đầu tiên trong mẫu regex, gom theo giá ' +
+    'trị' + gioiHan + '. Bấm một giá trị để duyệt những dòng có nó.</div>' +
+    '<div class="fll-rank">' + tally.values
+      .map((item) => '<div class="fll-rk" data-lines="' + item.indices.slice(0, 100).join(',') +
+        '" data-label="' + escapeHtml(item.value.slice(0, 40)) + '" data-tip="' +
+        escapeHtml(item.value) + '">' +
+        '<span>' + escapeHtml(envShortValue(item.value)) + '</span>' +
+        '<b style="color:var(--txt)">' + item.count + '</b></div>')
+      .join('') + '</div>';
+}
+
 function renderCorrelationList() {
   const all = lensState.data.correlations;
   if (!all.length) return '';
@@ -5780,6 +5942,7 @@ function renderFilterTab() {
     '<button class="fll-chip' + (filter.hideOthers ? ' on' : '') +
     '" data-act="tglHide">Ẩn dòng không khớp</button></div>' +
     (result.isBadPattern ? '<div class="fll-hint" style="color:var(--err)">Regex không hợp lệ.</div>' : '') +
+    renderCaptureSection(result) +
 
     renderCorrelationList() +
 

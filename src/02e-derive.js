@@ -25,6 +25,7 @@ function deriveStats(entries, gaps) {
     events: countBy(entries, (entry) => entry.event),
     journey: buildJourney(entries, gaps),
     traceIssues: buildTraceIssues(entries),
+    errorCodes: buildErrorCodes(entries),
     configs: buildConfigs(entries, httpCalls),
     environment: buildEnvironment(entries, httpCalls),
   };

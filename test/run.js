@@ -76,6 +76,7 @@ function loadLens() {
     'buildPermalink,applyPermalinkFromHash,PERMALINK_PREFIX,setMatches,resetTabUiState,' +
     'hasSelectedTimeRange,hasAnyTimeRange,getVisibleTimeRange,buildSessions,sessionLabel,' +
     'updateMinimapRange,renderSessionChipRow,indexRowElements,handlePageRowHover,handlePageLeave,' +
+    'buildErrorCodes,buildCaptureTally,regexCaptureCount,renderErrorCodeSection,' +
     'renderTraceFailSection,isBadHttpCall,setTimeWindowPreset,isWindowPresetActive,' +
     'formatWindowLabel,retargetTimeWindow,extractDurations,renderCorrelationList};';
   const wired = src.replace(/\n\}\)\(\);\s*$/, '\n' + exportLine + '\n})();\n');
@@ -1586,6 +1587,80 @@ check('xuyen thau khong duoc dat opacity len chinh panel', () => {
   ok(rule.indexOf('background:rgba') >= 0, 'nen phai co alpha thi moi nhin xuyen qua duoc');
   ok(css.indexOf('.fll-panel.fll-xray > *:not(.fll-map):not(.fll-maplbl){opacity:') >= 0,
     'mo tung dua con va chua minimap cung nhan cua no ra');
+});
+
+// Mã lỗi nằm rải ở bốn kiểu viết khác nhau, không chỗ nào cộng lại. Bốn dòng dưới đây tái tạo đúng
+// bốn kiểu đó, kèm một dòng error_code=0 (call THÀNH CÔNG) phải bị loại ra — để lẫn thì mã hay gặp
+// nhất trong mọi log luôn là 0 và mục này thành vô dụng.
+rows = [
+  '2026-01-02 10:00:00:010 GMT+07:00 INFO    [Module: GiaLapDb] MomoDatabase init OK',
+  '2026-01-02 10:00:01:010 GMT+07:00 INFO    [Module: HTTP] [Method: POST] [URL: https://api.demo/a] ' +
+    '[ResponsePayload: --status: 500 --body: {"cmdId":"CMD-1","errorCode":-2001}]',
+  '2026-01-02 10:00:02:010 GMT+07:00 INFO    [Module: MoMoTracker] event: ops_receive_be | params: ' +
+    '{api=API_A, trace_id=TRACE-1, status=fail, error_code=-2001, duration=190.0}',
+  '2026-01-02 10:00:03:010 GMT+07:00 INFO    [Module: Grafana] @@ grafana >> traceFail >> generateParams ' +
+    '>> parameter: TraceParameter(flow=http_request_v2, errorCode=413, errorMessage=qua lon)',
+  '2026-01-02 10:00:04:010 GMT+07:00 INFO    [Module: MoMoTracker] event: ops_receive_be | params: ' +
+    '{api=API_B, trace_id=TRACE-2, status=success, error_code=0, duration=20.0}',
+  // JSON in đẹp tách thành nhiều dòng — mã lỗi nằm trên một dòng KHÔNG có giờ, không có mức độ.
+  '2026-01-02 10:00:05:010 GMT+07:00 INFO    [OFL_fetchingConfigURL] storage == {',
+  '"errorCode": 413,',
+  '"regionCode": "VN"',
+  '}',
+].map(makeRow);
+scan();
+renderAll('log co ma loi');
+
+check('gom moi ma loi tu ca bon kieu viet, bo ma 0', () => {
+  const codes = L.lensState.data.errorCodes;
+  const thay = codes.map((item) => item.code + '×' + item.count).join(' ');
+  eq(thay, '-2001×2 413×2', 'sap theo so lan, ma 0 bi loai: ' + thay);
+  const ma413 = codes.find((item) => item.code === 413);
+  eq(ma413.indices.length, 2, 'ca dong Grafana lan dong JSON tach roi deu duoc tinh');
+  const html = L.renderErrorCodeSection(L.lensState.data);
+  ok(html.indexOf('data-lines="' + ma413.indices.join(',') + '"') >= 0,
+    'bam vao mot ma phai duyet duoc nhung dong co no');
+  ok(html.indexOf('Mọi mã lỗi') >= 0, 'phai co tieu de muc');
+});
+
+// Ô tìm regex vốn đã là bộ trích xuất vạn năng, chỉ thiếu bước gom giá trị.
+check('o tim regex co nhom bat thi gom duoc gia tri', () => {
+  const filter = L.lensState.filter;
+  filter.useRegex = true;
+  filter.text = 'errorCode[":= ]+(-?\\d+)';
+  const result = L.applyFilter(false);
+  const tally = L.buildCaptureTally(result.visible);
+  ok(tally, 'phai gom duoc');
+  // 413 hai lần (Grafana + dòng JSON tách rời), -2001 một lần: mẫu này chỉ khớp `errorCode`, không
+  // khớp `error_code=` của tracker — đúng như người dùng gõ.
+  eq(tally.values.map((item) => item.value + '×' + item.count).join(' '), '413×2 -2001×1',
+    'gom theo gia tri, sap theo so lan');
+  ok(tally.values[0].indices.length >= 1, 'moi gia tri nho duoc dong chua no');
+  // Mẫu KHÔNG có nhóm bắt thì không hiện mục này — người dùng chỉ đang tìm dòng.
+  filter.text = 'errorCode';
+  L.applyFilter(false);
+  eq(L.buildCaptureTally(L.applyFilter(false).visible), null, 'khong co nhom bat thi thoi');
+  filter.text = '';
+  L.applyFilter(false);
+});
+
+check('dem nhom bat va chon nhom dau tien CO gia tri', () => {
+  eq(L.regexCaptureCount('abc'), 0, 'khong co nhom');
+  eq(L.regexCaptureCount('(a)(b)'), 2, 'hai nhom');
+  eq(L.regexCaptureCount('(a'), 0, 'regex hong thi coi nhu khong co nhom, khong duoc nga');
+  // Regex có nhánh: nhóm 1 rỗng khi nhánh sau khớp. Lấy cứng hit[1] là ra danh sách toàn undefined.
+  const filter = L.lensState.filter;
+  filter.useRegex = true;
+  filter.text = 'status=(fail)|errorCode[":= ]+(-?\\d+)';
+  const tally = L.buildCaptureTally(L.applyFilter(false).visible);
+  ok(tally.values.some((item) => item.value === 'fail'), 'nhanh truoc');
+  ok(tally.values.some((item) => item.value === '413'), 'nhanh sau — lay nhom dau tien CO gia tri');
+  // Mẫu khớp chuỗi rỗng: không có guard thì lastIndex đứng yên và trang treo cứng.
+  filter.text = '(\\d*)';
+  const rong = L.buildCaptureTally(L.applyFilter(false).visible);
+  ok(rong && rong.values.length > 0, 'mau khop chuoi rong van phai tra ve duoc, khong treo');
+  filter.text = '';
+  L.applyFilter(false);
 });
 
 // log rỗng

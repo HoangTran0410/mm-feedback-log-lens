@@ -196,6 +196,81 @@ function computeFilteredIndices() {
   return lensState.lastFilterResult;
 }
 
+/* ------------------------------------------- gom giá trị bắt được từ ô tìm regex */
+
+// Ô tìm regex vốn đã là bộ trích xuất vạn năng, chỉ thiếu một bước: nó hiện ra DÒNG, không hiện ra
+// GIÁ TRỊ. Thêm bước này thì gõ `(\d+\.\d+\.\d+\.\d+)` là ra danh sách IP, gõ `agent_id":"(\d+)"`
+// là ra danh sách agent — mà không phải đoán trước xem loại nào đáng quét, không tốn gì lúc khởi động,
+// và không có mục nào nằm thường trực trên panel.
+const CAPTURE_MAX_LINES = 5000;
+const CAPTURE_MAX_VALUES = 300;
+
+// Cách chuẩn để đếm số nhóm bắt mà không phải tự parse regex: thêm một nhánh rỗng vào cuối rồi khớp
+// chuỗi rỗng — nhánh đó luôn khớp, nên mảng kết quả có đúng (số nhóm + 1) phần tử.
+function regexCaptureCount(source) {
+  try {
+    const probe = new RegExp(source + '|').exec('');
+    return probe ? probe.length - 1 : 0;
+  } catch (error) {
+    return 0;
+  }
+}
+
+// Nhóm đầu tiên CÓ giá trị, không phải nhóm 1: với regex có nhánh (`a(x)|b(y)`) thì nhóm 1 rỗng khi
+// nhánh sau khớp, lấy cứng hit[1] là ra một danh sách toàn undefined.
+function firstCapture(hit) {
+  for (let i = 1; i < hit.length; i += 1) {
+    if (hit[i] !== undefined) return hit[i];
+  }
+  return undefined;
+}
+
+function buildCaptureTally(visible) {
+  const filter = lensState.filter;
+  if (!filter.text || !filter.useRegex || !lensState.data) return null;
+  if (regexCaptureCount(filter.text) < 1) return null;
+  let re;
+  try {
+    re = new RegExp(filter.text, 'gi');
+  } catch (error) {
+    return null;
+  }
+  const entries = lensState.data.entries;
+  const byValue = new Map();
+  const lines = Math.min(visible.length, CAPTURE_MAX_LINES);
+  let total = 0;
+  for (let i = 0; i < lines; i += 1) {
+    const entry = entries[visible[i]];
+    if (!entry || !entry.raw) continue;
+    re.lastIndex = 0;
+    let hit = re.exec(entry.raw);
+    while (hit) {
+      // Regex khớp chuỗi RỖNG (ví dụ `(\d*)`) thì lastIndex không tiến, vòng lặp treo cứng trang.
+      if (hit[0] === '') re.lastIndex += 1;
+      const value = firstCapture(hit);
+      if (value !== undefined) {
+        total += 1;
+        let bucket = byValue.get(value);
+        if (!bucket) {
+          if (byValue.size >= CAPTURE_MAX_VALUES) break;
+          bucket = { value, count: 0, indices: [] };
+          byValue.set(value, bucket);
+        }
+        bucket.count += 1;
+        if (bucket.indices[bucket.indices.length - 1] !== entry.domIndex) bucket.indices.push(entry.domIndex);
+      }
+      hit = re.exec(entry.raw);
+    }
+  }
+  return {
+    values: Array.from(byValue.values()).sort((a, b) => b.count - a.count),
+    total,
+    scannedLines: lines,
+    cappedLines: visible.length > lines,
+    cappedValues: byValue.size >= CAPTURE_MAX_VALUES,
+  };
+}
+
 // Vẽ lại tab Lọc không được tự quét lại 4085 dòng: mọi đường đổi bộ lọc đều đã gọi
 // computeFilteredIndices trước đó rồi. Quét hai lần là lý do "Xoá tất cả" từng tốn 200ms.
 function getFilterResult() {

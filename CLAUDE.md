@@ -146,6 +146,31 @@ Android thật: ra được đúng `device_os` / `device_performance` / `lang`, 
 `app_version` — và nếu đoán bừa thì panel ghi "iOS 9" cho máy Oppo. Nay `env.osLabel` do module dựng
 (`Android 9` hoặc `iOS 16.7.16`), không đoán được thì chỉ ghi tên hệ điều hành.
 
+**Mọi mã lỗi: đọc bằng MỘT regex trên text, không đi gom từ bốn cấu trúc đã parse.** Mã lỗi nằm rải ở
+bốn nguồn viết theo bốn kiểu — `entry.http.errorCode` (payload HTTP), `error_code=` trong params của
+MoMoTracker, `errorCode=` trong TraceParameter của Grafana, và `"errorCode": 413` nằm trong thân JSON
+(kể cả khi thân đó bị tách ra nhiều dòng). Gom từ bốn cấu trúc thì phải nhớ bốn chỗ và sẽ quên chỗ thứ
+năm; một regex trên chính dòng text bắt hết. Sàng bằng `indexOf` trước, cùng lý do với chữ ký lỗi.
+**Mã 0 bị loại**: `ops_receive_be` ghi `error_code=0` cho mọi call thành công, để lẫn vào thì mã hay
+gặp nhất trong log nào cũng là 0.
+
+**"Giá trị bắt được": ô tìm regex tự gom, thay cho những mục trích xuất dựng sẵn.** Từng tính làm hẳn
+mấy mục "mọi IP / mọi email / mọi URL". Bỏ, vì: phần lớn đã có nơi khác *kèm ngữ cảnh* (URL ở mục Call
+HTTP có status và thời lượng, IP ở Máy & môi trường, ID ở Gom theo ID), một danh sách trần không gắn
+với câu hỏi nào, và quét 7 regex trên 4085 dòng lúc khởi động là lặp lại đúng cái bẫy đã đo ở chữ ký
+lỗi. Thay vào đó ô tìm regex — vốn đã là bộ trích xuất vạn năng — chỉ thiếu một bước: nó hiện ra DÒNG
+chứ không hiện ra GIÁ TRỊ. Nay mẫu có nhóm bắt thì hiện thêm danh sách `giá trị → số lần`, bấm vào
+duyệt được những dòng chứa nó. Không tốn gì lúc khởi động, không có mục nào nằm thường trực, và không
+phải đoán trước loại nào đáng quét.
+
+Ba chỗ dễ sai trong đó, đều có phép thử:
+- **Mẫu khớp chuỗi RỖNG** (`(\d*)`) thì `lastIndex` không tiến và vòng lặp treo cứng trang. Phải tự
+  cộng `lastIndex` khi `hit[0] === ''`.
+- **Lấy nhóm đầu tiên CÓ giá trị, không phải `hit[1]`**: mẫu có nhánh (`a(x)|b(y)`) thì nhóm 1 rỗng khi
+  nhánh sau khớp, lấy cứng `hit[1]` ra một danh sách toàn `undefined`.
+- **Đếm số nhóm bắt bằng cách thêm một nhánh rỗng** (`new RegExp(source + '|').exec('')`) chứ đừng tự
+  parse regex; mẫu hỏng thì trả 0 chứ không được ngã.
+
 **Nhãn nguồn cấu hình không được suy đoán.** `src/02g-config.js` chỉ gán nguồn khi chính dòng log nói
 ra (chữ `webadmin`, url CDN, tên lớp `ABTestingExpTag`...). Dòng không tự khai thì vào nhóm
 `oth` = "Chưa rõ nguồn", tuyệt đối không gán bừa vào BE.
