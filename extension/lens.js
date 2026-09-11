@@ -6676,7 +6676,8 @@ function mountPanel() {
     '<div class="fll-hd-sp"></div>' +
     '<button class="fll-ico" data-act="rescan" data-tip="Quét lại (khi đổi tab log)">⟳</button>' +
     '<button class="fll-ico" data-act="minimize" data-tip="Thu nhỏ (Esc)">–</button>' +
-    // '<button class="fll-ico" data-act="close" data-tip="Đóng hẳn — Alt+L để mở lại">×</button></header>' +
+    // '<button class="fll-ico" data-act="close" data-tip="Đóng hẳn — Alt+L để mở lại">×</button>' +
+    '</header>' +
     '<nav class="fll-tabs"></nav>' +
     '<div class="fll-bar" hidden></div>' +
     '<div class="fll-map" data-tip="Bấm để nhảy tới mốc đó. Kéo để chọn khoảng thời gian; ' +
