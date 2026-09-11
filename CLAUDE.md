@@ -322,7 +322,16 @@ lại `dist/lens.js` trước và sau rồi `diff` phần thân, phải giống 
 
 Đã kiểm trên DOM thật ngày 2026-09-08:
 
-- Mỗi dòng log là `div[class*="logRow"]`, con thứ nhất là số dòng, con thứ hai là `span` chứa cả dòng text.
+- Mỗi dòng log là `div[class*="logRow"]`, con thứ nhất là số dòng, con thứ hai là `span` chứa cả dòng
+  text. Đo lại ngày **2026-09-11** trên một log production, ngay trên một dòng dài: hàng có đúng **2 ô**,
+  ô thứ hai dài **633** ký tự trong khi cả hàng là **637** — chênh đúng 4 ký tự của ô số dòng. Tức
+  `el.children[1]` vẫn là trọn dòng kể cả với dòng dài, không bị chia nhỏ.
+
+  Từng viết một hàm `rowText()` nối hết các ô sau ô đầu để phòng trường hợp trang chia dòng thành
+  nhiều ô, khi đi tìm nguyên nhân một dòng tìm-không-ra. Đã **bỏ** (revert) sau khi phép đo trên chứng
+  minh giả thuyết đó sai: giữ lại thì chỉ là code phòng một chuyện chưa xảy ra, mà bản thân nó cũng có
+  đường hỏng im lặng riêng — trang thêm một ô phụ (nút copy chẳng hạn) là chữ của ô đó bị dán thẳng
+  vào `entry.raw`.
 - Mức độ nằm ở class của `span` đó (`_error_`, `_warn_`, `_info_`; DEBUG không có class) — nhưng tool **parse level từ chính text**, nên đổi tên class cũng không sao.
 - Toàn bộ ~4000 dòng nằm sẵn trong DOM, không virtual scroll.
 - Log cuộn trong một div lồng bên trong, không phải window — `getLogScrollContainer()` tự dò.
