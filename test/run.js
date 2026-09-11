@@ -1445,6 +1445,79 @@ check('ticket noi ro khong thay diem bat dau cua phien dau', () => {
   ok(out.indexOf('trước lần khởi động đầu tiên') >= 0, 'phai co trong muc khong tra loi duoc');
 });
 
+// Máy & môi trường đọc từ header HTTP. Ba dòng dưới đây bịa hoàn toàn nhưng tái tạo đúng những đặc
+// tính đã gặp trên log thật: header là map KHÔNG parse được bằng JSON.parse (giá trị bị làm mờ để lại
+// chuỗi trần không khoá), User-Agent kiểu Android, IP đổi giữa chừng, và hai miniapp khác nhau.
+const dongHeader = (ip, appId, version, them) =>
+  '2026-01-02 10:00:0' + version.slice(-1) + ':100 GMT+07:00 INFO    [Module: HTTP] [Method: GET] ' +
+  '[URL: https://api.demo/vi/x] [RequestPayload: --encrypted: false --body: null --header: ' +
+  '{"deviceid":"66654e3ac9b5a4509fa697f401d3bc6d3fc01f2be49e1b524c26a9ed0024e84b",' +
+  '"device-name":"Oppo CPH2083","device-ip":"' + ip + '","authorization":"BI-MAT-KHONG-DUOC-LO",' +
+  '"map_appId":"' + appId + '","map_miniAppVersion":"' + version + '","device_os":"ANDROID",' +
+  '"device_performance":"low-end","app_version":"51500","app_code":"5.15.0","channel":"APP","lang":"vi",' +
+  '"User-Agent":"momotransfer/5.15.0.51500 Dalvik/2.1.0 (Linux; U; Android 9; CPH2083 Build/PPR1.180610.011)",' +
+  '"agent_id":"73217397","****","****","sessionKey":"KHOA-PHIEN-KHONG-DUOC-LO",' +
+  '"M-Signature":"CHU-KY-KHONG-DUOC-LO","M-Timezone":"Asia/Ho_Chi_Minh","env":"production"' +
+  (them || '') + '}]--exception: none';
+
+rows = [
+  '2026-01-02 10:00:00:010 GMT+07:00 INFO    [Module: GiaLapDb] MomoDatabase init OK',
+  dongHeader('42.118.185.199', 'vn.momo.cvs_fund', '694'),
+  dongHeader('42.118.185.199', 'vn.momo.cvs_fund', '695'),
+  dongHeader('10.20.30.40', 'vn.momo.financial_hub', '1901'),
+].map(makeRow);
+scan();
+renderAll('log co header HTTP');
+
+check('may & moi truong doc duoc het cac truong trong header', () => {
+  const env = L.lensState.data.environment;
+  eq(env.headerLineCount, 3, 'ba dong co header');
+  eq(env.device, 'Oppo CPH2083', 'ten may lay tu device-name');
+  // Bản cũ chỉ khớp User-Agent kiểu iOS nên log Android bỏ trống cả tên máy lẫn phiên bản app.
+  eq(env.osLabel, 'Android 9', 'he dieu hanh doc tu User-Agent kieu Android');
+  eq(env.appVersion, '5.15.0', 'app_code');
+  eq(env.appBuild, '51500', 'app_version');
+  eq(env.timezone, 'Asia/Ho_Chi_Minh', 'mui gio');
+  eq(env.envName, 'production', 'moi truong');
+  eq(env.channel, 'APP', 'kenh');
+  eq(env.performance, 'low-end', 'doi may');
+});
+
+// Nhiều giá trị cho cùng một khoá là thứ đáng thấy cả danh sách: IP đổi giữa chừng = đổi mạng.
+check('nhieu IP thi giu ca danh sach, sap theo so lan', () => {
+  const env = L.lensState.data.environment;
+  eq(env.ips.length, 2, 'hai IP khac nhau');
+  eq(env.ips[0].value, '42.118.185.199', 'IP gap nhieu lan nhat dung truoc');
+  eq(env.ips[0].count, 2, 'dung so lan');
+  eq(env.deviceIds.length, 1, 'chi mot deviceid');
+  eq(env.agentIds.length, 1, 'chi mot agent_id');
+  const html = L.renderSummaryTab();
+  ok(html.indexOf('10.20.30.40') >= 0 && html.indexOf('42.118.185.199') >= 0,
+    'ca hai IP phai hien ra, khong phai chi cai hay gap nhat');
+});
+
+// Cặp (miniapp, version) phải đọc trong CÙNG một dòng, gom hai danh sách rồi ghép là gán nhầm version.
+check('version cua tung miniapp, khong gan nham cho nhau', () => {
+  const apps = L.lensState.data.environment.miniApps;
+  eq(apps.length, 2, 'hai miniapp');
+  const fund = apps.find((app) => app.appId === 'vn.momo.cvs_fund');
+  const hub = apps.find((app) => app.appId === 'vn.momo.financial_hub');
+  eq(fund.versions.map((item) => item.value).sort().join(','), '694,695', 'cvs_fund chay hai version');
+  eq(hub.versions.map((item) => item.value).join(','), '1901', 'financial_hub chi mot version');
+  ok(L.renderSummaryTab().indexOf('vn.momo.financial_hub') >= 0, 'phai hien ra tren panel');
+  ok(L.buildTicketSummary(L.lensState.data).indexOf('vn.momo.cvs_fund 694/695') >= 0,
+    'ticket phai ghi version miniapp — thieu no thi khong tai hien duoc');
+});
+
+// Danh sách khoá là DANH SÁCH TRẮNG. Cùng map header đó có authorization, sessionKey, M-Signature —
+// lọt một cái lên panel là lọt luôn vào ticket, mà ticket thì đi thẳng ra Jira.
+check('token trong header khong duoc lot ra panel hay ticket', () => {
+  const html = L.renderSummaryTab() + L.buildTicketSummary(L.lensState.data);
+  ['BI-MAT-KHONG-DUOC-LO', 'KHOA-PHIEN-KHONG-DUOC-LO', 'CHU-KY-KHONG-DUOC-LO'].forEach((bimat) => {
+    ok(html.indexOf(bimat) < 0, 'lo mat: ' + bimat);
+  });
+});
+
 // log rỗng
 rows = [];
 scan();

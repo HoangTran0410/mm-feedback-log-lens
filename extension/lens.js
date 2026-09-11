@@ -2404,18 +2404,41 @@ function markDuplicateEntries(entries) {
   return block;
 }
 // @ts-check
-// đọc "máy này là máy gì, chạy bản nào, nối vào đâu" từ header của request HTTP
+// đọc "máy này là máy gì, chạy bản nào, nối vào đâu, xài miniapp version bao nhiêu" từ header HTTP
 //
 // Vì sao lấy từ header chứ không từ module DeviceProfileManager: đếm trên ba log thật,
-// DeviceProfileManager có 27 / 9 / 0 dòng — bằng 0 trên log production. Còn header User-Agent thì có
-// 52 / 66 / 94 lần, và mỗi log chỉ có ĐÚNG MỘT giá trị. Đây là nguồn duy nhất trả lời được câu "máy
-// gì, iOS mấy, bản nào" trên cả log production.
+// DeviceProfileManager có 27 / 9 / 0 dòng — bằng 0 trên log production. Còn header thì có
+// 52 / 66 / 94 lần. Đây là nguồn duy nhất trả lời được câu "máy gì, bản nào" trên log production.
 //
-// Dạng thật (đã làm mờ id): MoMoPlatform UAT/5.15.0.51500 CFNetwork/1410.1 Darwin/22.6.0
-//                           (iPhone 8 Plus iOS/16.7.16) AgentID/<AN>
+// Một dòng RequestPayload mang nguyên map header, ví dụ (đã làm mờ):
+//   --header: {"deviceid":"6665…4e84b","device-name":"Oppo CPH2083","device-ip":"42.118.185.199",
+//              "map_appId":"vn.momo.cvs_fund","map_miniAppVersion":"694","device_os":"ANDROID",
+//              "app_version":"51500","app_code":"5.15.0","agent_id":"73217397","env":"production",
+//              "M-Timezone":"Asia/Ho_Chi_Minh","User-Agent":"momotransfer/5.15.0.51500 Dalvik/2.1.0 …"}
+//
+// Ba điều đã học khi viết phần này:
+//
+// 1. KHÔNG JSON.parse được map đó. Header bị làm mờ để lại giá trị trần không có khoá
+//    (`"agent_id":"73217397","****","****","sessionKey":…`) — JSON.parse ném lỗi ngay. Quét từng cặp
+//    "khoá":"giá trị" thì mấy token trần đó tự bị bỏ qua.
+// 2. Danh sách khoá là DANH SÁCH TRẮNG, cố ý không phải "đọc hết rồi lọc thứ nhạy cảm". Cùng map đó
+//    còn có authorization, cvs-token, sessionKey, M-Signature — bỏ sót một cái tên trong danh sách đen
+//    là đưa token lên panel và vào ticket.
+// 3. Không chỉ có iOS. Bản cũ chỉ khớp User-Agent kiểu iOS (MoMoPlatform … CFNetwork … Darwin), nên
+//    trên log Android nó bỏ trống cả tên máy lẫn phiên bản app — đo trên đúng một dòng log Android
+//    thật: chỉ ra được device_os / device_performance / lang, mất device-name, app_code, app_version.
 
+const ENV_HEADER_KEYS = ['deviceid', 'device-name', 'device-ip', 'device_os', 'device_performance',
+  'app_code', 'app_version', 'agent_id', 'lang', 'M-Lang', 'M-Timezone', 'channel', 'env', 'app_type',
+  'map_appId', 'map_miniAppVersion', 'map_screen_name', 'User-Agent'];
+
+const RE_ENV_HEADER_PAIR = /"([A-Za-z0-9_.\-]{1,40})"\s*:\s*"([^"]*)"/g;
+// iOS: MoMoPlatform UAT/5.15.0.51500 CFNetwork/1410.1 Darwin/22.6.0 (iPhone 8 Plus iOS/16.7.16)
 const RE_ENV_UA = /MoMoPlatform\s*([A-Za-z]*)\s*\/?([\d.]+)\s+CFNetwork\/([\d.]+)\s+Darwin\/([\d.]+)\s+\(([^)]*)\)/;
 const RE_ENV_DEVICE = /^(.*?)\s+iOS\/([\d.]+)$/;
+// Android: momotransfer/5.15.0.51500 Dalvik/2.1.0 (Linux; U; Android 9; CPH2083 Build/PPR1.180610.011)
+const RE_ENV_ANDROID = /\bAndroid\s+([\d.]+)/;
+const RE_ENV_ANDROID_MODEL = /;\s*([^;()]{2,40}?)\s+Build\//;
 const RE_ENV_PERF = /device_performance[=:"\s]+([a-z-]{3,20})/;
 const RE_ENV_OS = /device_os[=:"\s]+([A-Za-z0-9._ ]{2,30})/;
 // Ký tự đóng phải gồm cả "}": trên log thật lang nằm giữa map nên sau nó là dấu phẩy, nhưng khi nó là
@@ -2448,10 +2471,82 @@ function parseEnvDevice(inside) {
   return { device: hit[1].trim(), osVersion: hit[2] };
 }
 
+// Map header của MỘT dòng, chỉ giữ khoá trong danh sách trắng.
+function parseEnvHeaderMap(raw) {
+  const at = raw.indexOf('--header:');
+  if (at < 0) return null;
+  const block = extractJsonBlock(raw.slice(at));
+  if (!block) return null;
+  const map = {};
+  RE_ENV_HEADER_PAIR.lastIndex = 0;
+  let hit = RE_ENV_HEADER_PAIR.exec(block.text);
+  while (hit) {
+    if (ENV_HEADER_KEYS.indexOf(hit[1]) >= 0 && hit[2].trim()) map[hit[1]] = hit[2].trim();
+    hit = RE_ENV_HEADER_PAIR.exec(block.text);
+  }
+  return map;
+}
+
+function envBump(tally, key, value) {
+  let byValue = tally.get(key);
+  if (!byValue) {
+    byValue = new Map();
+    tally.set(key, byValue);
+  }
+  byValue.set(value, (byValue.get(value) || 0) + 1);
+}
+
+// Một lượt quét duy nhất qua các dòng CÓ header. Sàng bằng indexOf trước: dòng payload dài 10KB mà
+// chạy regex lên tất cả thì riêng mục này ăn hết phần lớn thời gian khởi động.
+function collectEnvHeaders(entries) {
+  const tally = new Map();
+  const miniApps = new Map();
+  let lineCount = 0;
+  entries.forEach((entry) => {
+    const raw = entry.raw;
+    if (!raw || raw.indexOf('--header:') < 0) return;
+    const map = parseEnvHeaderMap(raw);
+    if (!map) return;
+    lineCount += 1;
+    Object.keys(map).forEach((key) => envBump(tally, key, map[key]));
+    // Cặp (miniapp, version) phải đọc TRONG CÙNG một dòng: gom riêng hai danh sách rồi ghép lại là
+    // gán nhầm version của miniapp này cho miniapp kia.
+    if (map.map_appId && map.map_miniAppVersion) {
+      let versions = miniApps.get(map.map_appId);
+      if (!versions) {
+        versions = new Map();
+        miniApps.set(map.map_appId, versions);
+      }
+      versions.set(map.map_miniAppVersion, (versions.get(map.map_miniAppVersion) || 0) + 1);
+    }
+  });
+  return { tally, miniApps, lineCount };
+}
+
+// Mọi giá trị của một khoá, nhiều lần nhất đứng trước. Trả về danh sách chứ không trả về một giá trị:
+// nhiều deviceid hay nhiều IP trong cùng một log là thứ đáng nhìn thấy, không phải thứ để chọn đại
+// lấy cái đầu (IP đổi = đổi mạng giữa chừng; deviceid đổi thì log đã bị trộn từ hai máy).
+function envValues(tally, key) {
+  const byValue = tally.get(key);
+  if (!byValue) return [];
+  return Array.from(byValue, (pair) => ({ value: pair[0], count: pair[1] }))
+    .sort((a, b) => b.count - a.count);
+}
+
+function envTop(tally, key) {
+  const list = envValues(tally, key);
+  return list.length ? list[0].value : '';
+}
+
 function buildEnvironment(entries, httpCalls) {
-  const ua = envFirst(entries, RE_ENV_UA, 0);
+  const headers = collectEnvHeaders(entries);
+  const tally = headers.tally;
+
+  const ua = envTop(tally, 'User-Agent') || envFirst(entries, RE_ENV_UA, 0);
   const parsed = ua ? RE_ENV_UA.exec(ua) : null;
-  const device = parseEnvDevice(parsed ? parsed[5] : '');
+  const iosDevice = parseEnvDevice(parsed ? parsed[5] : '');
+  const androidHit = ua ? RE_ENV_ANDROID.exec(ua) : null;
+  const androidModel = ua ? RE_ENV_ANDROID_MODEL.exec(ua) : null;
 
   const hosts = new Map();
   (httpCalls || []).forEach((call) => {
@@ -2461,18 +2556,41 @@ function buildEnvironment(entries, httpCalls) {
   const nonProdHosts = Array.from(hosts.keys()).filter((host) => RE_ENV_NONPROD_HOST.test(host));
 
   const flavor = parsed ? parsed[1] : '';
+  const deviceOs = envTop(tally, 'device_os') || envFirst(entries, RE_ENV_OS);
+  // Nhãn hệ điều hành do đây dựng, không để renderer tự ghép chữ "iOS": ghép cứng ở đó thì log Android
+  // hiện ra "iOS 9". Không đoán được phiên bản thì chỉ ghi tên hệ điều hành.
+  const osLabel = iosDevice.osVersion ? 'iOS ' + iosDevice.osVersion
+    : (androidHit ? 'Android ' + androidHit[1] : '');
+
+  const miniApps = Array.from(headers.miniApps, (pair) => ({
+    appId: pair[0],
+    versions: Array.from(pair[1], (item) => ({ value: item[0], count: item[1] }))
+      .sort((a, b) => b.count - a.count),
+    count: Array.from(pair[1].values()).reduce((sum, n) => sum + n, 0),
+  })).sort((a, b) => b.count - a.count);
+
   return {
     // Rỗng hết thì tab không vẽ mục này — log production cắt giữa chừng có thể không có request nào.
-    available: !!(parsed || hosts.size),
+    available: !!(parsed || hosts.size || headers.lineCount),
     flavor,
-    appVersion: parsed ? parsed[2] : '',
+    appVersion: (parsed ? parsed[2] : '') || envTop(tally, 'app_code'),
+    appBuild: envTop(tally, 'app_version'),
     cfNetwork: parsed ? parsed[3] : '',
     darwin: parsed ? parsed[4] : '',
-    device: device.device,
-    osVersion: device.osVersion,
-    deviceOs: envFirst(entries, RE_ENV_OS),
-    performance: envFirst(entries, RE_ENV_PERF),
-    lang: envFirst(entries, RE_ENV_LANG),
+    device: envTop(tally, 'device-name') || iosDevice.device || (androidModel ? androidModel[1] : ''),
+    osVersion: iosDevice.osVersion,
+    osLabel,
+    deviceOs,
+    performance: envTop(tally, 'device_performance') || envFirst(entries, RE_ENV_PERF),
+    lang: envTop(tally, 'lang') || envTop(tally, 'M-Lang') || envFirst(entries, RE_ENV_LANG),
+    timezone: envTop(tally, 'M-Timezone'),
+    channel: envTop(tally, 'channel'),
+    envName: envTop(tally, 'env') || envTop(tally, 'app_type'),
+    deviceIds: envValues(tally, 'deviceid'),
+    ips: envValues(tally, 'device-ip'),
+    agentIds: envValues(tally, 'agent_id'),
+    miniApps,
+    headerLineCount: headers.lineCount,
     hostCount: hosts.size,
     nonProdHosts,
     // Bản Staging/UAT mà lại gọi toàn host không có dấu hiệu uat/dev — gặp thật trên một log. Chỉ NÓI
@@ -2504,10 +2622,13 @@ function summaryEnvironment(data) {
   const env = data.environment;
   const context = data.feedback || {};
   let out = '';
-  out += summaryLine('Thiết bị', [env.device, env.osVersion ? 'iOS ' + env.osVersion : '',
-    env.performance].filter(Boolean).join(' · '));
-  out += summaryLine('Bản app', [env.appVersion, env.flavor ? 'build ' + env.flavor : '',
-    context['App Info']].filter(Boolean).join(' · '));
+  // env.osLabel chứ không ghép cứng chữ "iOS" ở đây: log Android sẽ ra "iOS 9".
+  out += summaryLine('Thiết bị', [env.device, env.osLabel, env.performance].filter(Boolean).join(' · '));
+  out += summaryLine('Bản app', [env.appVersion, env.appBuild ? 'build ' + env.appBuild : '',
+    env.flavor ? 'build ' + env.flavor : '', context['App Info']].filter(Boolean).join(' · '));
+  // Version miniapp là thứ quyết định "chạy đoạn code nào" — thiếu nó thì ticket không tái hiện được.
+  out += summaryLine('MiniApp', env.miniApps
+    .map((app) => app.appId + ' ' + app.versions.map((item) => item.value).join('/')).join(' · '));
   out += summaryLine('Mạng', context.Network);
   out += summaryLine('Màn / tính năng', [context.Feature, context.ScreenID, context.MiniApp]
     .filter(Boolean).join(' · '));
@@ -4813,26 +4934,75 @@ function renderDuplicateBanner(data) {
     '</div></div>';
 }
 
-// Mục này trả lời câu đầu tiên của bước TÁI HIỆN: máy gì, iOS mấy, bản nào, nối vào đâu.
-// Đọc từ header request HTTP vì đó là nguồn duy nhất còn sống trên log production (xem 02i).
+// Giá trị dài (deviceid 64 ký tự) không vừa panel 480px: cắt giữa, giữ hai đầu để còn đối chiếu được,
+// nguyên văn để trong chú giải.
+function envShortValue(value) {
+  return value.length > 24 ? value.slice(0, 12) + '…' + value.slice(-6) : value;
+}
+
+function envRankRow(left, right, tip) {
+  return '<div class="fll-rk" style="cursor:default"' +
+    (tip ? ' data-tip="' + escapeHtml(tip) + '"' : '') + '>' +
+    '<span>' + escapeHtml(left) + '</span><b style="color:var(--txt)">' + escapeHtml(right) + '</b></div>';
+}
+
+// Một khoá có NHIỀU giá trị trong cùng một log là thứ đáng nhìn thấy cả danh sách, không phải thứ để
+// chọn đại lấy cái hay gặp nhất: IP đổi giữa chừng = đổi mạng, deviceid đổi = log đã bị trộn từ hai máy.
+// Đúng một giá trị thì nó đã nằm ở bảng trên rồi, không lặp lại ở đây.
+function renderEnvValueList(label, list) {
+  if (list.length < 2) return '';
+  return '<div class="fll-hint" style="margin:10px 0 4px">' + escapeHtml(label) + ' — <b>' +
+    list.length + '</b> giá trị khác nhau trong cùng một log</div>' +
+    '<div class="fll-rank">' + list
+      .map((item) => envRankRow(envShortValue(item.value), item.count + ' lần', item.value))
+      .join('') + '</div>';
+}
+
+function renderEnvMiniApps(miniApps) {
+  if (!miniApps.length) return '';
+  return '<div class="fll-hint" style="margin:10px 0 4px">MiniApp đã gọi request — <b>' +
+    miniApps.length + '</b></div>' +
+    '<div class="fll-rank">' + miniApps
+      .map((app) => envRankRow(app.appId, app.versions.map((item) => item.value).join(', '),
+        app.appId + '\n' + app.versions.map((item) => 'version ' + item.value + ': ' + item.count + ' request')
+          .join('\n')))
+      .join('') + '</div>';
+}
+
+// Mục này trả lời câu đầu tiên của bước TÁI HIỆN: máy gì, hệ điều hành nào, bản nào, miniapp version
+// bao nhiêu, nối vào đâu. Đọc từ header request HTTP vì đó là nguồn duy nhất còn sống trên log
+// production (xem 02i) — và cũng vì một dòng header mang sẵn hơn chục trường đáng đọc.
 function renderEnvironmentSection(data) {
   const env = data.environment;
   if (!env.available) return '';
   const context = data.feedback || {};
+  const only = (list) => (list.length === 1 ? list[0].value : '');
   const rows = [
-    ['Thiết bị', [env.device, env.osVersion ? 'iOS ' + env.osVersion : '', env.deviceOs].filter(Boolean).join(' · ')],
+    ['Thiết bị', [env.device, env.osLabel || env.deviceOs].filter(Boolean).join(' · ')],
     ['Đời máy', env.performance],
-    ['Bản app', [env.appVersion, env.flavor ? 'build ' + env.flavor : ''].filter(Boolean).join(' · ')],
+    ['Bản app', [env.appVersion, env.appBuild ? 'build ' + env.appBuild : '',
+      env.flavor ? 'build ' + env.flavor : ''].filter(Boolean).join(' · ')],
     ['Mạng', context.Network || ''],
     ['Ngôn ngữ', env.lang],
+    ['Múi giờ', env.timezone],
+    ['Môi trường', [env.envName, env.channel].filter(Boolean).join(' · ')],
     ['CFNetwork / Darwin', [env.cfNetwork, env.darwin].filter(Boolean).join(' / ')],
+    ['Agent ID', only(env.agentIds)],
+    // Cắt ở đây chứ không cắt trong 02i: nguyên văn vẫn phải còn trong dữ liệu để chú giải hiện ra
+    // được và để ai đọc code sau không tưởng tool chỉ đọc được một phần deviceid.
+    ['Device ID', envShortValue(only(env.deviceIds)), only(env.deviceIds)],
+    ['IP', only(env.ips)],
     ['Host đã gọi', env.hostCount
       ? env.hostCount + ' host' + (env.nonProdHosts.length
         ? ' · ' + env.nonProdHosts.length + ' host có dấu hiệu uat/dev: ' + env.nonProdHosts.join(', ')
         : ' · không host nào có dấu hiệu uat/dev')
       : ''],
   ].filter((row) => row[1]);
-  if (!rows.length) return '';
+  const lists = renderEnvValueList('Agent ID', env.agentIds) +
+    renderEnvValueList('Device ID', env.deviceIds) +
+    renderEnvValueList('IP', env.ips) +
+    renderEnvMiniApps(env.miniApps);
+  if (!rows.length && !lists) return '';
 
   // Bản build và host là HAI chuyện khác nhau — chỉ nói ra sự thật quan sát được, không kết luận hộ.
   const mixed = env.mixedBuild
@@ -4842,13 +5012,11 @@ function renderEnvironmentSection(data) {
       '</div></div>'
     : '';
   return secTitle('Máy & môi trường', env.device || env.appVersion || '') +
-    '<div class="fll-hint" style="margin-bottom:8px">Đọc từ header của request HTTP — nguồn duy nhất ' +
-    'còn sống trên log production.</div>' +
-    '<div class="fll-rank">' + rows
-      .map((row) => '<div class="fll-rk" style="cursor:default">' +
-        '<span>' + escapeHtml(row[0]) + '</span><b style="color:var(--txt)">' +
-        escapeHtml(row[1]) + '</b></div>')
-      .join('') + '</div>' + mixed;
+    '<div class="fll-hint" style="margin-bottom:8px">Đọc từ header của ' + env.headerLineCount +
+    ' request HTTP — nguồn duy nhất còn sống trên log production.</div>' +
+    '<div class="fll-rank">' + rows.map((row) => envRankRow(row[0], row[1], row[2] || row[1])).join('') +
+    '</div>' +
+    lists + mixed;
 }
 
 function renderFeedbackBanner() {

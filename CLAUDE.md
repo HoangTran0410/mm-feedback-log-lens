@@ -122,6 +122,30 @@ BATCH"). Cửa sổ thời gian từng loại thẳng chúng, tức bật cửa 
 phần dưới của chính stack trace đó. Giá trị nằm ở `entry.windowTs`, **không** nhập vào `entry.ts`: `ts`
 đi vào khoảng lặng, minimap và phiên app — thêm giờ giả vào đó là đổi số liệu.
 
+**Máy & môi trường đọc từ MAP HEADER của request HTTP, và có bốn luật riêng.** Một dòng
+`RequestPayload` chở sẵn hơn chục trường đáng đọc: `device-name`, `device-ip`, `deviceid`, `device_os`,
+`device_performance`, `app_code`, `app_version`, `agent_id`, `lang`, `M-Timezone`, `channel`, `env`,
+`map_appId`, `map_miniAppVersion`, `User-Agent`.
+
+- **Không `JSON.parse` được map đó.** Header bị làm mờ để lại giá trị trần không có khoá
+  (`"agent_id":"73217397","****","****","sessionKey":…`) nên `JSON.parse` ném lỗi ngay. Quét từng cặp
+  `"khoá":"giá trị"` thì mấy token trần đó tự bị bỏ qua.
+- **Danh sách khoá là DANH SÁCH TRẮNG, cố ý không phải "đọc hết rồi lọc thứ nhạy cảm".** Cùng map đó có
+  `authorization`, `cvs-token`, `sessionKey`, `M-Signature` — bỏ sót một cái tên trong danh sách đen là
+  đưa token lên panel và vào ticket (ticket đi thẳng ra Jira). Có phép thử quét cả panel lẫn ticket để
+  bắt token lọt ra.
+- **Cặp (`map_appId`, `map_miniAppVersion`) phải đọc TRONG CÙNG một dòng.** Gom riêng hai danh sách rồi
+  ghép lại là gán nhầm version của miniapp này cho miniapp kia.
+- **Một khoá nhiều giá trị thì giữ CẢ DANH SÁCH, đừng lấy cái hay gặp nhất.** IP đổi giữa chừng là đổi
+  mạng; `deviceid` đổi là log đã bị trộn từ hai máy. Panel hiện đúng một giá trị thì để trong bảng,
+  từ hai giá trị trở lên thì tách thành danh sách kèm số lần.
+
+**Nhãn hệ điều hành dựng trong `02i`, không ghép chữ ở renderer.** Bản cũ chỉ khớp User-Agent kiểu iOS
+(`MoMoPlatform … CFNetwork … Darwin`) rồi renderer tự ghép `'iOS ' + osVersion`. Đo trên một dòng log
+Android thật: ra được đúng `device_os` / `device_performance` / `lang`, mất sạch tên máy, `app_code`,
+`app_version` — và nếu đoán bừa thì panel ghi "iOS 9" cho máy Oppo. Nay `env.osLabel` do module dựng
+(`Android 9` hoặc `iOS 16.7.16`), không đoán được thì chỉ ghi tên hệ điều hành.
+
 **Nhãn nguồn cấu hình không được suy đoán.** `src/02g-config.js` chỉ gán nguồn khi chính dòng log nói
 ra (chữ `webadmin`, url CDN, tên lớp `ABTestingExpTag`...). Dòng không tự khai thì vào nhóm
 `oth` = "Chưa rõ nguồn", tuyệt đối không gán bừa vào BE.

@@ -95,14 +95,32 @@ function boot(sessionIndex) {
     'blacklistAppIds: [vn.demo.nentang] - blackListApis: [] - Window: 5000ms - maxPoints: 100- apiWeights: 34 entries');
 }
 
+// Map header của request. Bịa hoàn toàn, nhưng tái tạo đúng những đặc tính đã gặp trên log thật:
+// không parse được bằng JSON.parse (giá trị bị làm mờ để lại chuỗi trần không khoá), User-Agent kiểu
+// Android, và IP đổi giữa chừng — để mục "Máy & môi trường" trong ảnh chụp có đủ thứ để xem.
+function demoHeader(appId, version, ip) {
+  return '--header: {"deviceid":"6a1f0d9c44b7e25839ac71d0f6b3e88c4d9021fa77bc3e5610a4d8f2b93c07e5",' +
+    '"device-name":"Oppo CPH2083","device-ip":"' + ip + '","authorization":"---MoMo---",' +
+    '"map_appId":"' + appId + '","map_miniAppVersion":"' + version + '","device_os":"ANDROID",' +
+    '"device_performance":"low-end","app_version":"51500","app_code":"5.15.0","channel":"APP",' +
+    '"lang":"vi","User-Agent":"momotransfer/5.15.0.51500 Dalvik/2.1.0 (Linux; U; Android 9; ' +
+    'CPH2083 Build/PPR1.180610.011)","agent_id":"70000001","****","****",' +
+    '"sessionKey":"---MoMo---","M-Timezone":"Asia/Ho_Chi_Minh","env":"production"}';
+}
+
 function apiCall(api, screen, ok, ms) {
   const traceId = nextId('TRACE');
   const cmdId = nextId('CMD');
   const url = 'https://api.demo/' + api.toLowerCase().replace(/_/g, '/');
+  // Đổi miniapp và đổi IP giữa chừng để mục Máy & môi trường có danh sách chứ không chỉ một giá trị.
+  const appId = traceSeq % 3 === 0 ? 'vn.demo.quy_dau_tu' : 'vn.demo.nentang';
+  const version = traceSeq % 3 === 0 ? '694' : (traceSeq % 7 === 0 ? '1902' : '1901');
+  const ip = traceSeq % 11 === 0 ? '10.20.30.40' : '42.118.185.199';
   tracker('ops_request_be', 'api=' + api + ', api_path=' + api.toLowerCase() + ', trace_id=' + traceId +
     ', screen_name=' + screen + ', miniapp_track_timestamp=' + (clock + 3));
   line('INFO', '[Module: HTTP] [Method: POST] [URL: ' + url + '] [RequestPayload: --encrypted: false --body: ' +
-    '{"cmdId":"' + cmdId + '","user":"nguoi-dung-demo","so_tien":' + (10000 + (traceSeq % 90) * 1000) + '}]');
+    '{"cmdId":"' + cmdId + '","user":"nguoi-dung-demo","so_tien":' + (10000 + (traceSeq % 90) * 1000) + '} ' +
+    demoHeader(appId, version, ip) + ']');
   grafana('startTrace', 'flow=http_request_v2, step=' + api.toLowerCase() + '_start, appId=vn.demo.nentang, ' +
     'errorCode=null, errorMessage=null', ms);
   if (ok) {

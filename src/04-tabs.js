@@ -110,26 +110,75 @@ function renderDuplicateBanner(data) {
     '</div></div>';
 }
 
-// Mục này trả lời câu đầu tiên của bước TÁI HIỆN: máy gì, iOS mấy, bản nào, nối vào đâu.
-// Đọc từ header request HTTP vì đó là nguồn duy nhất còn sống trên log production (xem 02i).
+// Giá trị dài (deviceid 64 ký tự) không vừa panel 480px: cắt giữa, giữ hai đầu để còn đối chiếu được,
+// nguyên văn để trong chú giải.
+function envShortValue(value) {
+  return value.length > 24 ? value.slice(0, 12) + '…' + value.slice(-6) : value;
+}
+
+function envRankRow(left, right, tip) {
+  return '<div class="fll-rk" style="cursor:default"' +
+    (tip ? ' data-tip="' + escapeHtml(tip) + '"' : '') + '>' +
+    '<span>' + escapeHtml(left) + '</span><b style="color:var(--txt)">' + escapeHtml(right) + '</b></div>';
+}
+
+// Một khoá có NHIỀU giá trị trong cùng một log là thứ đáng nhìn thấy cả danh sách, không phải thứ để
+// chọn đại lấy cái hay gặp nhất: IP đổi giữa chừng = đổi mạng, deviceid đổi = log đã bị trộn từ hai máy.
+// Đúng một giá trị thì nó đã nằm ở bảng trên rồi, không lặp lại ở đây.
+function renderEnvValueList(label, list) {
+  if (list.length < 2) return '';
+  return '<div class="fll-hint" style="margin:10px 0 4px">' + escapeHtml(label) + ' — <b>' +
+    list.length + '</b> giá trị khác nhau trong cùng một log</div>' +
+    '<div class="fll-rank">' + list
+      .map((item) => envRankRow(envShortValue(item.value), item.count + ' lần', item.value))
+      .join('') + '</div>';
+}
+
+function renderEnvMiniApps(miniApps) {
+  if (!miniApps.length) return '';
+  return '<div class="fll-hint" style="margin:10px 0 4px">MiniApp đã gọi request — <b>' +
+    miniApps.length + '</b></div>' +
+    '<div class="fll-rank">' + miniApps
+      .map((app) => envRankRow(app.appId, app.versions.map((item) => item.value).join(', '),
+        app.appId + '\n' + app.versions.map((item) => 'version ' + item.value + ': ' + item.count + ' request')
+          .join('\n')))
+      .join('') + '</div>';
+}
+
+// Mục này trả lời câu đầu tiên của bước TÁI HIỆN: máy gì, hệ điều hành nào, bản nào, miniapp version
+// bao nhiêu, nối vào đâu. Đọc từ header request HTTP vì đó là nguồn duy nhất còn sống trên log
+// production (xem 02i) — và cũng vì một dòng header mang sẵn hơn chục trường đáng đọc.
 function renderEnvironmentSection(data) {
   const env = data.environment;
   if (!env.available) return '';
   const context = data.feedback || {};
+  const only = (list) => (list.length === 1 ? list[0].value : '');
   const rows = [
-    ['Thiết bị', [env.device, env.osVersion ? 'iOS ' + env.osVersion : '', env.deviceOs].filter(Boolean).join(' · ')],
+    ['Thiết bị', [env.device, env.osLabel || env.deviceOs].filter(Boolean).join(' · ')],
     ['Đời máy', env.performance],
-    ['Bản app', [env.appVersion, env.flavor ? 'build ' + env.flavor : ''].filter(Boolean).join(' · ')],
+    ['Bản app', [env.appVersion, env.appBuild ? 'build ' + env.appBuild : '',
+      env.flavor ? 'build ' + env.flavor : ''].filter(Boolean).join(' · ')],
     ['Mạng', context.Network || ''],
     ['Ngôn ngữ', env.lang],
+    ['Múi giờ', env.timezone],
+    ['Môi trường', [env.envName, env.channel].filter(Boolean).join(' · ')],
     ['CFNetwork / Darwin', [env.cfNetwork, env.darwin].filter(Boolean).join(' / ')],
+    ['Agent ID', only(env.agentIds)],
+    // Cắt ở đây chứ không cắt trong 02i: nguyên văn vẫn phải còn trong dữ liệu để chú giải hiện ra
+    // được và để ai đọc code sau không tưởng tool chỉ đọc được một phần deviceid.
+    ['Device ID', envShortValue(only(env.deviceIds)), only(env.deviceIds)],
+    ['IP', only(env.ips)],
     ['Host đã gọi', env.hostCount
       ? env.hostCount + ' host' + (env.nonProdHosts.length
         ? ' · ' + env.nonProdHosts.length + ' host có dấu hiệu uat/dev: ' + env.nonProdHosts.join(', ')
         : ' · không host nào có dấu hiệu uat/dev')
       : ''],
   ].filter((row) => row[1]);
-  if (!rows.length) return '';
+  const lists = renderEnvValueList('Agent ID', env.agentIds) +
+    renderEnvValueList('Device ID', env.deviceIds) +
+    renderEnvValueList('IP', env.ips) +
+    renderEnvMiniApps(env.miniApps);
+  if (!rows.length && !lists) return '';
 
   // Bản build và host là HAI chuyện khác nhau — chỉ nói ra sự thật quan sát được, không kết luận hộ.
   const mixed = env.mixedBuild
@@ -139,13 +188,11 @@ function renderEnvironmentSection(data) {
       '</div></div>'
     : '';
   return secTitle('Máy & môi trường', env.device || env.appVersion || '') +
-    '<div class="fll-hint" style="margin-bottom:8px">Đọc từ header của request HTTP — nguồn duy nhất ' +
-    'còn sống trên log production.</div>' +
-    '<div class="fll-rank">' + rows
-      .map((row) => '<div class="fll-rk" style="cursor:default">' +
-        '<span>' + escapeHtml(row[0]) + '</span><b style="color:var(--txt)">' +
-        escapeHtml(row[1]) + '</b></div>')
-      .join('') + '</div>' + mixed;
+    '<div class="fll-hint" style="margin-bottom:8px">Đọc từ header của ' + env.headerLineCount +
+    ' request HTTP — nguồn duy nhất còn sống trên log production.</div>' +
+    '<div class="fll-rank">' + rows.map((row) => envRankRow(row[0], row[1], row[2] || row[1])).join('') +
+    '</div>' +
+    lists + mixed;
 }
 
 function renderFeedbackBanner() {

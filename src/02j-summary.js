@@ -21,10 +21,13 @@ function summaryEnvironment(data) {
   const env = data.environment;
   const context = data.feedback || {};
   let out = '';
-  out += summaryLine('Thiết bị', [env.device, env.osVersion ? 'iOS ' + env.osVersion : '',
-    env.performance].filter(Boolean).join(' · '));
-  out += summaryLine('Bản app', [env.appVersion, env.flavor ? 'build ' + env.flavor : '',
-    context['App Info']].filter(Boolean).join(' · '));
+  // env.osLabel chứ không ghép cứng chữ "iOS" ở đây: log Android sẽ ra "iOS 9".
+  out += summaryLine('Thiết bị', [env.device, env.osLabel, env.performance].filter(Boolean).join(' · '));
+  out += summaryLine('Bản app', [env.appVersion, env.appBuild ? 'build ' + env.appBuild : '',
+    env.flavor ? 'build ' + env.flavor : '', context['App Info']].filter(Boolean).join(' · '));
+  // Version miniapp là thứ quyết định "chạy đoạn code nào" — thiếu nó thì ticket không tái hiện được.
+  out += summaryLine('MiniApp', env.miniApps
+    .map((app) => app.appId + ' ' + app.versions.map((item) => item.value).join('/')).join(' · '));
   out += summaryLine('Mạng', context.Network);
   out += summaryLine('Màn / tính năng', [context.Feature, context.ScreenID, context.MiniApp]
     .filter(Boolean).join(' · '));
