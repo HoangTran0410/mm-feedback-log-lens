@@ -82,7 +82,37 @@ function renderMinimap() {
   updateMinimapRange();
 }
 
+// Vùng phóng to là "cái nhìn", bộ lọc là "tập dòng" — hai thứ cố ý độc lập, nên đổi bộ lọc KHÔNG tự bỏ
+// phóng to. Nhưng có một ca mà giữ nguyên là hỏng hẳn: khoảng đang chọn rơi ra NGOÀI vùng đang phóng
+// (đang phóng vào phiên 1 rồi bấm sang phiên 2). Minimap vẫn vẽ vùng cũ, phần tô nằm ngoài khung nên
+// biến mất sạch — người dùng thấy "chọn phiên 2 mà chẳng có gì được chọn", và không có dấu hiệu nào nói
+// rằng phải lùi phóng to ra mới thấy.
+//
+// Hai lựa chọn trong cách viết điều kiện, chọn cái rộng hơn:
+//   - KHÔNG GIAO NHAU (đang dùng): chỉ cần còn thấy một phần khoảng chọn là còn đường lần ra, giữ nguyên.
+//   - "không chứa trọn" thì quá chặt: bỏ hết bộ lọc (khoảng = cả log) cũng làm bung sạch phóng to, tức
+//     là bộ lọc lại điều khiển cái nhìn — đúng thứ mà hai trạng thái này cố ý tách ra.
+// Lùi từng nấc theo đúng ngăn xếp phóng to chứ không nhảy thẳng về cả log: nấc ngoài mà đã thấy được
+// khoảng mới thì dừng ngay ở đó, người dùng giữ lại được phần lớn độ phóng đang có.
+function releaseZoomOutsideRange() {
+  if (!lensState.mapZoom || !lensState.data) return false;
+  const range = getVisibleTimeRange();
+  let changed = false;
+  while (lensState.mapZoom && (range.to < lensState.mapZoom.from || range.from > lensState.mapZoom.to)) {
+    lensState.mapZoom = lensState.mapZoomStack.length ? lensState.mapZoomStack.pop() : null;
+    changed = true;
+  }
+  return changed;
+}
+
 function updateMinimapRange() {
+  // Đặt TRƯỚC mọi guard DOM: đây là trạng thái, không phải phần vẽ — panel chưa dựng thì vẫn phải đúng.
+  // Vẽ lại cả minimap chứ không chỉ phần tô, vì các cột được chia theo đúng khung đang phóng.
+  // renderMinimap() gọi ngược lại hàm này, nhưng lúc đó vùng phóng đã hợp lệ nên không lặp tiếp.
+  if (releaseZoomOutsideRange() && lensState.el.map) {
+    renderMinimap();
+    return;
+  }
   const shadeLeft = lensState.el.shadeLeft;
   const shadeRight = lensState.el.shadeRight;
   if (!shadeLeft || !shadeRight || !lensState.data) return;

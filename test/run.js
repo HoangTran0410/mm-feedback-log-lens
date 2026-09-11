@@ -75,6 +75,7 @@ function loadLens() {
     'PANEL_CSS,detachLens,serializeFilter,applyFilterPayload,describeTemplatePayload,' +
     'buildPermalink,applyPermalinkFromHash,PERMALINK_PREFIX,setMatches,resetTabUiState,' +
     'hasSelectedTimeRange,hasAnyTimeRange,getVisibleTimeRange,buildSessions,sessionLabel,' +
+    'updateMinimapRange,renderSessionChipRow,' +
     'renderTraceFailSection,isBadHttpCall,setTimeWindowPreset,isWindowPresetActive,' +
     'formatWindowLabel,retargetTimeWindow,extractDurations,renderCorrelationList};';
   const wired = src.replace(/\n\}\)\(\);\s*$/, '\n' + exportLine + '\n})();\n');
@@ -1050,6 +1051,46 @@ check('mau bo loc va permalink mang duoc "bo khoi lap"', () => {
   L.applyFilterPayload({ lv: ['ERROR'] });
   eq(L.lensState.filter.skipDuplicate, false, 'ap mau khac phai tat, khong duoc giu lai');
   L.lensState.filter.levels = new Set();
+});
+
+// Chip phiên bấm vào là LỌC, nhưng rê chuột vẫn phải chỉ ra được chỗ phiên đó bắt đầu trên minimap —
+// giống hệt rê lên một hàng trong danh sách. Đó là việc của data-aim, và nó cố ý không nằm trong danh
+// sách mà handleLensClick đọc (thêm vào đó là cú bấm biến thành lệnh nhảy dòng, mất luôn bộ lọc).
+check('chip phien tro duoc len minimap ma van giu duoc cu bam la loc', () => {
+  const html = L.renderSessionChipRow();
+  const session = L.lensState.data.sessions[1];
+  ok(html.indexOf('data-aim="' + session.firstIndex + '"') >= 0, 'chip phai mang data-aim = dong dau phien');
+  ok(html.indexOf('data-act="setSession" data-value="' + session.index + '"') >= 0,
+    'va van giu data-act de bam vao thi loc');
+  eq(L.aimIndicesFor({ dataset: { aim: String(session.firstIndex) } })[0], session.firstIndex,
+    'mui ten doc duoc data-aim');
+  // data-aim phải được đọc TRƯỚC mọi thứ khác: chip vừa có data-aim vừa có data-value.
+  eq(L.aimIndicesFor({ dataset: { aim: '7', jump: '99' } })[0], 7, 'data-aim di truoc data-jump');
+});
+
+// Bug thật: phóng minimap vào phiên 1 rồi bấm sang phiên 2 thì khoảng đang chọn nằm NGOÀI vùng đang
+// phóng — minimap vẫn vẽ vùng cũ nên phần tô biến mất sạch, người dùng thấy "chọn phiên 2 mà không có
+// gì được chọn" và không có dấu hiệu nào nói rằng phải lùi phóng to ra mới thấy.
+check('doi phien khi dang phong to: vung phong lui ra cho toi khi con thay khoang chon', () => {
+  L.lensState.filter.session = 1;
+  const phien1 = L.getVisibleTimeRange();
+  L.lensState.mapZoomStack = [null];
+  L.lensState.mapZoom = { from: phien1.from, to: phien1.to }; // như vừa bấm "phóng to"
+  L.lensState.filter.session = 2;
+  L.updateMinimapRange();
+  eq(L.lensState.mapZoom, null, 'phai lui ra, khong duoc de khoang chon nam ngoai khung');
+
+  // Ngược lại: bỏ hết bộ lọc (khoảng = cả log) thì vùng phóng PHẢI được giữ. Phóng to là cái nhìn,
+  // bộ lọc là tập dòng — để bộ lọc bung được phóng to là trộn lại hai thứ vốn cố ý tách ra.
+  const phien2 = L.getVisibleTimeRange();
+  L.lensState.mapZoom = { from: phien2.from, to: phien2.to };
+  L.lensState.mapZoomStack = [null];
+  L.lensState.filter.session = null;
+  L.updateMinimapRange();
+  ok(L.lensState.mapZoom !== null, 'bo loc thi khong duoc tu bung phong to');
+  L.lensState.mapZoom = null;
+  L.lensState.mapZoomStack = [];
+  L.applyFilter(false);
 });
 
 // Bug thật: lọc theo PHIÊN APP thu khoảng đang xem về đúng phiên đó (getVisibleTimeRange cắt theo

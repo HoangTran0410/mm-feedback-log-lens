@@ -1711,12 +1711,19 @@ const PANEL_CSS = [
   /* Nút phóng to nằm ngay trong dòng nhãn dưới minimap — chỗ duy nhất vừa liên quan vừa không ăn
      mất chỗ của chính minimap. */
   '.fll-maprow{display:inline-flex;align-items:center;gap:5px;flex:0 0 auto}',
-  '.fll-mapzoom{font-size:10px;font-weight:700;padding:1px 7px;border-radius:20px;cursor:pointer;',
+  /* Chiều cao của nút PHẢI cố định, đừng để nó suy ra từ line-height thừa hưởng: nút này hiện/ẩn theo
+     việc có khoảng đang chọn hay không, mà đo trong Chrome thì dòng nhãn cao 15.22px khi không có nút
+     và 18.50px khi có — mỗi lần bấm là cả phần dưới panel bị đẩy lên rồi tụt xuống 3.28px. Nay nút
+     cao đúng 18.5px và .fll-maplbl chừa sẵn từng ấy, nên hiện/ẩn không đụng vào layout.
+     Đổi cỡ chữ cả bộ thì đo lại hai số này. */
+  '.fll-mapzoom{font-size:10px;font-weight:700;height:18.5px;padding:0 7px;border-radius:20px;',
+  'display:inline-flex;align-items:center;cursor:pointer;',
   'background:var(--bg3);color:var(--txt);border:1px solid var(--line)!important;white-space:nowrap}',
   '.fll-mapzoom:hover{border-color:var(--acc)!important;color:var(--acc)}',
   '.fll-mapzoom.on{background:var(--acc);color:#fff;border-color:var(--acc)!important}',
   '.fll-map-zoomed{border-color:var(--acc)}',
-  '.fll-maplbl{display:flex;justify-content:space-between;gap:8px;margin:5px 17px 0;font-size:10.5px;',
+  '.fll-maplbl{display:flex;justify-content:space-between;align-items:center;gap:8px;margin:5px 17px 0;',
+  'min-height:18.5px;font-size:10.5px;',
   'color:var(--mut);font-variant-numeric:tabular-nums;flex:0 0 auto}',
 
   /* ---------- thân panel ---------- */
@@ -3016,7 +3023,9 @@ function getVisibleTimeRange() {
   let to = filter.timeTo !== null ? filter.timeTo : data.lastTs;
   if (filter.session && data.sessions) {
     const session = data.sessions.find((item) => item.index === filter.session);
-    if (session) {
+    // Phiên không có dòng nào mang timestamp thì startTs/endTs là null: Math.min(x, null) ra 0, tức
+    // khoảng đang xem thành [firstTs, 0] — vô nghĩa mà không có gì báo. Không có mốc thì đừng thu hẹp.
+    if (session && session.startTs && session.endTs) {
       from = Math.max(from, session.startTs);
       to = Math.min(to, session.endTs);
     }
@@ -3521,7 +3530,37 @@ function renderMinimap() {
   updateMinimapRange();
 }
 
+// Vùng phóng to là "cái nhìn", bộ lọc là "tập dòng" — hai thứ cố ý độc lập, nên đổi bộ lọc KHÔNG tự bỏ
+// phóng to. Nhưng có một ca mà giữ nguyên là hỏng hẳn: khoảng đang chọn rơi ra NGOÀI vùng đang phóng
+// (đang phóng vào phiên 1 rồi bấm sang phiên 2). Minimap vẫn vẽ vùng cũ, phần tô nằm ngoài khung nên
+// biến mất sạch — người dùng thấy "chọn phiên 2 mà chẳng có gì được chọn", và không có dấu hiệu nào nói
+// rằng phải lùi phóng to ra mới thấy.
+//
+// Hai lựa chọn trong cách viết điều kiện, chọn cái rộng hơn:
+//   - KHÔNG GIAO NHAU (đang dùng): chỉ cần còn thấy một phần khoảng chọn là còn đường lần ra, giữ nguyên.
+//   - "không chứa trọn" thì quá chặt: bỏ hết bộ lọc (khoảng = cả log) cũng làm bung sạch phóng to, tức
+//     là bộ lọc lại điều khiển cái nhìn — đúng thứ mà hai trạng thái này cố ý tách ra.
+// Lùi từng nấc theo đúng ngăn xếp phóng to chứ không nhảy thẳng về cả log: nấc ngoài mà đã thấy được
+// khoảng mới thì dừng ngay ở đó, người dùng giữ lại được phần lớn độ phóng đang có.
+function releaseZoomOutsideRange() {
+  if (!lensState.mapZoom || !lensState.data) return false;
+  const range = getVisibleTimeRange();
+  let changed = false;
+  while (lensState.mapZoom && (range.to < lensState.mapZoom.from || range.from > lensState.mapZoom.to)) {
+    lensState.mapZoom = lensState.mapZoomStack.length ? lensState.mapZoomStack.pop() : null;
+    changed = true;
+  }
+  return changed;
+}
+
 function updateMinimapRange() {
+  // Đặt TRƯỚC mọi guard DOM: đây là trạng thái, không phải phần vẽ — panel chưa dựng thì vẫn phải đúng.
+  // Vẽ lại cả minimap chứ không chỉ phần tô, vì các cột được chia theo đúng khung đang phóng.
+  // renderMinimap() gọi ngược lại hàm này, nhưng lúc đó vùng phóng đã hợp lệ nên không lặp tiếp.
+  if (releaseZoomOutsideRange() && lensState.el.map) {
+    renderMinimap();
+    return;
+  }
   const shadeLeft = lensState.el.shadeLeft;
   const shadeRight = lensState.el.shadeRight;
   if (!shadeLeft || !shadeRight || !lensState.data) return;
@@ -3948,7 +3987,7 @@ function handleShortcut(event) {
 // Vẽ bằng MỘT lớp SVG phủ lên cả panel (pointer-events:none) chứ không chèn thẻ vào từng hàng: như vậy
 // không renderer nào phải biết đến chuyện này, và tab mới thêm sau này tự động có luôn.
 
-const AIM_SELECTOR = '[data-lines],[data-jump],[data-bucket],[data-group],[data-call],' +
+const AIM_SELECTOR = '[data-aim],[data-lines],[data-jump],[data-bucket],[data-group],[data-call],' +
   '[data-saw],[data-apifail],[data-jscreen],[data-jtap],[data-jload],[data-tracefail]';
 // Một nhóm lỗi có thể có hàng trăm dòng. Vẽ hết thì minimap thành một mảng đỏ đặc, nhìn không ra gì;
 // 60 vạch đã đủ dày để thấy "rải đều" hay "dồn một chỗ".
@@ -3959,10 +3998,13 @@ const AIM_MAX_TICKS = 60;
 function aimIndicesFor(el) {
   const view = getView();
   const data = el.dataset;
+  // data-aim = "phần tử này trỏ tới những dòng này, nhưng BẤM vào nó lại làm việc khác". Chip phiên app
+  // là ca duy nhất đang dùng: bấm vào là lọc theo phiên, còn rê chuột thì vẫn phải chỉ được ra chỗ
+  // phiên đó bắt đầu trên minimap. Vì vậy nó KHÔNG nằm trong danh sách của handleLensClick — thêm vào
+  // đó là cú bấm biến thành lệnh nhảy dòng và mất luôn bộ lọc.
+  if (data.aim != null) return data.aim.split(',').map(Number).filter((index) => !Number.isNaN(index));
   // data-lines đi trước data-jump: hàng ứng với nhiều dòng (nhóm lỗi, hai đầu một khoảng lặng) thì mũi
-  // tên phải đánh dấu hết, không chỉ dòng đầu. Từng có thêm data-aim riêng cho khoảng lặng, vì hồi đó
-  // bấm vào hàng khoảng lặng chỉ nhảy được tới một đầu nên hai danh sách khác nhau thật; nay hàng đó
-  // cũng dùng data-lines nên data-aim không còn ai sinh ra.
+  // tên phải đánh dấu hết, không chỉ dòng đầu.
   if (data.lines != null) return data.lines.split(',').map(Number).filter((index) => !Number.isNaN(index));
   if (data.jump != null) return [Number(data.jump)];
   if (data.bucket != null) return Number(data.bucket) >= 0 ? [Number(data.bucket)] : [];
@@ -5343,9 +5385,13 @@ function renderSessionChipRow() {
         const tip = session.isOrphanTail
           ? SESSION_ORPHAN_TIP + ' Đoạn này kết thúc lúc ' + formatClock(session.endTs) + '.'
           : 'Bắt đầu ' + formatClock(session.startTs);
+        // data-aim: rê chuột lên chip thì mũi tên chỉ thẳng ra chỗ phiên đó BẮT ĐẦU trên minimap,
+        // giống hệt rê lên một hàng trong danh sách. Bấm vào vẫn là lọc theo phiên — xem chú thích
+        // của data-aim trong aimIndicesFor().
         return '<button class="fll-chip' + (lensState.filter.session === session.index ? ' on' : '') +
           (count ? '' : ' dim') + (session.isOrphanTail ? ' fll-chip-orphan' : '') +
           '" data-act="setSession" data-value="' + session.index +
+          '" data-aim="' + session.firstIndex +
           '" data-tip="' + escapeHtml(tip) + '">' + escapeHtml(sessionLabel(session.index)) +
           ' <em>' + count + '</em></button>';
       })

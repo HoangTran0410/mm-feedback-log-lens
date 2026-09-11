@@ -144,7 +144,9 @@ function getVisibleTimeRange() {
   let to = filter.timeTo !== null ? filter.timeTo : data.lastTs;
   if (filter.session && data.sessions) {
     const session = data.sessions.find((item) => item.index === filter.session);
-    if (session) {
+    // Phiên không có dòng nào mang timestamp thì startTs/endTs là null: Math.min(x, null) ra 0, tức
+    // khoảng đang xem thành [firstTs, 0] — vô nghĩa mà không có gì báo. Không có mốc thì đừng thu hẹp.
+    if (session && session.startTs && session.endTs) {
       from = Math.max(from, session.startTs);
       to = Math.min(to, session.endTs);
     }

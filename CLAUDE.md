@@ -405,8 +405,26 @@ Panel từng bị rối vì mấy thói quen dưới đây, sửa rồi thì gi�
   một dòng và thanh dưới không có gì để duyệt. Hàng "Khoảng lặng" là ca kinh điển: nó có hai dòng
   (dòng dừng lại và dòng mở lại), chữ trên hàng là của dòng ĐẦU mà cú bấm lại nhảy tới dòng CUỐI, và
   đầu kia không có đường nào mở ra. Nay nó đưa cả hai vào thanh duyệt (`data-lines` + `data-label`):
-  bấm là tới dòng dừng lại, bấm `n` là sang dòng mở lại. Từng có thêm `data-aim` riêng cho đúng ca
-  này — bỏ rồi, vì `aimIndicesFor()` đọc `data-lines` cho ra cùng hai đầu đó.
+  bấm là tới dòng dừng lại, bấm `n` là sang dòng mở lại.
+- **`data-aim` = "trỏ tới dòng này, nhưng bấm vào thì làm việc khác".** Nó từng tồn tại chỉ để phục vụ
+  hàng khoảng lặng (hồi đó bấm vào chỉ tới được một đầu), rồi bị bỏ khi hàng đó chuyển sang
+  `data-lines`. Nay nó quay lại với nghĩa khác hẳn: **chip phiên app** bấm vào là LỌC, nhưng rê chuột
+  vẫn phải chỉ ra được chỗ phiên đó bắt đầu trên minimap. Vì vậy `data-aim` nằm trong `AIM_SELECTOR`
+  nhưng **không** nằm trong danh sách của `handleLensClick` — thêm vào đó là cú bấm biến thành lệnh
+  nhảy dòng và mất luôn bộ lọc.
+- **Vùng phóng to phải tự lùi khi khoảng đang chọn rơi ra ngoài nó.** Phóng vào phiên 1 rồi bấm sang
+  phiên 2: minimap vẫn vẽ khung cũ nên phần tô nằm ngoài khung và biến mất sạch — người dùng thấy
+  "chọn phiên 2 mà chẳng có gì được chọn", không có dấu hiệu nào nói rằng phải lùi phóng to ra mới
+  thấy. `releaseZoomOutsideRange()` lùi từng nấc theo đúng ngăn xếp phóng to (nấc ngoài mà đã thấy
+  được khoảng mới thì dừng ngay ở đó). Điều kiện là **không giao nhau**, cố ý KHÔNG phải "không chứa
+  trọn": chứa trọn thì bỏ hết bộ lọc (khoảng = cả log) cũng làm bung sạch phóng to, tức là bộ lọc lại
+  điều khiển cái nhìn — đúng thứ mà hai trạng thái này cố ý tách ra. Hàm này đặt TRƯỚC mọi guard DOM
+  trong `updateMinimapRange()`: nó sửa trạng thái chứ không phải phần vẽ.
+- **Nút "phóng to" không được đổi chiều cao dòng nhãn minimap.** Nó hiện/ẩn theo việc có khoảng đang
+  chọn hay không; đo trong Chrome: dòng nhãn cao **15.22px** khi không có nút, **18.50px** khi có, tức
+  mỗi lần bấm là cả phần dưới panel bị đẩy rồi tụt 3.28px. Nay nút cao cố định 18.5px (không suy ra từ
+  `line-height` thừa hưởng) và `.fll-maplbl` có `min-height` đúng bằng đó — đo lại sau khi sửa: 18.31
+  so với 18.32px. Đổi cỡ chữ cả bộ thì đo lại hai số này.
 - **Bốn ô tìm, bốn timer riêng, hai mức chờ khác nhau.** `#fll-re` (lọc nội dung) chờ 180ms vì nó kéo
   theo cả lượt quét 4085 dòng; `#fll-q`, `#fll-modq` và `#fll-httpq` chờ 120ms vì chỉ vẽ lại một mảnh
   (`#fll-httpq` quét cả payload của mọi request, vẫn chỉ thay `#fll-http-list`).

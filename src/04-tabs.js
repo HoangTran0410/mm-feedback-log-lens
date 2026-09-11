@@ -682,9 +682,13 @@ function renderSessionChipRow() {
         const tip = session.isOrphanTail
           ? SESSION_ORPHAN_TIP + ' Đoạn này kết thúc lúc ' + formatClock(session.endTs) + '.'
           : 'Bắt đầu ' + formatClock(session.startTs);
+        // data-aim: rê chuột lên chip thì mũi tên chỉ thẳng ra chỗ phiên đó BẮT ĐẦU trên minimap,
+        // giống hệt rê lên một hàng trong danh sách. Bấm vào vẫn là lọc theo phiên — xem chú thích
+        // của data-aim trong aimIndicesFor().
         return '<button class="fll-chip' + (lensState.filter.session === session.index ? ' on' : '') +
           (count ? '' : ' dim') + (session.isOrphanTail ? ' fll-chip-orphan' : '') +
           '" data-act="setSession" data-value="' + session.index +
+          '" data-aim="' + session.firstIndex +
           '" data-tip="' + escapeHtml(tip) + '">' + escapeHtml(sessionLabel(session.index)) +
           ' <em>' + count + '</em></button>';
       })

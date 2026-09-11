@@ -139,12 +139,19 @@ const PANEL_CSS = [
   /* Nút phóng to nằm ngay trong dòng nhãn dưới minimap — chỗ duy nhất vừa liên quan vừa không ăn
      mất chỗ của chính minimap. */
   '.fll-maprow{display:inline-flex;align-items:center;gap:5px;flex:0 0 auto}',
-  '.fll-mapzoom{font-size:10px;font-weight:700;padding:1px 7px;border-radius:20px;cursor:pointer;',
+  /* Chiều cao của nút PHẢI cố định, đừng để nó suy ra từ line-height thừa hưởng: nút này hiện/ẩn theo
+     việc có khoảng đang chọn hay không, mà đo trong Chrome thì dòng nhãn cao 15.22px khi không có nút
+     và 18.50px khi có — mỗi lần bấm là cả phần dưới panel bị đẩy lên rồi tụt xuống 3.28px. Nay nút
+     cao đúng 18.5px và .fll-maplbl chừa sẵn từng ấy, nên hiện/ẩn không đụng vào layout.
+     Đổi cỡ chữ cả bộ thì đo lại hai số này. */
+  '.fll-mapzoom{font-size:10px;font-weight:700;height:18.5px;padding:0 7px;border-radius:20px;',
+  'display:inline-flex;align-items:center;cursor:pointer;',
   'background:var(--bg3);color:var(--txt);border:1px solid var(--line)!important;white-space:nowrap}',
   '.fll-mapzoom:hover{border-color:var(--acc)!important;color:var(--acc)}',
   '.fll-mapzoom.on{background:var(--acc);color:#fff;border-color:var(--acc)!important}',
   '.fll-map-zoomed{border-color:var(--acc)}',
-  '.fll-maplbl{display:flex;justify-content:space-between;gap:8px;margin:5px 17px 0;font-size:10.5px;',
+  '.fll-maplbl{display:flex;justify-content:space-between;align-items:center;gap:8px;margin:5px 17px 0;',
+  'min-height:18.5px;font-size:10.5px;',
   'color:var(--mut);font-variant-numeric:tabular-nums;flex:0 0 auto}',
 
   /* ---------- thân panel ---------- */
