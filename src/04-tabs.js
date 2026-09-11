@@ -122,13 +122,14 @@ function envRankRow(left, right, tip) {
     '<span>' + escapeHtml(left) + '</span><b style="color:var(--txt)">' + escapeHtml(right) + '</b></div>';
 }
 
-// Một khoá có NHIỀU giá trị trong cùng một log là thứ đáng nhìn thấy cả danh sách, không phải thứ để
-// chọn đại lấy cái hay gặp nhất: IP đổi giữa chừng = đổi mạng, deviceid đổi = log đã bị trộn từ hai máy.
+// Một khoá có NHIỀU giá trị là thứ đáng nhìn thấy cả danh sách, không phải thứ để chọn đại lấy cái
+// hay gặp nhất: IP đổi giữa chừng = đổi mạng, deviceid đổi = log đã bị trộn từ hai máy, bản app đổi =
+// người dùng vừa nâng cấp giữa log nên mọi con số phía trên đang trộn hai bản.
 // Đúng một giá trị thì nó đã nằm ở bảng trên rồi, không lặp lại ở đây.
 function renderEnvValueList(label, list) {
   if (list.length < 2) return '';
   return '<div class="fll-hint" style="margin:10px 0 4px">' + escapeHtml(label) + ' — <b>' +
-    list.length + '</b> giá trị khác nhau trong cùng một log</div>' +
+    list.length + '</b> giá trị khác nhau</div>' +
     '<div class="fll-rank">' + list
       .map((item) => envRankRow(envShortValue(item.value), item.count + ' lần', item.value))
       .join('') + '</div>';
@@ -150,11 +151,21 @@ function renderEnvMiniApps(miniApps) {
 // production (xem 02i) — và cũng vì một dòng header mang sẵn hơn chục trường đáng đọc.
 function renderEnvironmentSection(data) {
   const env = data.environment;
-  if (!env.available) return '';
+  const full = lensState.data ? lensState.data.environment : env;
+  if (!env.available) {
+    // Chỉ được nói "log này không có" khi CẢ LOG không có — cùng luật với tab Cấu hình.
+    if (env === full || !full.available) return '';
+    return secTitle('Máy & môi trường', 'bị lọc hết') +
+      emptyBecauseOfFilter(full.headerLineCount + full.bodyLineCount,
+        'dòng request HTTP nào mang thông tin máy');
+  }
   const context = data.feedback || {};
   const only = (list) => (list.length === 1 ? list[0].value : '');
   const rows = [
-    ['Thiết bị', [env.device, env.osLabel || env.deviceOs].filter(Boolean).join(' · ')],
+    // Hai cái tên của cùng một cái máy: tên người đọc được và mã máy trong User-Agent. Giữ cả hai,
+    // xem chú thích ở buildEnvironment.
+    ['Thiết bị', [env.device + (env.deviceModel ? ' (' + env.deviceModel + ')' : ''),
+      env.osLabel || env.deviceOs].filter(Boolean).join(' · ')],
     ['Đời máy', env.performance],
     ['Bản app', [env.appVersion, env.appBuild ? 'build ' + env.appBuild : '',
       env.flavor ? 'build ' + env.flavor : ''].filter(Boolean).join(' · ')],
@@ -174,7 +185,8 @@ function renderEnvironmentSection(data) {
         : ' · không host nào có dấu hiệu uat/dev')
       : ''],
   ].filter((row) => row[1]);
-  const lists = renderEnvValueList('Agent ID', env.agentIds) +
+  const lists = renderEnvValueList('Bản app', env.appVersions) +
+    renderEnvValueList('Agent ID', env.agentIds) +
     renderEnvValueList('Device ID', env.deviceIds) +
     renderEnvValueList('IP', env.ips) +
     renderEnvMiniApps(env.miniApps);
@@ -187,9 +199,13 @@ function renderEnvironmentSection(data) {
       'Bản build và host là hai chuyện khác nhau — đây chỉ là điều quan sát được, không phải kết luận.' +
       '</div></div>'
     : '';
+  const sources = [env.headerLineCount ? env.headerLineCount + ' header' : '',
+    env.bodyLineCount ? env.bodyLineCount + ' body' : ''].filter(Boolean).join(' và ');
   return secTitle('Máy & môi trường', env.device || env.appVersion || '') +
-    '<div class="fll-hint" style="margin-bottom:8px">Đọc từ header của ' + env.headerLineCount +
-    ' request HTTP — nguồn duy nhất còn sống trên log production.</div>' +
+    (sources
+      ? '<div class="fll-hint" style="margin-bottom:8px">Đọc từ ' + sources +
+        ' của request HTTP — nguồn duy nhất còn sống trên log production.</div>'
+      : '') +
     '<div class="fll-rank">' + rows.map((row) => envRankRow(row[0], row[1], row[2] || row[1])).join('') +
     '</div>' +
     lists + mixed;
@@ -296,7 +312,11 @@ function renderSummaryTab() {
       renderRankList(data.journey.taps, 'data-jtap');
   }
 
-  html += renderEnvironmentSection(full);
+  // Mục này chạy theo bộ lọc như mọi mục khác của tab: lọc vào đúng một phiên app thì "bản app"
+  // phải là bản của phiên đó. Đo trên log production 9609 dòng: cả log có hai bản (5.13.1 và 5.15.0,
+  // người dùng nâng cấp giữa chừng), đọc theo cả log thì panel ghi bản hay gặp nhất — tức bản CŨ,
+  // trong khi feedback được gửi từ bản mới.
+  html += renderEnvironmentSection(data);
   html += renderSlowSections();
   html += secTitle('Module nói nhiều nhất', data.modules.length) +
     renderRankList(data.modules, 'data-module');

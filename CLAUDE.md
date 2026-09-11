@@ -122,23 +122,50 @@ BATCH"). Cửa sổ thời gian từng loại thẳng chúng, tức bật cửa 
 phần dưới của chính stack trace đó. Giá trị nằm ở `entry.windowTs`, **không** nhập vào `entry.ts`: `ts`
 đi vào khoảng lặng, minimap và phiên app — thêm giờ giả vào đó là đổi số liệu.
 
-**Máy & môi trường đọc từ MAP HEADER của request HTTP, và có bốn luật riêng.** Một dòng
-`RequestPayload` chở sẵn hơn chục trường đáng đọc: `device-name`, `device-ip`, `deviceid`, `device_os`,
-`device_performance`, `app_code`, `app_version`, `agent_id`, `lang`, `M-Timezone`, `channel`, `env`,
-`map_appId`, `map_miniAppVersion`, `User-Agent`.
+**Máy & môi trường đọc từ hai map của dòng request HTTP, và có sáu luật riêng.** Một dòng
+`RequestPayload` chở sẵn hai map đáng đọc: `--header:` (hơn chục trường: `device-name`, `device-ip`,
+`deviceid`, `device_os`, `device_performance`, `app_code`, `app_version`, `agent_id`, `lang`,
+`M-Timezone`, `channel`, `env`, `map_appId`, `map_miniAppVersion`, `User-Agent`) và `--body:`
+(`deviceName`, `deviceOS`, `devicePerformance`, `appCode`, `appVer`, `lang`, `channel`).
 
-- **Không `JSON.parse` được map đó.** Header bị làm mờ để lại giá trị trần không có khoá
+- **Header KHÔNG phải lúc nào cũng có tên máy, body thì có.** Đo trên log production 9609 dòng
+  (`autoId=5956756`): `device-name` trong header **0 dòng**, `deviceName` trong body **153 dòng**, tất
+  cả cùng một giá trị "Redmi Note 11". Trước khi đọc body, panel chỉ ghi được mã máy moi từ User-Agent
+  — `2201117TG`: đúng, nhưng không ai đọc ra đó là Redmi Note 11. Chi phí của lượt quét body: **13.2ms**
+  trên 9609 dòng (so với ~150ms cả lượt khởi động).
+- **Giữ CẢ HAI cái tên của cùng một cái máy.** `env.device` là tên người đọc được, `env.deviceModel` là
+  mã model trong User-Agent, hiện ra là `Redmi Note 11 (2201117TG)`. Mã model mới là thứ search
+  internet ra đúng mẫu máy, tên thương mại thì không tra ngược được — bỏ mã đi là mất khả năng đó.
+  Chỉ giữ mã riêng khi nó KHÁC tên, không thì dòng "Thiết bị" lặp lại chính nó.
+- **Header đi trước, body chỉ ĐIỀN VÀO CHỖ TRỐNG — cố ý không cộng dồn hai bên.** Một dòng request mang
+  cả body lẫn header, gộp lại là mỗi lần xuất hiện bị đếm hai lượt mà số lần đó có hiện ra trên panel.
+  Cộng dồn còn xẻ một sự thật thành hai giá trị khi hai bên viết khác kiểu chữ: header ghi `"ANDROID"`,
+  body ghi `"android"`.
+- **Khối JSON phải nằm NGAY sau nhãn** (`block.start <= 1`). Dòng `--body: null --encryptedBody:
+  --header: {…}` có thật — 20/291 dòng trên log trên. Đi tìm dấu `{` đầu tiên kể từ nhãn `--body` là
+  vớ luôn map header của chính dòng đó, tức đọc một nguồn rồi ghi vào tên của nguồn kia. Có phép thử:
+  bỏ điều kiện đó ra thì `bodyLineCount` nhảy từ 2 lên 3 trên fixture.
+- **Không `JSON.parse` được hai map đó.** Header bị làm mờ để lại giá trị trần không có khoá
   (`"agent_id":"73217397","****","****","sessionKey":…`) nên `JSON.parse` ném lỗi ngay. Quét từng cặp
-  `"khoá":"giá trị"` thì mấy token trần đó tự bị bỏ qua.
-- **Danh sách khoá là DANH SÁCH TRẮNG, cố ý không phải "đọc hết rồi lọc thứ nhạy cảm".** Cùng map đó có
-  `authorization`, `cvs-token`, `sessionKey`, `M-Signature` — bỏ sót một cái tên trong danh sách đen là
-  đưa token lên panel và vào ticket (ticket đi thẳng ra Jira). Có phép thử quét cả panel lẫn ticket để
-  bắt token lọt ra.
+  `"khoá":"giá trị"` thì mấy token trần đó tự bị bỏ qua. Regex phải nhận cả giá trị trần vì header ghi
+  `"app_version":"51310"` (có nháy) còn body ghi `"appVer":51310`.
+- **Danh sách khoá là DANH SÁCH TRẮNG, cố ý không phải "đọc hết rồi lọc thứ nhạy cảm".** Cùng hai map
+  đó có `authorization`, `cvs-token`, `sessionKey`, `M-Signature`, `DEVICE_IMEI`, `SECUREID`,
+  `MODELID`, `checkSum` — bỏ sót một cái tên trong danh sách đen là đưa token lên panel và vào ticket
+  (ticket đi thẳng ra Jira). Có phép thử quét cả panel lẫn ticket để bắt token lọt ra. Ba thứ trong
+  body cố ý không lấy, đều đo trên log trên: `appId` là id của **miniapp** đang gọi (7 giá trị khác
+  nhau, trong khi `app_code` chỉ có 2) — lấy nhầm thì dòng "Bản app" ghi tên một miniapp;
+  `deviceNameSetting` là tên do chính người dùng đặt cho máy, hoàn toàn có thể là tên thật của họ;
+  `buildNumber` bằng 0 ở cả 146/146 dòng.
+- **Body chỉ đọc trên dòng `RequestPayload`.** Dòng `ResponsePayload` cũng có `--body:` nhưng không khai
+  máy — đọc nó là bóc một khối JSON to cho mỗi call mà không được gì.
 - **Cặp (`map_appId`, `map_miniAppVersion`) phải đọc TRONG CÙNG một dòng.** Gom riêng hai danh sách rồi
   ghép lại là gán nhầm version của miniapp này cho miniapp kia.
 - **Một khoá nhiều giá trị thì giữ CẢ DANH SÁCH, đừng lấy cái hay gặp nhất.** IP đổi giữa chừng là đổi
-  mạng; `deviceid` đổi là log đã bị trộn từ hai máy. Panel hiện đúng một giá trị thì để trong bảng,
-  từ hai giá trị trở lên thì tách thành danh sách kèm số lần.
+  mạng; `deviceid` đổi là log đã bị trộn từ hai máy; **bản app đổi là người dùng vừa nâng cấp giữa log**
+  nên mọi con số phía trên đang trộn hai bản (log trên có cả `5.13.1` lẫn `5.15.0`, cách nhau 4 ngày).
+  Panel hiện đúng một giá trị thì để trong bảng, từ hai giá trị trở lên thì tách thành danh sách kèm
+  số lần.
 
 **Nhãn hệ điều hành dựng trong `02i`, không ghép chữ ở renderer.** Bản cũ chỉ khớp User-Agent kiểu iOS
 (`MoMoPlatform … CFNetwork … Darwin`) rồi renderer tự ghép `'iOS ' + osVersion`. Đo trên một dòng log
@@ -213,6 +240,21 @@ Luật đó áp cho cả **câu chữ**: "log này không có X" là khẳng đ�
 `lensState.data`. Lọc còn ERROR xong tab Cấu hình từng in "Log này không có dòng cấu hình nào đọc được"
 trong khi cả log có 34 khoá. Khi data có mà view rỗng thì đổi hẳn câu (`emptyBecauseOfFilter()`): nói
 rõ là do bộ lọc, kèm số của cả log và một nút bỏ lọc.
+
+**Mục "Máy & môi trường" chạy theo bộ lọc như mọi mục khác — nó là mục CUỐI CÙNG còn đọc thẳng
+`lensState.data`.** Lọc vào đúng một phiên app thì "bản app" phải là bản của phiên đó. Đo trên log
+production 9609 dòng: cả log có hai bản (người dùng nâng cấp giữa chừng), đọc theo cả log thì panel ghi
+bản **hay gặp nhất** — tức bản CŨ — trong khi feedback được gửi từ bản mới. Lọc hết dòng request thì
+mục không được im lặng biến mất: `emptyBecauseOfFilter()` nói rõ là do bộ lọc và kèm nút bỏ lọc, đúng
+luật "log này không có X" ở trên. Hai phép thử khoá cả hai đầu.
+
+**Lọc TRƯỚC rồi mới chuyển tab, không được làm ngược lại.** `switchTab()` vẽ tab ngay lập tức, còn
+`renderFilterTab()` thì đọc `getFilterResult()` — tức kết quả ĐÃ tính. Vẽ trước khi lọc thì tab Lọc
+hiện ra với mục "Mức độ: ERROR" nhưng "Kết quả" vẫn là số của cả log, và nó đứng nguyên như vậy cho tới
+lần vẽ sau. Đo trên log production: bấm thẻ ERROR (56/9609 dòng) xong tab Lọc vẫn ghi **9609/9609**, cả
+danh sách module lẫn "Gom theo ID" cũng là của cả log. Bốn chỗ từng sai: `filterByLevel`,
+`filterByModule`, nhánh `data-event` và `filterFeature`. `applyFilter()` không tự vẽ lại tab nên đổi thứ
+tự không tốn thêm lần vẽ nào. `setSession` vốn đã đúng (lọc xong mới `renderTab()`).
 
 **Chữ hướng dẫn trên giao diện: một câu.** Giải thích dài để trong chú giải của chính phần tử nó nói
 về. Panel chỉ rộng 480px, mỗi câu thừa đẩy nội dung thật xuống dưới màn.

@@ -121,16 +121,21 @@ function resetFilter() {
   refreshFilterBar();
 }
 
+// Lọc TRƯỚC rồi mới chuyển tab, không được làm ngược lại: switchTab() vẽ tab ngay lập tức, mà lúc đó
+// bộ lọc mới chỉ nằm trong lensState.filter chứ view chưa tính lại — tab Lọc hiện ra với mục "Mức độ:
+// ERROR" nhưng "Kết quả 9609/9609" và danh sách module của cả log, và nó đứng nguyên như vậy cho tới
+// lần vẽ sau. Đo trên log production: bấm thẻ ERROR (56/9609 dòng) xong tab Lọc vẫn ghi 9609/9609.
+// applyFilter() không tự vẽ lại tab nên đổi thứ tự không tốn thêm lần vẽ nào.
 function filterByModule(moduleName) {
   lensState.filter.modules = new Set([moduleName]);
   lensState.filter.hideOthers = true;
-  switchTab('flt');
   applyFilter(true);
+  switchTab('flt');
 }
 
 function filterByLevel(level) {
   lensState.filter.levels = new Set([level]);
   lensState.filter.hideOthers = true;
-  switchTab('flt');
   applyFilter(true);
+  switchTab('flt');
 }

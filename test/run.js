@@ -89,7 +89,8 @@ function loadLens() {
     'logicalPayloadText,buildPayloadSections,' +
     'claimLensOwnership,isLensOwner,isLensOutranked,LENS_RANK,LENS_OWNER_ATTR,' +
     'renderTraceFailSection,isBadHttpCall,setTimeWindowPreset,isWindowPresetActive,' +
-    'formatWindowLabel,retargetTimeWindow,extractDurations,renderCorrelationList};';
+    'formatWindowLabel,retargetTimeWindow,extractDurations,renderCorrelationList,' +
+    'filterByLevel};';
   const wired = src.replace(/\n\}\)\(\);\s*$/, '\n' + exportLine + '\n})();\n');
   if (wired === src) throw new Error('khong chen duoc dong export vao IIFE cua extension/lens.js');
   (0, eval)(wired);
@@ -1560,6 +1561,113 @@ check('token trong header khong duoc lot ra panel hay ticket', () => {
   ['BI-MAT-KHONG-DUOC-LO', 'KHOA-PHIEN-KHONG-DUOC-LO', 'CHU-KY-KHONG-DUOC-LO'].forEach((bimat) => {
     ok(html.indexOf(bimat) < 0, 'lo mat: ' + bimat);
   });
+});
+
+/* --------- body của request cũng khai máy, và có log chỉ còn nguồn đó là đọc được tên máy --------- */
+
+// Đo trên log production 9609 dòng (autoId=5956756): "device-name" trong header 0 dòng, "deviceName"
+// trong body 153 dòng. Không đọc body thì panel chỉ ghi được mã máy trong User-Agent ("2201117TG").
+const dongBody = (appCode, tuKhoa) =>
+  '2026-01-02 10:0' + (appCode === '5.13.1' ? '1' : '2') + ':00:100 GMT+07:00 INFO    [Module: HTTP] ' +
+  '[Method: POST] [URL: https://api.demo/vi/' + tuKhoa + '] [RequestPayload: --encrypted: false ' +
+  '--body: {"appCode":"' + appCode + '","appId":"vn.momo.myvoucher","appVer":51310,"buildNumber":0,' +
+  '"channel":"APP","lang":"vi","deviceName":"Redmi Note 11","deviceOS":"android",' +
+  '"deviceNameSetting":"May cua Nam"} --encryptedBody:  --header: ' +
+  '{"map_appId":"vn.momo.myvoucher","map_miniAppVersion":"12","User-Agent":' +
+  '"momotransfer/5.13.1.51310 Dalvik/2.1.0 (Linux; U; Android 13; 2201117TG Build/TKQ1.221114.001)"}]';
+
+// Dòng này có "--body: null" rồi mới tới map header: đi tìm dấu { đầu tiên kể từ nhãn --body là vớ
+// luôn map header của chính dòng đó. "lang" nằm trong CẢ HAI danh sách nên nếu cái bẫy đó còn thì
+// dòng này bị đếm là một dòng body.
+const dongBodyRong =
+  '2026-01-02 10:03:00:100 GMT+07:00 INFO    [Module: HTTP] [Method: GET] [URL: https://api.demo/vi/z] ' +
+  '[RequestPayload: --encrypted: false --body: null --header: {"lang":"en","device-ip":"1.2.3.4"}]';
+
+rows = [
+  '2026-01-02 10:00:00:010 GMT+07:00 INFO    [Module: GiaLapDb] MomoDatabase init OK',
+  dongBody('5.13.1', 'cu'),
+  dongBody('5.15.0', 'moi'),
+  dongBodyRong,
+].map(makeRow);
+scan();
+renderAll('log chi khai ten may trong body');
+
+check('ten may doc duoc tu --body khi header khong co device-name', () => {
+  const env = L.lensState.data.environment;
+  eq(env.device, 'Redmi Note 11', 'ten may lay tu body');
+  // Mã model vẫn phải giữ: đó là thứ search ra đúng mẫu máy, tên thương mại thì không tra được.
+  eq(env.deviceModel, '2201117TG', 'ma may trong User-Agent giu rieng, khong bi ten de len');
+  eq(env.bodyLineCount, 2, 'chi hai dong co body that — dong "--body: null" khong duoc tinh');
+  const html = L.renderSummaryTab();
+  ok(html.indexOf('Redmi Note 11 (2201117TG)') >= 0, 'hien ca ten lan ma may');
+  // deviceNameSetting là tên do người dùng tự đặt cho máy, hoàn toàn có thể là tên thật của họ —
+  // mục này đi thẳng vào ticket nên nó nằm ngoài danh sách trắng.
+  ok((html + L.buildTicketSummary(L.lensState.data)).indexOf('May cua Nam') < 0,
+    'ten may do nguoi dung tu dat khong duoc lay');
+});
+
+check('appId trong body la id cua MINIAPP, khong duoc doc thanh ban app', () => {
+  const env = L.lensState.data.environment;
+  eq(env.appVersion, '5.13.1', 'ban app lay tu appCode, khong phai tu appId');
+  eq(env.appVersions.length, 2, 'log nay co hai ban app');
+  ok(L.renderSummaryTab().indexOf('vn.momo.myvoucher') >= 0, 'miniapp van hien o danh sach miniapp');
+});
+
+// Mục "Máy & môi trường" từng đọc thẳng lensState.data nên lọc kiểu gì nó cũng đứng yên. Trên log
+// production có thật chuyện người dùng nâng cấp app giữa log: đọc theo cả log thì panel ghi bản hay
+// gặp nhất — tức bản CŨ — trong khi feedback được gửi từ bản mới.
+check('may & moi truong chay theo bo loc', () => {
+  const truoc = L.renderSummaryTab();
+  ok(truoc.indexOf('5.13.1') >= 0, 'chua loc thi hien ban hay gap nhat');
+  L.lensState.filter.text = '/vi/moi';
+  L.lensState.filter.hideOthers = true;
+  L.applyFilter(false);
+  const sau = L.renderSummaryTab();
+  L.lensState.filter.text = '';
+  L.applyFilter(false);
+  ok(sau.indexOf('5.15.0') >= 0, 'loc vao dong cua ban moi thi phai ghi ban moi');
+  ok(sau.indexOf('5.13.1') < 0, 'khong duoc con ban cu trong tap dang xem');
+});
+
+check('loc het dong request thi noi ra la do bo loc, khong im lang bien mat', () => {
+  L.lensState.filter.text = 'MomoDatabase';
+  L.lensState.filter.hideOthers = true;
+  L.applyFilter(false);
+  const html = L.renderSummaryTab();
+  L.lensState.filter.text = '';
+  L.applyFilter(false);
+  ok(html.indexOf('Máy &amp; môi trường') >= 0, 'muc van phai con, chi doi noi dung');
+  ok(html.indexOf('Bộ lọc hiện tại không còn') >= 0, 'phai noi ro la do bo loc');
+});
+
+// Bấm thẻ ERROR ở tab Tổng quan vừa đổi bộ lọc vừa nhảy sang tab Lọc. Thứ tự hai việc đó là chuyện
+// sống còn: switchTab() vẽ tab NGAY, mà getFilterResult() lại đọc kết quả lọc ĐÃ TÍNH. Vẽ trước khi
+// lọc thì tab Lọc hiện ra với mục "Mức độ: ERROR" nhưng "Kết quả" vẫn là số của cả log, và nó đứng
+// nguyên như vậy cho tới lần vẽ sau. Đo trên log production: bấm thẻ ERROR (56/9609 dòng) xong tab
+// Lọc vẫn ghi 9609/9609.
+rows = fixture.build().map(makeRow);
+scan();
+
+const veTabLoc = [];
+// Chỉ cần đủ để renderTab() chạy: nó đổ innerHTML rồi mới gom mục (bỏ qua vì không có children).
+L.lensState.el.body = { set innerHTML(html) { veTabLoc.push(html); }, scrollTop: 0 };
+L.lensState.el.tabs = { innerHTML: '' };
+L.filterByLevel('ERROR');
+const locTheoERROR = L.lensState.lastFilterResult.visible.length;
+// Dọn NGAY, ngoài check(): phép thử này hỏng thì cũng không được để bộ lọc và el giả dính sang phép
+// thử sau — đã dính đúng chuyện đó một lần.
+L.lensState.el.body = null;
+L.lensState.el.tabs = null;
+L.lensState.filter.levels = new Set();
+L.applyFilter(false);
+
+check('bam the ERROR: tab Loc phai ve bang so DA loc', () => {
+  const tong = L.lensState.data.entries.length;
+  ok(locTheoERROR > 0 && locTheoERROR < tong,
+    'fixture phai co ca dong ERROR lan dong khac: ' + locTheoERROR + '/' + tong);
+  eq(veTabLoc.length, 1, 'chi ve lai dung mot lan');
+  ok(veTabLoc[0].indexOf(locTheoERROR + '/' + tong) >= 0, 'tab Loc phai ghi ' + locTheoERROR + '/' + tong);
+  ok(veTabLoc[0].indexOf(tong + '/' + tong) < 0, 'khong duoc ghi so cua ca log');
 });
 
 // Rê chuột trên bảng log của trang: panel mờ đi để đọc xuyên qua, minimap chỉ đúng vị trí dòng đó.

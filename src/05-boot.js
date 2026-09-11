@@ -467,8 +467,9 @@ function handleLensClick(event) {
   if (hit.dataset.event) {
     lensState.filter.text = 'event: ' + hit.dataset.event;
     lensState.filter.useRegex = false;
-    switchTab('flt');
-    return applyFilter(true);
+    // Lọc trước, chuyển tab sau — xem chú thích của filterByLevel().
+    applyFilter(true);
+    return switchTab('flt');
   }
   if (hit.dataset.call) {
     const call = view.httpCalls[Number(hit.dataset.call)];
@@ -562,8 +563,8 @@ function handleLensClick(event) {
     lensState.filter.text = value;
     lensState.filter.useRegex = false;
     lensState.filter.hideOthers = true;
-    switchTab('flt');
-    return applyFilter(true);
+    applyFilter(true);
+    return switchTab('flt');
   }
   if (action === 'mute') {
     const group = view.groups[Number(value)];

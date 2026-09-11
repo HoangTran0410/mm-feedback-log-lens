@@ -2489,19 +2489,21 @@ function markDuplicateEntries(entries) {
   return block;
 }
 // @ts-check
-// đọc "máy này là máy gì, chạy bản nào, nối vào đâu, xài miniapp version bao nhiêu" từ header HTTP
+// đọc "máy này là máy gì, chạy bản nào, nối vào đâu, xài miniapp version bao nhiêu" từ dòng request HTTP
 //
-// Vì sao lấy từ header chứ không từ module DeviceProfileManager: đếm trên ba log thật,
+// Vì sao lấy từ dòng HTTP chứ không từ module DeviceProfileManager: đếm trên ba log thật,
 // DeviceProfileManager có 27 / 9 / 0 dòng — bằng 0 trên log production. Còn header thì có
 // 52 / 66 / 94 lần. Đây là nguồn duy nhất trả lời được câu "máy gì, bản nào" trên log production.
 //
-// Một dòng RequestPayload mang nguyên map header, ví dụ (đã làm mờ):
+// Một dòng RequestPayload mang HAI map đáng đọc, viết theo hai kiểu tên khác nhau:
+//   --body:   {"appCode":"5.13.1","appId":"vn.momo.myvoucher","appVer":51310,"buildNumber":0,
+//              "channel":"APP","lang":"vi","deviceName":"Redmi Note 11","deviceOS":"android"}
 //   --header: {"deviceid":"6665…4e84b","device-name":"Oppo CPH2083","device-ip":"42.118.185.199",
 //              "map_appId":"vn.momo.cvs_fund","map_miniAppVersion":"694","device_os":"ANDROID",
 //              "app_version":"51500","app_code":"5.15.0","agent_id":"73217397","env":"production",
 //              "M-Timezone":"Asia/Ho_Chi_Minh","User-Agent":"momotransfer/5.15.0.51500 Dalvik/2.1.0 …"}
 //
-// Ba điều đã học khi viết phần này:
+// Bốn điều đã học khi viết phần này:
 //
 // 1. KHÔNG JSON.parse được map đó. Header bị làm mờ để lại giá trị trần không có khoá
 //    (`"agent_id":"73217397","****","****","sessionKey":…`) — JSON.parse ném lỗi ngay. Quét từng cặp
@@ -2512,12 +2514,37 @@ function markDuplicateEntries(entries) {
 // 3. Không chỉ có iOS. Bản cũ chỉ khớp User-Agent kiểu iOS (MoMoPlatform … CFNetwork … Darwin), nên
 //    trên log Android nó bỏ trống cả tên máy lẫn phiên bản app — đo trên đúng một dòng log Android
 //    thật: chỉ ra được device_os / device_performance / lang, mất device-name, app_code, app_version.
+// 4. Header KHÔNG phải lúc nào cũng có tên máy, mà body thì có. Đo trên log production 9609 dòng
+//    (autoId=5956756): `device-name` trong header **0 dòng**, `deviceName` trong body **153 dòng**,
+//    tất cả cùng một giá trị "Redmi Note 11". Không đọc body thì panel chỉ ghi được mã máy moi từ
+//    User-Agent — "2201117TG", đúng nhưng không ai đọc ra đó là Redmi Note 11.
 
 const ENV_HEADER_KEYS = ['deviceid', 'device-name', 'device-ip', 'device_os', 'device_performance',
   'app_code', 'app_version', 'agent_id', 'lang', 'M-Lang', 'M-Timezone', 'channel', 'env', 'app_type',
   'map_appId', 'map_miniAppVersion', 'map_screen_name', 'User-Agent'];
 
-const RE_ENV_HEADER_PAIR = /"([A-Za-z0-9_.\-]{1,40})"\s*:\s*"([^"]*)"/g;
+// Body gọi cùng một thứ bằng tên khác, nên phải quy về một tên chung — nếu không thì hai nguồn nói
+// về cùng một sự thật lại nằm ở hai khoá và không bao giờ gặp nhau.
+const ENV_BODY_KEY_MAP = new Map([
+  ['deviceName', 'device-name'],
+  ['deviceOS', 'device_os'],
+  ['devicePerformance', 'device_performance'],
+  ['appCode', 'app_code'],
+  ['appVer', 'app_version'],
+  ['lang', 'lang'],
+  ['channel', 'channel'],
+]);
+// Cố ý KHÔNG lấy từ body, cả bốn đều đo trên chính log trên:
+//   appId             id của MINIAPP đang gọi (vn.momo.helpcenter, vn.momo.myvoucher, …) chứ không
+//                     phải app mẹ — 7 giá trị khác nhau trong khi app_code chỉ có 2. Lấy nhầm thì
+//                     dòng "Bản app" ghi tên một miniapp.
+//   deviceNameSetting tên do chính người dùng đặt cho máy, hoàn toàn có thể là tên thật của họ.
+//                     Mục này đi thẳng vào ticket, nên cùng luật với danh sách trắng của header.
+//   DEVICE_IMEI / SECUREID / MODELID / DEVICE_TOKEN / checkSum  định danh máy và chữ ký.
+//   buildNumber       bằng 0 ở cả 146/146 dòng, không nói lên gì.
+
+// Chấp nhận cả giá trị trần: header viết "app_version":"51310" (có nháy) còn body viết "appVer":51310.
+const RE_ENV_PAIR = /"([A-Za-z0-9_.\-]{1,40})"\s*:\s*(?:"([^"]*)"|(-?\d+(?:\.\d+)?))/g;
 // iOS: MoMoPlatform UAT/5.15.0.51500 CFNetwork/1410.1 Darwin/22.6.0 (iPhone 8 Plus iOS/16.7.16)
 const RE_ENV_UA = /MoMoPlatform\s*([A-Za-z]*)\s*\/?([\d.]+)\s+CFNetwork\/([\d.]+)\s+Darwin\/([\d.]+)\s+\(([^)]*)\)/;
 const RE_ENV_DEVICE = /^(.*?)\s+iOS\/([\d.]+)$/;
@@ -2556,20 +2583,42 @@ function parseEnvDevice(inside) {
   return { device: hit[1].trim(), osVersion: hit[2] };
 }
 
-// Map header của MỘT dòng, chỉ giữ khoá trong danh sách trắng.
-function parseEnvHeaderMap(raw) {
-  const at = raw.indexOf('--header:');
+// Khối JSON phải nằm NGAY sau nhãn. Dòng "--body: null --encryptedBody:  --header: {…}" có thật —
+// đo trên log trên: 20/291 dòng có body là null. Đi tìm dấu { đầu tiên kể từ nhãn --body thì vớ luôn
+// map header của chính dòng đó, tức là đọc một nguồn rồi ghi vào tên của nguồn kia.
+function envJsonAfter(raw, marker) {
+  const at = raw.indexOf(marker);
   if (at < 0) return null;
-  const block = extractJsonBlock(raw.slice(at));
-  if (!block) return null;
-  const map = {};
-  RE_ENV_HEADER_PAIR.lastIndex = 0;
-  let hit = RE_ENV_HEADER_PAIR.exec(block.text);
+  const block = extractJsonBlock(raw.slice(at + marker.length));
+  return block && block.start <= 1 ? block.text : null;
+}
+
+function envHeaderKey(key) {
+  return ENV_HEADER_KEYS.indexOf(key) >= 0 ? key : '';
+}
+
+function envBodyKey(key) {
+  return ENV_BODY_KEY_MAP.get(key) || '';
+}
+
+// Map của MỘT dòng, chỉ giữ khoá mà resolveKey nhận — và trả về dưới tên chung.
+function parseEnvMap(raw, marker, resolveKey) {
+  const text = envJsonAfter(raw, marker);
+  if (!text) return null;
+  const map = Object.create(null);
+  let count = 0;
+  RE_ENV_PAIR.lastIndex = 0;
+  let hit = RE_ENV_PAIR.exec(text);
   while (hit) {
-    if (ENV_HEADER_KEYS.indexOf(hit[1]) >= 0 && hit[2].trim()) map[hit[1]] = hit[2].trim();
-    hit = RE_ENV_HEADER_PAIR.exec(block.text);
+    const name = resolveKey(hit[1]);
+    const value = (hit[2] != null ? hit[2] : hit[3] || '').trim();
+    if (name && value) {
+      map[name] = value;
+      count += 1;
+    }
+    hit = RE_ENV_PAIR.exec(text);
   }
-  return map;
+  return count ? map : null;
 }
 
 function envBump(tally, key, value) {
@@ -2581,31 +2630,45 @@ function envBump(tally, key, value) {
   byValue.set(value, (byValue.get(value) || 0) + 1);
 }
 
-// Một lượt quét duy nhất qua các dòng CÓ header. Sàng bằng indexOf trước: dòng payload dài 10KB mà
-// chạy regex lên tất cả thì riêng mục này ăn hết phần lớn thời gian khởi động.
+// Một lượt quét duy nhất qua các dòng request. Sàng bằng indexOf trước: dòng payload dài mà chạy
+// regex lên tất cả thì riêng mục này ăn hết phần lớn thời gian khởi động. Body chỉ đọc trên dòng
+// RequestPayload — dòng ResponsePayload cũng có "--body:" nhưng không khai máy, đọc nó là mất công
+// bóc một khối JSON to cho mỗi call.
 function collectEnvHeaders(entries) {
   const tally = new Map();
+  const bodyTally = new Map();
   const miniApps = new Map();
   let lineCount = 0;
+  let bodyLineCount = 0;
   entries.forEach((entry) => {
     const raw = entry.raw;
-    if (!raw || raw.indexOf('--header:') < 0) return;
-    const map = parseEnvHeaderMap(raw);
-    if (!map) return;
-    lineCount += 1;
-    Object.keys(map).forEach((key) => envBump(tally, key, map[key]));
-    // Cặp (miniapp, version) phải đọc TRONG CÙNG một dòng: gom riêng hai danh sách rồi ghép lại là
-    // gán nhầm version của miniapp này cho miniapp kia.
-    if (map.map_appId && map.map_miniAppVersion) {
-      let versions = miniApps.get(map.map_appId);
-      if (!versions) {
-        versions = new Map();
-        miniApps.set(map.map_appId, versions);
+    if (!raw) return;
+    if (raw.indexOf('--header:') >= 0) {
+      const map = parseEnvMap(raw, '--header:', envHeaderKey);
+      if (map) {
+        lineCount += 1;
+        Object.keys(map).forEach((key) => envBump(tally, key, map[key]));
+        // Cặp (miniapp, version) phải đọc TRONG CÙNG một dòng: gom riêng hai danh sách rồi ghép lại là
+        // gán nhầm version của miniapp này cho miniapp kia.
+        if (map.map_appId && map.map_miniAppVersion) {
+          let versions = miniApps.get(map.map_appId);
+          if (!versions) {
+            versions = new Map();
+            miniApps.set(map.map_appId, versions);
+          }
+          versions.set(map.map_miniAppVersion, (versions.get(map.map_miniAppVersion) || 0) + 1);
+        }
       }
-      versions.set(map.map_miniAppVersion, (versions.get(map.map_miniAppVersion) || 0) + 1);
+    }
+    if (raw.indexOf('--body:') >= 0 && raw.indexOf('RequestPayload') >= 0) {
+      const map = parseEnvMap(raw, '--body:', envBodyKey);
+      if (map) {
+        bodyLineCount += 1;
+        Object.keys(map).forEach((key) => envBump(bodyTally, key, map[key]));
+      }
     }
   });
-  return { tally, miniApps, lineCount };
+  return { tally, bodyTally, miniApps, lineCount, bodyLineCount };
 }
 
 // Mọi giá trị của một khoá, nhiều lần nhất đứng trước. Trả về danh sách chứ không trả về một giá trị:
@@ -2618,16 +2681,24 @@ function envValues(tally, key) {
     .sort((a, b) => b.count - a.count);
 }
 
-function envTop(tally, key) {
-  const list = envValues(tally, key);
+// Header đi trước, body chỉ ĐIỀN VÀO CHỖ TRỐNG — cố ý không cộng dồn hai bên: một dòng request mang
+// cả body lẫn header, gộp lại là mỗi lần xuất hiện bị đếm hai lượt mà số lần đó có hiện ra trên panel.
+// Cộng dồn còn xẻ một sự thật thành hai giá trị khi hai bên viết khác kiểu chữ (header "ANDROID",
+// body "android").
+function envPick(headers, key) {
+  const fromHeader = envValues(headers.tally, key);
+  return fromHeader.length ? fromHeader : envValues(headers.bodyTally, key);
+}
+
+function envTop(headers, key) {
+  const list = envPick(headers, key);
   return list.length ? list[0].value : '';
 }
 
 function buildEnvironment(entries, httpCalls) {
   const headers = collectEnvHeaders(entries);
-  const tally = headers.tally;
 
-  const ua = envTop(tally, 'User-Agent') || envFirst(entries, RE_ENV_UA, 0);
+  const ua = envTop(headers, 'User-Agent') || envFirst(entries, RE_ENV_UA, 0);
   const parsed = ua ? RE_ENV_UA.exec(ua) : null;
   const iosDevice = parseEnvDevice(parsed ? parsed[5] : '');
   const androidHit = ua ? RE_ENV_ANDROID.exec(ua) : null;
@@ -2641,11 +2712,18 @@ function buildEnvironment(entries, httpCalls) {
   const nonProdHosts = Array.from(hosts.keys()).filter((host) => RE_ENV_NONPROD_HOST.test(host));
 
   const flavor = parsed ? parsed[1] : '';
-  const deviceOs = envTop(tally, 'device_os') || envFirst(entries, RE_ENV_OS);
+  const deviceOs = envTop(headers, 'device_os') || envFirst(entries, RE_ENV_OS);
   // Nhãn hệ điều hành do đây dựng, không để renderer tự ghép chữ "iOS": ghép cứng ở đó thì log Android
   // hiện ra "iOS 9". Không đoán được phiên bản thì chỉ ghi tên hệ điều hành.
   const osLabel = iosDevice.osVersion ? 'iOS ' + iosDevice.osVersion
     : (androidHit ? 'Android ' + androidHit[1] : '');
+
+  // Hai cái tên của cùng một cái máy: tên người đọc được ("Redmi Note 11") và mã máy trong
+  // User-Agent ("2201117TG"). Giữ cả hai — tên để người đọc nhận ra, mã để tra cứu và để so với
+  // những log khác. Chỉ giữ mã riêng khi nó KHÁC tên, không thì dòng "Thiết bị" lặp lại chính nó.
+  const uaModel = iosDevice.device || (androidModel ? androidModel[1] : '');
+  const namedDevice = envTop(headers, 'device-name');
+  const appVersions = envPick(headers, 'app_code');
 
   const miniApps = Array.from(headers.miniApps, (pair) => ({
     appId: pair[0],
@@ -2656,26 +2734,29 @@ function buildEnvironment(entries, httpCalls) {
 
   return {
     // Rỗng hết thì tab không vẽ mục này — log production cắt giữa chừng có thể không có request nào.
-    available: !!(parsed || hosts.size || headers.lineCount),
+    available: !!(parsed || hosts.size || headers.lineCount || headers.bodyLineCount),
     flavor,
-    appVersion: (parsed ? parsed[2] : '') || envTop(tally, 'app_code'),
-    appBuild: envTop(tally, 'app_version'),
+    appVersion: (parsed ? parsed[2] : '') || envTop(headers, 'app_code'),
+    appVersions,
+    appBuild: envTop(headers, 'app_version'),
     cfNetwork: parsed ? parsed[3] : '',
     darwin: parsed ? parsed[4] : '',
-    device: envTop(tally, 'device-name') || iosDevice.device || (androidModel ? androidModel[1] : ''),
+    device: namedDevice || uaModel,
+    deviceModel: namedDevice && uaModel && uaModel !== namedDevice ? uaModel : '',
     osVersion: iosDevice.osVersion,
     osLabel,
     deviceOs,
-    performance: envTop(tally, 'device_performance') || envFirst(entries, RE_ENV_PERF),
-    lang: envTop(tally, 'lang') || envTop(tally, 'M-Lang') || envFirst(entries, RE_ENV_LANG),
-    timezone: envTop(tally, 'M-Timezone'),
-    channel: envTop(tally, 'channel'),
-    envName: envTop(tally, 'env') || envTop(tally, 'app_type'),
-    deviceIds: envValues(tally, 'deviceid'),
-    ips: envValues(tally, 'device-ip'),
-    agentIds: envValues(tally, 'agent_id'),
+    performance: envTop(headers, 'device_performance') || envFirst(entries, RE_ENV_PERF),
+    lang: envTop(headers, 'lang') || envTop(headers, 'M-Lang') || envFirst(entries, RE_ENV_LANG),
+    timezone: envTop(headers, 'M-Timezone'),
+    channel: envTop(headers, 'channel'),
+    envName: envTop(headers, 'env') || envTop(headers, 'app_type'),
+    deviceIds: envPick(headers, 'deviceid'),
+    ips: envPick(headers, 'device-ip'),
+    agentIds: envPick(headers, 'agent_id'),
     miniApps,
     headerLineCount: headers.lineCount,
+    bodyLineCount: headers.bodyLineCount,
     hostCount: hosts.size,
     nonProdHosts,
     // Bản Staging/UAT mà lại gọi toàn host không có dấu hiệu uat/dev — gặp thật trên một log. Chỉ NÓI
@@ -3759,18 +3840,23 @@ function resetFilter() {
   refreshFilterBar();
 }
 
+// Lọc TRƯỚC rồi mới chuyển tab, không được làm ngược lại: switchTab() vẽ tab ngay lập tức, mà lúc đó
+// bộ lọc mới chỉ nằm trong lensState.filter chứ view chưa tính lại — tab Lọc hiện ra với mục "Mức độ:
+// ERROR" nhưng "Kết quả 9609/9609" và danh sách module của cả log, và nó đứng nguyên như vậy cho tới
+// lần vẽ sau. Đo trên log production: bấm thẻ ERROR (56/9609 dòng) xong tab Lọc vẫn ghi 9609/9609.
+// applyFilter() không tự vẽ lại tab nên đổi thứ tự không tốn thêm lần vẽ nào.
 function filterByModule(moduleName) {
   lensState.filter.modules = new Set([moduleName]);
   lensState.filter.hideOthers = true;
-  switchTab('flt');
   applyFilter(true);
+  switchTab('flt');
 }
 
 function filterByLevel(level) {
   lensState.filter.levels = new Set([level]);
   lensState.filter.hideOthers = true;
-  switchTab('flt');
   applyFilter(true);
+  switchTab('flt');
 }
 // @ts-check
 // minimap mật độ log và thao tác kéo chọn khoảng thời gian trên nó
@@ -5241,13 +5327,14 @@ function envRankRow(left, right, tip) {
     '<span>' + escapeHtml(left) + '</span><b style="color:var(--txt)">' + escapeHtml(right) + '</b></div>';
 }
 
-// Một khoá có NHIỀU giá trị trong cùng một log là thứ đáng nhìn thấy cả danh sách, không phải thứ để
-// chọn đại lấy cái hay gặp nhất: IP đổi giữa chừng = đổi mạng, deviceid đổi = log đã bị trộn từ hai máy.
+// Một khoá có NHIỀU giá trị là thứ đáng nhìn thấy cả danh sách, không phải thứ để chọn đại lấy cái
+// hay gặp nhất: IP đổi giữa chừng = đổi mạng, deviceid đổi = log đã bị trộn từ hai máy, bản app đổi =
+// người dùng vừa nâng cấp giữa log nên mọi con số phía trên đang trộn hai bản.
 // Đúng một giá trị thì nó đã nằm ở bảng trên rồi, không lặp lại ở đây.
 function renderEnvValueList(label, list) {
   if (list.length < 2) return '';
   return '<div class="fll-hint" style="margin:10px 0 4px">' + escapeHtml(label) + ' — <b>' +
-    list.length + '</b> giá trị khác nhau trong cùng một log</div>' +
+    list.length + '</b> giá trị khác nhau</div>' +
     '<div class="fll-rank">' + list
       .map((item) => envRankRow(envShortValue(item.value), item.count + ' lần', item.value))
       .join('') + '</div>';
@@ -5269,11 +5356,21 @@ function renderEnvMiniApps(miniApps) {
 // production (xem 02i) — và cũng vì một dòng header mang sẵn hơn chục trường đáng đọc.
 function renderEnvironmentSection(data) {
   const env = data.environment;
-  if (!env.available) return '';
+  const full = lensState.data ? lensState.data.environment : env;
+  if (!env.available) {
+    // Chỉ được nói "log này không có" khi CẢ LOG không có — cùng luật với tab Cấu hình.
+    if (env === full || !full.available) return '';
+    return secTitle('Máy & môi trường', 'bị lọc hết') +
+      emptyBecauseOfFilter(full.headerLineCount + full.bodyLineCount,
+        'dòng request HTTP nào mang thông tin máy');
+  }
   const context = data.feedback || {};
   const only = (list) => (list.length === 1 ? list[0].value : '');
   const rows = [
-    ['Thiết bị', [env.device, env.osLabel || env.deviceOs].filter(Boolean).join(' · ')],
+    // Hai cái tên của cùng một cái máy: tên người đọc được và mã máy trong User-Agent. Giữ cả hai,
+    // xem chú thích ở buildEnvironment.
+    ['Thiết bị', [env.device + (env.deviceModel ? ' (' + env.deviceModel + ')' : ''),
+      env.osLabel || env.deviceOs].filter(Boolean).join(' · ')],
     ['Đời máy', env.performance],
     ['Bản app', [env.appVersion, env.appBuild ? 'build ' + env.appBuild : '',
       env.flavor ? 'build ' + env.flavor : ''].filter(Boolean).join(' · ')],
@@ -5293,7 +5390,8 @@ function renderEnvironmentSection(data) {
         : ' · không host nào có dấu hiệu uat/dev')
       : ''],
   ].filter((row) => row[1]);
-  const lists = renderEnvValueList('Agent ID', env.agentIds) +
+  const lists = renderEnvValueList('Bản app', env.appVersions) +
+    renderEnvValueList('Agent ID', env.agentIds) +
     renderEnvValueList('Device ID', env.deviceIds) +
     renderEnvValueList('IP', env.ips) +
     renderEnvMiniApps(env.miniApps);
@@ -5306,9 +5404,13 @@ function renderEnvironmentSection(data) {
       'Bản build và host là hai chuyện khác nhau — đây chỉ là điều quan sát được, không phải kết luận.' +
       '</div></div>'
     : '';
+  const sources = [env.headerLineCount ? env.headerLineCount + ' header' : '',
+    env.bodyLineCount ? env.bodyLineCount + ' body' : ''].filter(Boolean).join(' và ');
   return secTitle('Máy & môi trường', env.device || env.appVersion || '') +
-    '<div class="fll-hint" style="margin-bottom:8px">Đọc từ header của ' + env.headerLineCount +
-    ' request HTTP — nguồn duy nhất còn sống trên log production.</div>' +
+    (sources
+      ? '<div class="fll-hint" style="margin-bottom:8px">Đọc từ ' + sources +
+        ' của request HTTP — nguồn duy nhất còn sống trên log production.</div>'
+      : '') +
     '<div class="fll-rank">' + rows.map((row) => envRankRow(row[0], row[1], row[2] || row[1])).join('') +
     '</div>' +
     lists + mixed;
@@ -5415,7 +5517,11 @@ function renderSummaryTab() {
       renderRankList(data.journey.taps, 'data-jtap');
   }
 
-  html += renderEnvironmentSection(full);
+  // Mục này chạy theo bộ lọc như mọi mục khác của tab: lọc vào đúng một phiên app thì "bản app"
+  // phải là bản của phiên đó. Đo trên log production 9609 dòng: cả log có hai bản (5.13.1 và 5.15.0,
+  // người dùng nâng cấp giữa chừng), đọc theo cả log thì panel ghi bản hay gặp nhất — tức bản CŨ,
+  // trong khi feedback được gửi từ bản mới.
+  html += renderEnvironmentSection(data);
   html += renderSlowSections();
   html += secTitle('Module nói nhiều nhất', data.modules.length) +
     renderRankList(data.modules, 'data-module');
@@ -6754,8 +6860,9 @@ function handleLensClick(event) {
   if (hit.dataset.event) {
     lensState.filter.text = 'event: ' + hit.dataset.event;
     lensState.filter.useRegex = false;
-    switchTab('flt');
-    return applyFilter(true);
+    // Lọc trước, chuyển tab sau — xem chú thích của filterByLevel().
+    applyFilter(true);
+    return switchTab('flt');
   }
   if (hit.dataset.call) {
     const call = view.httpCalls[Number(hit.dataset.call)];
@@ -6849,8 +6956,8 @@ function handleLensClick(event) {
     lensState.filter.text = value;
     lensState.filter.useRegex = false;
     lensState.filter.hideOthers = true;
-    switchTab('flt');
-    return applyFilter(true);
+    applyFilter(true);
+    return switchTab('flt');
   }
   if (action === 'mute') {
     const group = view.groups[Number(value)];
