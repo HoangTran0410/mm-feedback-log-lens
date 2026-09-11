@@ -74,7 +74,7 @@ function loadLens() {
     'SECTION_SEARCH_MIN_ROWS,buildEnvironment,buildTicketSummary,journeySurfaceName,' +
     'PANEL_CSS,detachLens,serializeFilter,applyFilterPayload,describeTemplatePayload,' +
     'buildPermalink,applyPermalinkFromHash,PERMALINK_PREFIX,setMatches,resetTabUiState,' +
-    'hasSelectedTimeRange,hasAnyTimeRange,getVisibleTimeRange,buildSessions,sessionLabel,' +
+    'hasSelectedTimeRange,hasAnyTimeRange,getVisibleTimeRange,buildSessions,sessionLabel,rowText,' +
     'updateMinimapRange,renderSessionChipRow,' +
     'renderTraceFailSection,isBadHttpCall,setTimeWindowPreset,isWindowPresetActive,' +
     'formatWindowLabel,retargetTimeWindow,extractDurations,renderCorrelationList};';
@@ -1443,6 +1443,18 @@ check('loc duoc rieng doan cut dau', () => {
 check('ticket noi ro khong thay diem bat dau cua phien dau', () => {
   const out = L.buildTicketSummary(L.lensState.data);
   ok(out.indexOf('trước lần khởi động đầu tiên') >= 0, 'phai co trong muc khong tra loi duoc');
+});
+
+// Đọc nội dung dòng: ô đầu là số dòng, phần còn lại là nội dung — phải nối HẾT phần còn lại. Lấy mỗi
+// ô thứ hai thì trang chia dòng thành nhiều ô là mất phần sau, mà mất im lặng: dòng vẫn hiện trên
+// trang, vẫn đếm được, chỉ là "tìm trong nội dung" không bao giờ ra.
+check('noi dung mot dong lay het cac o sau o so dong', () => {
+  const o = (text) => ({ textContent: text });
+  eq(L.rowText({ children: [o('12'), o('2026-01-02 10:00:00:010 GMT+07:00 INFO  [Module: A] xin chao')] }),
+    '2026-01-02 10:00:00:010 GMT+07:00 INFO  [Module: A] xin chao', 'cau truc hai o: giu nguyen nhu cu');
+  eq(L.rowText({ children: [o('12'), o('2026-01-02 10:00:00:010 GMT+07:00 '), o('INFO  '), o('[Module: A] xin chao')] }),
+    '2026-01-02 10:00:00:010 GMT+07:00 INFO  [Module: A] xin chao', 'chia ba o: phai noi lai du');
+  eq(L.rowText({ children: [], textContent: 'khong co o nao' }), 'khong co o nao', 'khong co con thi lay ca dong');
 });
 
 // log rỗng
