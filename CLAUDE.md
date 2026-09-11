@@ -309,9 +309,34 @@ lật lên trên khi sát đáy màn. Có một phép thử quét HTML của c�
 ./build.sh
 ```
 
-Nối `src/*.js` theo thứ tự tên file thành một IIFE rồi xuất:
+Nối `src/*.js` theo thứ tự tên file thành một IIFE rồi xuất **hai** file:
 
-- `extension/lens.js` — content script, đầu ra duy nhất
+- `extension/lens.js` — bản đọc được. Extension nạp bản này, và mọi phép thử chạy trên nó.
+- `extension/lens.min.js` — bản rút gọn, **đây là bản gửi cho WebAdmin**. Trang đó chở file này cho
+  người dùng thật nên kích thước là chuyện của họ; còn debug tool thì cần đọc được stack trace.
+
+Đo trên bản build hiện tại: **371 579 → 155 536 bytes** (−58%), gzip **109 630 → 47 243** (−57%),
+brotli **89 478 → 41 260** (−54%). Nói rõ vì dễ nhầm: con số "hơn 300KB" là kích thước file chưa nén —
+thứ đi qua đường truyền là bản nén, tức ~90–110KB trước khi rút gọn.
+
+Hai đầu ra này KHÁC với `dist/` ngày xưa (một bản sao thủ công, đã bỏ): chúng sinh ra trong cùng một
+lần build từ cùng một nguồn nên không lệch nhau được.
+
+Bước rút gọn **không bắt buộc**, cùng lý do với `tsc`: không có `esbuild` (kể cả qua `npx`) thì báo rồi
+đi tiếp, `extension/lens.js` vẫn là đầu ra chính. Đã kiểm không có chỗ nào phụ thuộc tên hàm/biến lúc
+chạy (`.name` trong `src/` toàn là field của object dữ liệu, không có `eval`/`new Function`), và không
+bật `--mangle-props` nên tên thuộc tính giữ nguyên.
+
+**Bộ test KHÔNG chạy được trên bản rút gọn**: harness lấy hàm ra bằng cách chèn một dòng
+`globalThis.__LENS={analyzeLog,...}` — toàn tên, mà minify đổi hết tên. Vì vậy bản rút gọn phải được
+**thử tay trên trang demo**: mở panel, đi qua cả năm tab, lọc, mở tấm trượt payload, rê chuột trên bảng
+log, và xem console có lỗi nào không.
+
+*Một lần suýt kết luận sai, ghi lại kẻo lặp:* lúc thử bản rút gọn, mục Call HTTP hiện mọi call là
+"no res" → tưởng minify làm hỏng ghép request/response. Thật ra lúc đó **vẫn còn bộ lọc regex đang
+bật**, mà mục HTTP đọc theo view đang lọc — chỉ dòng request khớp bộ lọc đó nên mọi call mất response.
+Bisect bằng ba biến thể (`--minify-whitespace`, `--minify-identifiers`, `--minify-syntax`) và cả bản
+gốc: cả bốn đều ra **70/70 call có response**. Thử bản rút gọn thì phải thử trên trạng thái SẠCH.
 
 Build kiểm cú pháp (`node --check`), **kiểm kiểu** (`tsc --noEmit`) và chạy bộ test (`node test/run.js`).
 

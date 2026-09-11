@@ -73,8 +73,16 @@ Hai thứ hay dùng nhất khi đã tìm ra vấn đề:
 ./build.sh
 ```
 
-Nối `src/*.js` thành `extension/lens.js`, kiểm cú pháp, kiểm kiểu và chạy bộ test (`node test/run.js`).
-Không có dependency lúc chạy, không có bước biên dịch.
+Nối `src/*.js` thành một IIFE, kiểm cú pháp, kiểm kiểu, chạy bộ test (`node test/run.js`), rồi xuất
+hai file:
+
+| | |
+|---|---|
+| `extension/lens.js` | bản đọc được — extension nạp bản này, test chạy trên nó |
+| `extension/lens.min.js` | bản rút gọn — **đây là bản gửi cho WebAdmin** |
+
+Bản rút gọn nhỏ hơn 58% (gzip −57%). Bước này không bắt buộc: máy không có `esbuild` thì build báo rồi
+đi tiếp. Không có dependency lúc chạy, không có bước biên dịch.
 
 Kiến trúc, các ràng buộc bất biến, những phép đo đã làm và các kết luận từng sai rồi mới sửa lại đều
 nằm trong [CLAUDE.md](CLAUDE.md) — đọc file đó trước khi sửa.

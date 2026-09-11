@@ -30,4 +30,27 @@ fi
 
 node test/run.js
 
+# Bản rút gọn, DÀNH RIÊNG cho WebAdmin. Trang đó chở file này cho mọi người dùng thật nên kích thước là
+# chuyện của họ; còn extension vẫn nạp bản đọc được, vì debug tool thì cần đọc được stack trace.
+# Hai đầu ra sinh ra trong CÙNG một lần build từ cùng một nguồn nên không lệch nhau được — khác với
+# dist/ ngày xưa (một bản sao thủ công, đã bỏ).
+#
+# Không bắt buộc, cùng lý do với tsc: build phải chạy được trên máy chỉ có node. Không có esbuild thì
+# báo rồi đi tiếp, extension/lens.js vẫn là đầu ra chính.
+MINIFIER=""
+if command -v esbuild >/dev/null 2>&1; then
+  MINIFIER="esbuild"
+elif command -v npx >/dev/null 2>&1; then
+  MINIFIER="npx --yes esbuild@0.25.0"
+fi
+
+if [ -n "$MINIFIER" ] && $MINIFIER extension/lens.js --minify --target=chrome100 \
+    --outfile=extension/lens.min.js >/dev/null 2>&1; then
+  node --check extension/lens.min.js
+  echo "extension/lens.min.js $(wc -c < extension/lens.min.js | tr -d ' ') bytes" \
+    "(gzip $(gzip -9 -c extension/lens.min.js | wc -c | tr -d ' ')) — bản gửi cho WebAdmin"
+else
+  echo "bỏ qua bản rút gọn — không chạy được esbuild (cài: npm i -g esbuild)"
+fi
+
 echo "extension/lens.js $(wc -c < extension/lens.js | tr -d ' ') bytes — cú pháp OK"
