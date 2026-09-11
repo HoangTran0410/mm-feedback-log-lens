@@ -446,7 +446,8 @@ function renderIssuesTab() {
     counts[group.level] += 1;
   });
 
-  return renderTraceFailSection(data) +
+  return renderMiniAppErrorSection(data) +
+    renderTraceFailSection(data) +
     secTitle('Nhóm theo chữ ký dòng log', counts.all, counts.ERROR ? 'err' : '') +
     '<div class="fll-row" style="margin-bottom:8px">' +
     ['all', 'ERROR', 'WARNING']
@@ -576,6 +577,41 @@ function renderTraceFailSection(data) {
     'nhưng ghi ở mức <b>INFO</b> nên các nhóm chữ ký bên dưới không đếm chúng. Gom theo ' +
     '<code>errorMessage</code>: một sự cố hạ tầng hiện ra ở nhiều app khác nhau vẫn về <b>một</b> hàng.' +
     '</div>' + trace.fails.map(renderTraceFailCard).join('');
+}
+
+// Lỗi miniapp tự báo về: mục riêng chứ không trộn vào nhóm chữ ký, cùng lý do với mục Grafana trace
+// ngay trên — dòng ghi ở mức WARNING nên nhóm chữ ký có đếm nhưng không bao giờ nêu bật, trong khi đây
+// là một trong số ít chỗ trong log nói thẳng ra "lỗi gì" bằng câu người đọc được.
+function renderMiniAppErrorSection(data) {
+  const errors = data.miniAppErrors;
+  const full = lensState.data ? lensState.data.miniAppErrors : errors;
+  if (!errors.rows.length) {
+    if (errors === full || !full.rows.length) return '';
+    return secTitle('Lỗi miniapp báo về', 'bị lọc hết', 'warn') +
+      emptyBecauseOfFilter(full.rows.length, 'lỗi miniapp nào');
+  }
+  return secTitle('Lỗi miniapp báo về', errors.rows.length, 'err') +
+    '<div class="fll-hint" style="margin-bottom:8px">Chính miniapp báo lỗi kèm <code>errorCode</code> ' +
+    'và câu mô tả, nhưng dòng ghi ở mức <b>WARNING</b> nên nhóm chữ ký bên dưới không nêu bật.</div>' +
+    errors.rows.map(renderMiniAppErrorCard).join('');
+}
+
+function renderMiniAppErrorCard(row, rowIndex) {
+  const meta = [row.version ? 'version ' + row.version : '', row.screenId, row.featureCode, row.source]
+    .filter(Boolean);
+  const tip = [row.issueDesc && row.issueDesc !== row.message ? row.issueDesc : '',
+    row.stack ? 'errorStack: ' + row.stack : ''].filter(Boolean).join('\n');
+  return '<div class="fll-grp err" data-lines="' + row.indices.join(',') +
+    '" data-label="' + escapeHtml((row.appId || 'miniapp') + (row.code ? ' · code ' + row.code : '')) +
+    '"' + (tip ? ' data-tip="' + escapeHtml(tip) + '"' : '') + '>' +
+    '<div class="fll-grp-top">' +
+    '<span class="fll-cnt">' + row.count + '&times;</span>' +
+    (row.code ? '<span class="fll-mod">code ' + escapeHtml(row.code) + '</span>' : '') +
+    '<span class="fll-when">' + formatClock(row.firstTs) +
+    (row.count > 1 ? ' &rarr; ' + formatClock(row.lastTs) : '') + '</span></div>' +
+    '<div class="fll-msg">' + escapeHtml(row.message) +
+    '<br><span style="opacity:.6">' + escapeHtml([row.appId].concat(meta).filter(Boolean).join(' · ')) +
+    '</span></div></div>';
 }
 
 function renderTraceFailCard(row, rowIndex) {

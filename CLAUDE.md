@@ -188,6 +188,28 @@ phần dưới của chính stack trace đó. Giá trị nằm ở `entry.window
   Khối ticket có một dòng **"Đổi giữa chừng"** liệt kê những trường này khi chúng đổi: người đọc ticket
   cần biết điều đó TRƯỚC khi tin mấy con số phía trên, vì chúng đang cộng của cả hai bên.
 
+**Lỗi do CHÍNH miniapp báo về: đọc từ `MiniAppErrorContext`, và phải tự đóng map bị cắt cụt.** Dòng
+`[Module: MiniAppErrorContext] [<appId>] report error with params: {…} baseParams: {…}` mang
+`errorCode`, `errorMessage`, `issueDesc`, `miniAppVersion`, `featureCode`, `screenId`, `source` — một
+trong số rất ít chỗ trong log nói thẳng "lỗi gì" bằng câu người đọc được. Đo trên log production
+(`autoId=5956827`, 8541 dòng), chi phí **7.6ms**:
+
+- **7 dòng mang `MiniAppErrorContext` nhưng chỉ 2 dòng là lỗi thật.** 5 dòng còn lại là sổ sách của
+  chính lớp đó (`Add error context key: <uuid>`, `Remove error context <uuid> true`). Sàng bằng đúng
+  chuỗi `report error with params`, KHÔNG sàng theo tên module.
+- **Map thứ hai không đóng.** Dòng kết thúc ngay ở `errorStack=` (559 ký tự — chưa chạm ngưỡng cắt
+  10000 của logger, nên đây là hình dạng bình thường chứ không phải log hỏng). `parseKeyValueMap` đòi
+  ký tự cuối là `}` nên phải tự đóng trước khi parse; không thì mất sạch `errorCode`/`errorMessage`,
+  tức mất đúng thứ đáng đọc nhất của dòng.
+- **Dòng ghi ở mức WARNING** nên nhóm chữ ký có đếm nhưng không bao giờ nêu bật — cùng loại với popup
+  ghi ở mức INFO. Vì vậy nó có mục riêng ở tab Vấn đề và một mục riêng trong ticket, đặt TRƯỚC các
+  nguồn lỗi khác.
+- Gom theo (miniapp, mã lỗi, câu lỗi): hai miniapp cùng dính một câu lỗi vẫn là hai hàng, vì lỗi của
+  miniapp nào là chuyện của đội đó. Khác hẳn cách gom của Grafana trace ngay trên (gom theo
+  `errorMessage` để một sự cố hạ tầng ở nhiều app về một hàng).
+- `errorStack` cắt còn 400 ký tự và chỉ nằm trong chú giải, **không vào ticket** — cùng luật với
+  payload thô.
+
 **Version của miniapp: header chỉ thấy bản CUỐI, đường đi nằm ở dòng nạp bundle.** `map_miniAppVersion`
 trong header là version tại lúc gọi request, nên một miniapp cập nhật giữa log thì mục MiniApp chỉ hiện
 một con số. Dòng `[BundleExecutorManager] [<appId>] execute version: {…}` (Map.toString của Kotlin, đọc
@@ -201,8 +223,9 @@ bằng `parseKeyValueMap`) mới nói ra cả `buildNumber`, `size`, `installMod
   trên log thật (`autoId=5956827`): app duy nhất mang cả hai khai header **3449**, còn bundle log khai
   **3449 và 3494** — tức header nói bản đang chạy lúc gọi request, bundle log nói thêm bản vừa vá lên.
   Panel vì vậy để số version ở cột phải của hàng miniapp và bản build ở hàng con, không đổi tên gọi.
-  **CHƯA XÁC MINH trên diện rộng:** mới đúng một app trong một log có cả hai nguồn; những app còn lại
-  chỉ có một trong hai. Vì vậy chữ trên panel chỉ nói mỗi con số ĐẾN TỪ ĐÂU, không khẳng định quan hệ.
+  Nguồn thứ ba nói cùng một điều: dòng `MiniAppErrorContext` của `vn.momo.cinema` khai
+  `miniAppVersion=4042`, còn bundle log của chính app đó khai `buildNumber=4042`.
+  **CHƯA XÁC MINH trên diện rộng:** mới hai app trong một log có từ hai nguồn trở lên. Vì vậy chữ trên panel chỉ nói mỗi con số ĐẾN TỪ ĐÂU, không khẳng định quan hệ.
 
   *Một câu đã viết sai và phải rút lại:* dòng chữ đầu mục từng ghi "hai cách đánh số khác nhau" — tôi
   tự nghĩ ra, không đo. Người dùng bắt được vì log demo bịa hai dãy số rời nhau (header 694 nằm cạnh

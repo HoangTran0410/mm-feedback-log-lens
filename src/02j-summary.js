@@ -117,6 +117,18 @@ function buildTicketSummary(fullData) {
     out += '\n';
   }
 
+  // Lỗi miniapp tự báo về đứng TRƯỚC mọi nguồn lỗi khác trong ticket: nó là chỗ duy nhất nói thẳng
+  // "lỗi gì" bằng câu người đọc được, kèm mã và version của chính miniapp đó.
+  if (data.miniAppErrors.rows.length) {
+    out += '### Lỗi miniapp báo về\n';
+    data.miniAppErrors.rows.slice(0, SUMMARY_MAX_GROUPS).forEach((row) => {
+      out += '- `' + (row.appId || 'miniapp') + (row.version ? ' ' + row.version : '') + '`' +
+        (row.code ? ' code ' + row.code : '') + ' ×' + row.count + ' — ' +
+        row.message.replace(/\s+/g, ' ').slice(0, 120) + ' _(' + formatClock(row.firstTs) + ')_\n';
+    });
+    out += '\n';
+  }
+
   if (data.traceIssues.fails.length) {
     out += '### Lỗi từ Grafana trace\n';
     data.traceIssues.fails.slice(0, SUMMARY_MAX_GROUPS).forEach((row) => {

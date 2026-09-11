@@ -125,6 +125,20 @@ function bundleExec(appId, build, vaTu) {
       ', size=' + (344980 + build * 11) + '}' : '') + '}');
 }
 
+// Lỗi do chính miniapp báo về. Dòng thật kết thúc ngay ở "errorStack=" (map thứ hai không đóng) và
+// ghi ở mức WARNING — giữ nguyên hai đặc tính đó.
+function miniAppError(appId, version, code, message) {
+  line('WARNING', '[Module: [MiniAppFlow]] [Module: MiniAppErrorContext] [' + appId + '][b@d15d18f] ' +
+    'report error with params: {source=background, miniAppId=' + appId + ', featureCode=demo_mini, ' +
+    'screenId=ManHinhDemo, miniAppVersion=' + version + '}  baseParams: {requestId=1789119131841, ' +
+    'issueDesc=' + code + ' - M01 - ' + message + ', timestamp=1789119131842, errorMiniAppId=' + appId +
+    ', errorMiniAppVersion=' + version + ', errorFeatureCode=demo_mini, errorCode=' + code +
+    ', errorMessage=' + message + ', errorStack=');
+  // Sổ sách của chính lớp đó, không phải lỗi — trên log thật 5/7 dòng là loại này.
+  line('WARNING', '[Module: [MiniAppFlow]] [Module: MiniAppErrorContext] [DefaultMiniAppErrorContext]' +
+    '[b@c73c9bc] Remove error context 95c3f166-4e63-4544-9999-fd68dc111967 true');
+}
+
 function apiCall(api, screen, ok, ms) {
   const traceId = nextId('TRACE');
   const cmdId = nextId('CMD');
@@ -244,8 +258,10 @@ function build() {
   bundleExec('vn.demo.nentang', 1902, 1901);
   // Vài miniapp khác chỉ nạp một bản: mục MiniApp phải đủ dài để có ô tìm nhanh (ngưỡng 6 hàng).
   bundleExec('vn.demo.rap_phim', 4042, 0);
+  miniAppError('vn.demo.rap_phim', 4042, 223, "Cannot read property 'status' of undefined");
   bundleExec('vn.demo.ngan_hang', 10773, 0);
   bundleExec('vn.demo.ngan_hang', 10808, 10773);
+  miniAppError('vn.demo.rap_phim', 4042, 223, "Cannot read property 'status' of undefined");
   // Cấu hình đổi giữa chừng phiên — đúng thứ mà tab Cấu hình đánh dấu "2 giá trị khác nhau".
   line('INFO', '[Module: BaoLoiDemo] Persist SentryRemoteConfig key=sentry_remote_config raw=' +
     '{"enable":true,"handledRate":1.0,"unhandledRate":1.0,"anrRate":1.0,"enableANR":true,"ignoreList":[],' +

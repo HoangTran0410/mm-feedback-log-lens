@@ -1604,6 +1604,26 @@ const dongBundleGia =
   '[BundleExecutorManager] [vn.momo.myvoucher] execute version.appId: vn.momo.myvoucher loaded event. ' +
   'bridge data: com.facebook.react.runtime.ReactHostImpl@9a49155';
 
+// Lỗi do chính miniapp báo về. Hai chi tiết tái tạo đúng log thật: dòng ghi ở mức WARNING, và map
+// thứ hai KHÔNG ĐÓNG vì dòng kết thúc ngay ở "errorStack=".
+// Câu lỗi thật trên log là "... of undefined", ở đây đổi thành "of null" vì renderAll() bắt chữ
+// "undefined" trong HTML để phát hiện lỗ thủng template — giữ nguyên câu thật thì phép thử đó kêu oan,
+// mà nới lỏng nó ra thì mất một lưới an toàn đã bắt được bug thật.
+const dongLoiMiniApp = (gio) =>
+  '2026-01-02 ' + gio + ':843 GMT+07:00 WARNING [Module: [MiniAppFlow]] [Module: MiniAppErrorContext] ' +
+  '[vn.momo.cinema][b@d15d18f] report error with params: {source=background, miniAppId=vn.momo.cinema, ' +
+  'featureCode=cinema_mini, screenId=Cinema, miniAppVersion=4042}  baseParams: {requestId=1789119131841, ' +
+  "issueDesc=223 - M01 - Cannot read property 'status' of null, timestamp=1789119131842, " +
+  'errorMiniAppId=vn.momo.cinema, errorMiniAppVersion=4042, errorFeatureCode=cinema_mini, errorCode=223, ' +
+  "errorMessage=Cannot read property 'status' of null, errorStack=";
+
+// Cùng module đó nhưng là SỔ SÁCH, không phải lỗi — đo trên log thật: 5/7 dòng MiniAppErrorContext
+// là loại này.
+const dongSoSachLoi =
+  '2026-01-02 16:34:00:100 GMT+07:00 WARNING [Module: [MiniAppFlow]] [Module: MiniAppErrorContext] ' +
+  '[DefaultMiniAppErrorContext][b@c73c9bc] Add error context key: 95c3f166-4e63-4544-9999-fd68dc111967 ' +
+  '{errorMiniAppId=vn.momo.cinema, errorMiniAppVersion=4042}';
+
 rows = [
   '2026-01-02 10:00:00:010 GMT+07:00 INFO    [Module: GiaLapDb] MomoDatabase init OK',
   dongBody('5.13.1', 'cu', 'Asia/Ho_Chi_Minh', '13'),
@@ -1612,6 +1632,9 @@ rows = [
   dongBundle('3420', ''),
   dongBundle('3449', '3420'),
   dongBundleGia,
+  dongLoiMiniApp('16:32:11'),
+  dongLoiMiniApp('16:33:02'),
+  dongSoSachLoi,
 ].map(makeRow);
 scan();
 renderAll('log chi khai ten may trong body');
@@ -1774,6 +1797,38 @@ check('hang bundle tro duoc toi dong log cua no', () => {
     'khong co thu tu bundle thi van la request cua miniapp');
   const entry = L.lensState.data.entries[bundle.indices[0]];
   ok(entry && entry.ts, 'dong duoc tro toi phai co timestamp');
+});
+
+// Lỗi miniapp tự báo về là một trong số ít chỗ trong log nói thẳng "lỗi gì" bằng câu người đọc được
+// — mà dòng lại ghi ở mức WARNING nên nhóm chữ ký không bao giờ nêu bật nó.
+check('doc duoc loi mini app bao ve, ke ca khi map bi cat cut', () => {
+  const errors = L.lensState.data.miniAppErrors;
+  eq(errors.lineCount, 2, 'hai dong loi that — dong so sach khong duoc tinh');
+  eq(errors.rows.length, 1, 'cung mot loi thi gom lai mot hang');
+  const row = errors.rows[0];
+  eq(row.count, 2, 'so lan');
+  eq(row.code, '223', 'errorCode doc duoc du map khong dong');
+  eq(row.message, "Cannot read property 'status' of null", 'errorMessage');
+  eq(row.appId, 'vn.momo.cinema', 'miniapp nao');
+  eq(row.version, '4042', 'version cua miniapp luc no loi');
+  eq(row.featureCode, 'cinema_mini', 'featureCode');
+  eq(row.screenId, 'Cinema', 'screenId');
+  eq(row.indices.length, 2, 'giu ca hai dong de duyet');
+});
+
+check('loi miniapp hien ra o tab Van de va vao ticket', () => {
+  const html = L.renderIssuesTab();
+  ok(html.indexOf('Lỗi miniapp báo về') >= 0, 'phai co muc rieng');
+  ok(html.indexOf("Cannot read property &#39;status&#39; of null") >= 0, 'cau loi');
+  ok(html.indexOf('code 223') >= 0, 'ma loi');
+  ok(html.indexOf('vn.momo.cinema · version 4042') >= 0, 'app va version ngay duoi cau loi');
+  // Hàng ứng với hai dòng log thì phải đưa cả hai vào thanh duyệt, không phải nhảy một dòng.
+  const el = { dataset: { lines: L.lensState.data.miniAppErrors.rows[0].indices.join(',') } };
+  eq(L.aimIndicesFor(el).length, 2, 'tro toi ca hai dong');
+
+  const ticket = L.buildTicketSummary(L.lensState.data);
+  const dong = ticket.split('\n').find((d) => d.indexOf('cinema') >= 0) || '';
+  ok(dong.indexOf('code 223') >= 0 && dong.indexOf('×2') >= 0, 'ticket phai ghi ma loi va so lan: ' + dong);
 });
 
 // Mục "Máy & môi trường" từng đọc thẳng lensState.data nên lọc kiểu gì nó cũng đứng yên. Trên log

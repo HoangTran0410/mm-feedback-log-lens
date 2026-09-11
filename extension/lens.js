@@ -1606,6 +1606,7 @@ function deriveStats(entries, gaps) {
     journey: buildJourney(entries, gaps),
     traceIssues: buildTraceIssues(entries),
     errorCodes: buildErrorCodes(entries),
+    miniAppErrors: buildMiniAppErrors(entries),
     configs: buildConfigs(entries, httpCalls),
     environment: buildEnvironment(entries, httpCalls),
   };
@@ -3011,6 +3012,18 @@ function buildTicketSummary(fullData) {
     out += '\n';
   }
 
+  // Lỗi miniapp tự báo về đứng TRƯỚC mọi nguồn lỗi khác trong ticket: nó là chỗ duy nhất nói thẳng
+  // "lỗi gì" bằng câu người đọc được, kèm mã và version của chính miniapp đó.
+  if (data.miniAppErrors.rows.length) {
+    out += '### Lỗi miniapp báo về\n';
+    data.miniAppErrors.rows.slice(0, SUMMARY_MAX_GROUPS).forEach((row) => {
+      out += '- `' + (row.appId || 'miniapp') + (row.version ? ' ' + row.version : '') + '`' +
+        (row.code ? ' code ' + row.code : '') + ' ×' + row.count + ' — ' +
+        row.message.replace(/\s+/g, ' ').slice(0, 120) + ' _(' + formatClock(row.firstTs) + ')_\n';
+    });
+    out += '\n';
+  }
+
   if (data.traceIssues.fails.length) {
     out += '### Lỗi từ Grafana trace\n';
     data.traceIssues.fails.slice(0, SUMMARY_MAX_GROUPS).forEach((row) => {
@@ -3199,6 +3212,97 @@ function miniAppBuildPath(app) {
   const first = app.bundles[0];
   if (!first) return '';
   return (first.from ? [first.from] : []).concat(app.bundles.map((item) => item.buildNumber)).join(' → ');
+}
+// @ts-check
+// lỗi do CHÍNH miniapp báo về: có mã, có câu mô tả đọc được, mà lại ghi ở mức WARNING
+//
+// Dòng nguồn (hai map Kotlin nối nhau trên cùng một dòng):
+//   [Module: MiniAppErrorContext] [vn.momo.cinema][b@d15d18f] report error with params:
+//   {source=background, miniAppId=vn.momo.cinema, featureCode=cinema_mini, screenId=Cinema,
+//    miniAppVersion=4042}  baseParams: {requestId=…, issueDesc=223 - M01 - Cannot read property
+//    'status' of undefined, …, errorCode=223, errorMessage=Cannot read property 'status' of
+//    undefined, errorStack=
+//
+// Ba điều đã đo trên log production (autoId=5956827, 8541 dòng):
+//  - 7 dòng mang `MiniAppErrorContext` nhưng **chỉ 2 dòng** là lỗi thật; 5 dòng còn lại là sổ sách của
+//    chính lớp đó ("Add error context key: <uuid>", "Remove error context <uuid> true"). Vì vậy sàng
+//    bằng đúng chuỗi `report error with params`, không sàng theo tên module.
+//  - **Map thứ hai không đóng**: dòng kết thúc ngay ở `errorStack=` (559 ký tự, chưa chạm ngưỡng cắt
+//    10000 của logger). `parseKeyValueMap` đòi ký tự cuối là `}` nên phải tự đóng lại trước khi parse,
+//    không thì mất sạch `errorCode`/`errorMessage` — tức mất đúng thứ đáng đọc nhất của dòng này.
+//  - Dòng ghi ở mức **WARNING**, nên nhóm chữ ký của tab Vấn đề có đếm nhưng không bao giờ nêu bật —
+//    cùng loại với popup ghi ở mức INFO.
+
+const MINIAPP_ERROR_MARK = 'report error with params';
+const MINIAPP_ERROR_BASE = 'baseParams:';
+// Chỉ giữ những khoá đọc được thành câu. Cùng map đó còn có requestId và timestamp (mốc epoch, đã có
+// giờ ngay đầu dòng) — thêm vào chỉ làm hàng dài ra.
+const MINIAPP_ERROR_STACK_MAX = 400;
+
+function miniAppErrorValue(map, key) {
+  const value = map && map[key];
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+function parseMiniAppError(raw) {
+  if (!raw || raw.indexOf(MINIAPP_ERROR_MARK) < 0) return null;
+  const at = raw.indexOf(MINIAPP_ERROR_MARK);
+  const head = extractJsonBlock(raw.slice(at));
+  const params = head ? parseKeyValueMap(head.text) : null;
+
+  const baseAt = raw.indexOf(MINIAPP_ERROR_BASE, at);
+  let base = null;
+  if (baseAt >= 0) {
+    let text = raw.slice(baseAt + MINIAPP_ERROR_BASE.length).trim();
+    // Tự đóng map bị cắt cụt: xem chú thích đầu file.
+    if (text.charAt(0) === '{' && text.slice(-1) !== '}') text += '}';
+    base = parseKeyValueMap(text);
+  }
+  if (!params && !base) return null;
+
+  const message = miniAppErrorValue(base, 'errorMessage') || miniAppErrorValue(base, 'issueDesc');
+  const code = miniAppErrorValue(base, 'errorCode');
+  if (!message && !code) return null;
+  return {
+    appId: miniAppErrorValue(base, 'errorMiniAppId') || miniAppErrorValue(params, 'miniAppId'),
+    version: miniAppErrorValue(base, 'errorMiniAppVersion') || miniAppErrorValue(params, 'miniAppVersion'),
+    featureCode: miniAppErrorValue(base, 'errorFeatureCode') || miniAppErrorValue(params, 'featureCode'),
+    screenId: miniAppErrorValue(params, 'screenId'),
+    source: miniAppErrorValue(params, 'source'),
+    issueDesc: miniAppErrorValue(base, 'issueDesc'),
+    stack: miniAppErrorValue(base, 'errorStack').slice(0, MINIAPP_ERROR_STACK_MAX),
+    message,
+    code,
+  };
+}
+
+// Gom theo (miniapp, mã lỗi, câu lỗi): cùng một lỗi nổ nhiều lần là MỘT hàng, còn hai miniapp cùng
+// dính một câu lỗi thì vẫn là hai hàng — lỗi của miniapp nào là chuyện của đội đó.
+function buildMiniAppErrors(entries) {
+  const byKey = new Map();
+  let lineCount = 0;
+  entries.forEach((entry) => {
+    const info = parseMiniAppError(entry.raw);
+    if (!info) return;
+    lineCount += 1;
+    const key = info.appId + '|' + info.code + '|' + info.message;
+    let row = byKey.get(key);
+    if (!row) {
+      row = Object.assign({ key, count: 0, indices: [], firstTs: entry.ts, lastTs: entry.ts }, info);
+      byKey.set(key, row);
+    }
+    row.count += 1;
+    row.indices.push(entry.domIndex);
+    if (entry.ts) {
+      if (!row.firstTs) row.firstTs = entry.ts;
+      row.lastTs = entry.ts;
+    }
+  });
+  return {
+    available: lineCount > 0,
+    lineCount,
+    rows: Array.from(byKey.values()).sort((a, b) => b.count - a.count),
+  };
 }
 // @ts-check
 // hằng số dùng chung, lensState, tắt tiếng chữ ký, hàm định dạng
@@ -5929,7 +6033,8 @@ function renderIssuesTab() {
     counts[group.level] += 1;
   });
 
-  return renderTraceFailSection(data) +
+  return renderMiniAppErrorSection(data) +
+    renderTraceFailSection(data) +
     secTitle('Nhóm theo chữ ký dòng log', counts.all, counts.ERROR ? 'err' : '') +
     '<div class="fll-row" style="margin-bottom:8px">' +
     ['all', 'ERROR', 'WARNING']
@@ -6059,6 +6164,41 @@ function renderTraceFailSection(data) {
     'nhưng ghi ở mức <b>INFO</b> nên các nhóm chữ ký bên dưới không đếm chúng. Gom theo ' +
     '<code>errorMessage</code>: một sự cố hạ tầng hiện ra ở nhiều app khác nhau vẫn về <b>một</b> hàng.' +
     '</div>' + trace.fails.map(renderTraceFailCard).join('');
+}
+
+// Lỗi miniapp tự báo về: mục riêng chứ không trộn vào nhóm chữ ký, cùng lý do với mục Grafana trace
+// ngay trên — dòng ghi ở mức WARNING nên nhóm chữ ký có đếm nhưng không bao giờ nêu bật, trong khi đây
+// là một trong số ít chỗ trong log nói thẳng ra "lỗi gì" bằng câu người đọc được.
+function renderMiniAppErrorSection(data) {
+  const errors = data.miniAppErrors;
+  const full = lensState.data ? lensState.data.miniAppErrors : errors;
+  if (!errors.rows.length) {
+    if (errors === full || !full.rows.length) return '';
+    return secTitle('Lỗi miniapp báo về', 'bị lọc hết', 'warn') +
+      emptyBecauseOfFilter(full.rows.length, 'lỗi miniapp nào');
+  }
+  return secTitle('Lỗi miniapp báo về', errors.rows.length, 'err') +
+    '<div class="fll-hint" style="margin-bottom:8px">Chính miniapp báo lỗi kèm <code>errorCode</code> ' +
+    'và câu mô tả, nhưng dòng ghi ở mức <b>WARNING</b> nên nhóm chữ ký bên dưới không nêu bật.</div>' +
+    errors.rows.map(renderMiniAppErrorCard).join('');
+}
+
+function renderMiniAppErrorCard(row, rowIndex) {
+  const meta = [row.version ? 'version ' + row.version : '', row.screenId, row.featureCode, row.source]
+    .filter(Boolean);
+  const tip = [row.issueDesc && row.issueDesc !== row.message ? row.issueDesc : '',
+    row.stack ? 'errorStack: ' + row.stack : ''].filter(Boolean).join('\n');
+  return '<div class="fll-grp err" data-lines="' + row.indices.join(',') +
+    '" data-label="' + escapeHtml((row.appId || 'miniapp') + (row.code ? ' · code ' + row.code : '')) +
+    '"' + (tip ? ' data-tip="' + escapeHtml(tip) + '"' : '') + '>' +
+    '<div class="fll-grp-top">' +
+    '<span class="fll-cnt">' + row.count + '&times;</span>' +
+    (row.code ? '<span class="fll-mod">code ' + escapeHtml(row.code) + '</span>' : '') +
+    '<span class="fll-when">' + formatClock(row.firstTs) +
+    (row.count > 1 ? ' &rarr; ' + formatClock(row.lastTs) : '') + '</span></div>' +
+    '<div class="fll-msg">' + escapeHtml(row.message) +
+    '<br><span style="opacity:.6">' + escapeHtml([row.appId].concat(meta).filter(Boolean).join(' · ')) +
+    '</span></div></div>';
 }
 
 function renderTraceFailCard(row, rowIndex) {

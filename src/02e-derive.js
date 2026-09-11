@@ -26,6 +26,7 @@ function deriveStats(entries, gaps) {
     journey: buildJourney(entries, gaps),
     traceIssues: buildTraceIssues(entries),
     errorCodes: buildErrorCodes(entries),
+    miniAppErrors: buildMiniAppErrors(entries),
     configs: buildConfigs(entries, httpCalls),
     environment: buildEnvironment(entries, httpCalls),
   };
