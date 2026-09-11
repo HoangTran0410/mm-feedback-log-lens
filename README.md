@@ -9,8 +9,8 @@ phiên, và lọc tại chỗ mà không rời trang.
 > không gọi API, không gửi dữ liệu đi đâu. Repo này **không** chứa log thật hay dữ liệu người dùng:
 > mọi ví dụ trong code, test và ảnh chụp đều là dữ liệu bịa.
 
-Muốn giới thiệu cho team khác: [docs/gioi-thieu.md](docs/gioi-thieu.md) — kể những chỗ đọc log kiểu cũ
-ra kết luận sai, kèm số đo trên log thật.
+Muốn giới thiệu cho team khác: [docs/gioi-thieu.md](docs/gioi-thieu.md) — một tin nhắn ngắn dán thẳng
+vào Google Chat. Chi tiết từng phép đo thì nằm trong [CLAUDE.md](CLAUDE.md).
 
 ## Cài
 
