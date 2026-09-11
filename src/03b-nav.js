@@ -32,11 +32,14 @@ function jumpToIndex(domIndex) {
   refreshFilterBar();
 }
 
-function setMatches(indices, label) {
+// startPos: đứng sẵn ở dòng thứ mấy trong danh sách, mặc định là dòng đầu. Mở bằng permalink cần
+// nó — link chỉ ra một dòng cụ thể, nhưng danh sách để bấm n/p vẫn phải là cả tập dòng khớp.
+function setMatches(indices, label, startPos) {
   lensState.matches = indices;
   lensState.matchLabel = label;
-  lensState.matchPos = indices.length ? 0 : -1;
-  if (indices.length) jumpToIndex(indices[0]);
+  const start = Math.min(Math.max(0, startPos || 0), Math.max(0, indices.length - 1));
+  lensState.matchPos = indices.length ? start : -1;
+  if (indices.length) jumpToIndex(indices[start]);
   renderFooter();
   // Nháy một cái khi có danh sách MỚI. Thanh này nằm dưới cùng panel nên người dùng hay không nhận ra
   // vừa có gì đó để duyệt; nháy ở đây chỉ để kéo mắt xuống. Cố ý KHÔNG nháy mỗi lần bấm n/p — lúc đó

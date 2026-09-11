@@ -71,6 +71,35 @@ sang log khác là chúng vô nghĩa. Đo được: log 1 bật "2 phút cuối"
 chip ghi một khoảng giờ không tồn tại trong log 2. `retargetTimeWindow()` tính lại preset theo `lastTs`
 mới; còn khoảng tự kéo tay thì không đoán được ý người dùng nên chỉ giữ khi còn giao với log mới.
 
+**Permalink phải mang đủ thứ người gửi đang THẤY, không riêng bộ điều kiện lọc.** Link từng chỉ chở
+levels / modules / text / phiên / cửa sổ thời gian, nên cùng một link mà hai bên nhìn hai thứ khác nhau.
+Đo bằng round-trip thật trên trang demo (log bịa, 1431 dòng, Chrome):
+
+- **`hideOthers`** (chip "Ẩn dòng không khớp", bấm tắt được) không được ghi và `applyFilterPayload` lại
+  gán cứng `true`: người gửi đang xem **cả 1431 dòng** với panel tính theo ERROR, người nhận mở đúng
+  link đó thấy bảng log xén còn **53 dòng**. Vắng khoá `h` = bật, nên link cũ vẫn đọc đúng.
+- **Danh sách dòng khớp**: `setMatches([mộtDòng])` làm thanh dưới ghi `1/1` và `n`/`p` chết, trong khi
+  người gửi đang ở `3/53`. Nay giữ cả tập khớp và chỉ đặt con trỏ vào dòng của link (`setMatches` có
+  tham số `startPos`) — đo lại: hai bên đều `3/53`, bấm `n` ra `4/53`. Không có điều kiện nào thì
+  `visible` là cả log, lúc đó "duyệt kết quả" vô nghĩa: giữ nguyên cách cũ, chỉ nhảy tới dòng đó.
+- **Không đoán preset từ khoảng kéo tay.** Nhánh cũ `|to - lastTs| < 1000` biến khoảng kéo tay thành
+  "N cuối": nhãn người gửi `10:59:35 → 11:00:14` thành `39.5 giây cuối` bên người nhận, và tệ hơn,
+  `windowPreset` khác `null` kéo theo `retargetTimeWindow()` tự tính lại cửa sổ khi sang log khác —
+  một hành vi người gửi không hề chọn. Cùng lý do với luật ngay trên: kéo tay thì không đoán.
+- **Trạng thái trong tab** (ô tìm, chip loại mốc, chip chỉ-call-hỏng), **ngưỡng khoảng lặng** và **vùng
+  phóng to minimap** vào `payload.u` / `.g` / `.z` của permalink, **không** vào `serializeFilter()`:
+  mẫu bộ lọc là bộ điều kiện dùng lại được ở feedback khác, mấy thứ kia là "đang xem lát nào của log
+  này". Ngưỡng khoảng lặng đi vào `buildGaps` nên phải đặt trước rồi `scanLog()` lại — không gọi
+  `rescan()`, vì `startLens` gọi `applyPermalinkFromHash` giữa `scanLog` và `mountPanel`.
+
+Danh sách tắt tiếng chữ ký cố ý **không** vào link: nó nằm ở `localStorage` của từng người, chở cờ
+"đang xem nhóm đã tắt tiếng" sang máy khác thì cờ đó chẳng trỏ vào gì.
+
+**CHƯA XÁC MINH:** `applyPermalinkFromHash()` chạy trong **mọi** lần `startLens()`, kể cả lần watcher
+gắn lại sau khi đổi feedback, mà không chỗ nào xoá `location.hash`. Nếu router của trang admin giữ
+nguyên hash khi đổi route thì bộ lọc của feedback cũ sẽ được áp lại cho feedback mới — đúng thứ mà
+`detachLens()` cố ý dọn. Phải bấm thử trên trang thật mới biết router có giữ hash không.
+
 **Dòng không có giờ thừa hưởng giờ của dòng trên nó — nhưng chỉ cho cửa sổ thời gian.** Đo trên ba log
 thật: **240 / 180 / 85** dòng không có timestamp (dòng tiếp nối của stack trace, dòng trống, "END OF
 BATCH"). Cửa sổ thời gian từng loại thẳng chúng, tức bật cửa sổ quanh đúng lúc lỗi nổ ra thì mất luôn
@@ -190,9 +219,13 @@ Nối `src/*.js` theo thứ tự tên file thành một IIFE rồi xuất:
 
 - `extension/lens.js` — content script, đầu ra duy nhất
 
-Build kiểm cú pháp (`node --check`), **kiểm kiểu** (`tsc --noEmit`), chạy bộ test (`node test/run.js`),
-rồi ghi số liệu thật của bản vừa build vào khối `<!-- build-stats -->` trong README. Trước đây số đó gõ tay, nên README ghi
-bookmarklet "~114KB" trong khi thực tế đã 177KB — sai suốt một thời gian dài mà không ai biết.
+Build kiểm cú pháp (`node --check`), **kiểm kiểu** (`tsc --noEmit`) và chạy bộ test (`node test/run.js`).
+
+Từng có thêm một bước ghi số liệu bản build (KB, số dòng nguồn, số phép thử) vào khối
+`<!-- build-stats -->` trong README — sinh ra vì hồi đó số gõ tay: README ghi bookmarklet "~114KB"
+trong khi thực tế đã 177KB, sai suốt một thời gian dài mà không ai biết. Nay **README không mang con
+số nào** (con số và tên tính năng để trong README thì cũ dần theo từng lần sửa), nên bước đó bỏ luôn.
+Cần số liệu thì đọc đầu ra của chính `./build.sh`. Thêm số vào README là quay lại đúng cái bẫy cũ.
 
 **Vì sao `ops_receive_be` khử trùng theo `trace_id`.** `MAPInterceptor.kt` ghi sự kiện này ở hai chỗ:
 trong `invokeOnCompletion` khi request kết thúc có exception (`status=fail`, `error_code=HTTP-<mã>-<tên

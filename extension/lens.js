@@ -2781,11 +2781,14 @@ function jumpToIndex(domIndex) {
   refreshFilterBar();
 }
 
-function setMatches(indices, label) {
+// startPos: đứng sẵn ở dòng thứ mấy trong danh sách, mặc định là dòng đầu. Mở bằng permalink cần
+// nó — link chỉ ra một dòng cụ thể, nhưng danh sách để bấm n/p vẫn phải là cả tập dòng khớp.
+function setMatches(indices, label, startPos) {
   lensState.matches = indices;
   lensState.matchLabel = label;
-  lensState.matchPos = indices.length ? 0 : -1;
-  if (indices.length) jumpToIndex(indices[0]);
+  const start = Math.min(Math.max(0, startPos || 0), Math.max(0, indices.length - 1));
+  lensState.matchPos = indices.length ? start : -1;
+  if (indices.length) jumpToIndex(indices[start]);
   renderFooter();
   // Nháy một cái khi có danh sách MỚI. Thanh này nằm dưới cùng panel nên người dùng hay không nhận ra
   // vừa có gì đó để duyệt; nháy ở đây chỉ để kéo mắt xuống. Cố ý KHÔNG nháy mỗi lần bấm n/p — lúc đó
@@ -3060,15 +3063,20 @@ function serializeFilter() {
   // Thiếu chỗ này thì: mẫu bộ lọc lưu xong mô tả là "không có điều kiện nào" và bấm vào không làm gì,
   // còn permalink gửi cho đồng nghiệp sẽ hiện số gấp đôi mà không có dấu hiệu gì.
   if (filter.skipDuplicate) payload.d = 1;
+  // Chip "Ẩn dòng không khớp" tắt được, mà bật/tắt nó là hai bức tranh khác hẳn nhau: cùng một bộ điều
+  // kiện, một bên bảng log còn nguyên, một bên bị xén còn vài chục dòng. Vắng khoá này = bật (mặc định),
+  // nên link cũ vẫn đọc đúng.
+  if (!filter.hideOthers) payload.h = 0;
   if (filter.timeFrom !== null || filter.timeTo !== null) {
-    const from = filter.timeFrom !== null ? filter.timeFrom : data.firstTs;
-    const to = filter.timeTo !== null ? filter.timeTo : data.lastTs;
     // Preset gửi đi dưới dạng "N cuối" để người nhận tính lại trên log của họ, không gửi hai mốc tuyệt đối.
+    // Chỉ đổi khi ĐANG thật sự là preset: khoảng kéo tay mà kết thúc gần cuối log từng bị đoán thành
+    // preset, làm người nhận thấy nhãn "39.5 giây cuối" trong khi người gửi thấy hai mốc giờ — và tệ hơn,
+    // windowPreset khác null thì retargetTimeWindow() sẽ TỰ tính lại cửa sổ khi sang log khác. Kéo tay
+    // thì không đoán được ý người dùng, đúng như luật ở retargetTimeWindow.
     if (filter.windowPreset) payload.wLast = filter.windowPreset;
-    else if (Math.abs(to - data.lastTs) < 1000) payload.wLast = to - from;
     else {
-      payload.f = from - data.firstTs;
-      payload.tt = to - data.firstTs;
+      payload.f = (filter.timeFrom !== null ? filter.timeFrom : data.firstTs) - data.firstTs;
+      payload.tt = (filter.timeTo !== null ? filter.timeTo : data.lastTs) - data.firstTs;
     }
   }
   return payload;
@@ -3088,7 +3096,7 @@ function applyFilterPayload(payload) {
   filter.timeFrom = null;
   filter.timeTo = null;
   filter.windowPreset = null;
-  filter.hideOthers = true;
+  filter.hideOthers = payload.h !== 0;
   // payload.w là dạng cũ của permalink (chỉ lưu "N giây cuối").
   if (payload.wLast || payload.w) setTimeWindowPreset(payload.wLast || payload.w);
   else if (payload.f >= 0 || payload.tt >= 0) {
@@ -3097,15 +3105,65 @@ function applyFilterPayload(payload) {
   }
 }
 
+// Trạng thái BÊN TRONG tab (ô tìm, chip loại mốc, chip chỉ-call-hỏng). Không nhập vào serializeFilter:
+// mẫu bộ lọc là một BỘ ĐIỀU KIỆN dùng lại được ở feedback khác, còn mấy thứ này là "đang xem lát nào
+// của tab này". Chỉ ghi phần khác mặc định, để hash không phình vì những giá trị không ai đổi.
+function serializeTabUi() {
+  const ui = {};
+  if (tabUiState.issueLevel !== 'all') ui.il = tabUiState.issueLevel;
+  if (tabUiState.issueQuery) ui.iq = tabUiState.issueQuery;
+  if (tabUiState.httpOnlyBad) ui.hb = 1;
+  if (tabUiState.httpQuery) ui.hq = tabUiState.httpQuery;
+  if (tabUiState.moduleQuery) ui.mq = tabUiState.moduleQuery;
+  if (tabUiState.showNoise) ui.sn = 1;
+  if (tabUiState.tlQuery) ui.tq = tabUiState.tlQuery;
+  if (tabUiState.tlKinds.size) ui.tk = Array.from(tabUiState.tlKinds);
+  return ui;
+}
+
+function applyTabUiPayload(ui) {
+  // Dọn trước rồi mới áp, kể cả khi link không mang gì: còn sót ô tìm của lần trước thì danh sách đã bị
+  // lọc sẵn mà không có dòng nào nói ra — đúng loại lỗi với việc mang bộ lọc sang feedback khác.
+  resetTabUiState();
+  if (!ui) return;
+  if (ui.il) tabUiState.issueLevel = ui.il;
+  if (ui.iq) tabUiState.issueQuery = ui.iq;
+  if (ui.hb) tabUiState.httpOnlyBad = true;
+  if (ui.hq) tabUiState.httpQuery = ui.hq;
+  if (ui.mq) tabUiState.moduleQuery = ui.mq;
+  if (ui.sn) tabUiState.showNoise = true;
+  if (ui.tq) tabUiState.tlQuery = ui.tq;
+  if (Array.isArray(ui.tk)) tabUiState.tlKinds = new Set(ui.tk);
+}
+
 // Chỉ đọc/ghi chuỗi, không đặt lại location.hash: trang là SPA, đổi hash có thể làm router chạy lại.
 function buildPermalink() {
-  // matches chứa domIndex, không phải vị trí trong entries — phải tra qua một lớp nữa.
+  // domIndex CHÍNH LÀ vị trí trong entries (analyzeLog gán index của cùng một mảng), nên tra thẳng được.
   const entry = lensState.matches.length
     ? lensState.data.entries[lensState.matches[Math.max(0, lensState.matchPos)]]
     : null;
   const payload = Object.assign({ t: lensState.tab, ln: entry ? entry.lineNo : 0 }, serializeFilter());
+  const ui = serializeTabUi();
+  if (Object.keys(ui).length) payload.u = ui;
+  // Ngưỡng khoảng lặng đi vào chính lúc dựng data, đổi nó là đổi số khoảng lặng người nhận đọc được.
+  if (lensState.gapThresholdMs !== DEFAULT_GAP_MS) payload.g = lensState.gapThresholdMs;
+  // Minimap đang phóng to: gửi theo độ lệch so với đầu log, cùng cách với cửa sổ thời gian kéo tay.
+  if (lensState.mapZoom) {
+    payload.z = [lensState.mapZoom.from - lensState.data.firstTs,
+      lensState.mapZoom.to - lensState.data.firstTs];
+  }
   return location.origin + location.pathname + location.search + PERMALINK_PREFIX +
     encodeURIComponent(JSON.stringify(payload));
+}
+
+// Khoảng phóng to của minimap, kẹp về trong log đang mở: link mở nhầm trên log khác thì thà thấy cả
+// log còn hơn thấy một khoảng rỗng không có cách nào lùi ra.
+function restoreMapZoom(range) {
+  const data = lensState.data;
+  if (!Array.isArray(range) || range.length !== 2) return;
+  const from = Math.max(data.firstTs, Math.min(data.lastTs, data.firstTs + range[0]));
+  const to = Math.max(data.firstTs, Math.min(data.lastTs, data.firstTs + range[1]));
+  if (to > from) lensState.mapZoom = { from, to };
 }
 
 function applyPermalinkFromHash() {
@@ -3117,14 +3175,28 @@ function applyPermalinkFromHash() {
   } catch (error) {
     return false;
   }
+  // Ngưỡng khoảng lặng nằm trong buildGaps, tức phải đặt TRƯỚC rồi quét lại — không gọi rescan() vì
+  // panel chưa mount ở thời điểm này (startLens gọi hàm này giữa scanLog và mountPanel).
+  if (payload.g && payload.g !== lensState.gapThresholdMs) {
+    lensState.gapThresholdMs = payload.g;
+    scanLog();
+  }
   applyFilterPayload(payload);
+  applyTabUiPayload(payload.u);
   // Link cũ có thể ghi t='http' hoặc t='slow' — hai tab đã gộp đi. Không chặn thì renderTab rơi vào
   // nhánh else và vẽ tab Diễn biến trong khi thanh tab không có nút nào sáng.
   lensState.tab = TAB_DEFS.some((tab) => tab.id === payload.t) ? payload.t : 'sum';
-  applyFilter(false);
+  const result = applyFilter(false);
+  restoreMapZoom(payload.z);
   if (payload.ln) {
     const target = lensState.data.entries.find((entry) => entry.lineNo === payload.ln);
-    if (target) setMatches([target.domIndex], 'từ permalink');
+    // Người gửi đang duyệt cả tập dòng khớp (thanh dưới ghi "3/47", bấm n/p đi tiếp được). Đặt matches
+    // thành ĐÚNG MỘT dòng thì người nhận thấy "1/1" và n/p chết — cùng một link, hai cách dùng khác hẳn.
+    // Không có điều kiện nào thì visible là cả log, lúc đó "duyệt kết quả" không còn nghĩa gì: giữ
+    // nguyên cách cũ, chỉ nhảy tới dòng được trỏ.
+    const pos = target && hasAnyFilterFacet() ? result.visible.indexOf(target.domIndex) : -1;
+    if (pos >= 0) setMatches(result.visible, 'dòng khớp bộ lọc', pos);
+    else if (target) setMatches([target.domIndex], 'từ permalink');
   }
   return true;
 }
@@ -3181,6 +3253,7 @@ function describeTemplatePayload(payload) {
   if (payload.wLast) parts.push(formatWindowPresetLabel(payload.wLast));
   else if (payload.f >= 0 || payload.tt >= 0) parts.push('khoảng thời gian cố định');
   if (payload.d) parts.push('bỏ khối lặp');
+  if (payload.h === 0) parts.push('không ẩn dòng khác');
   if (payload.s) parts.push('phiên ' + payload.s);
   if (payload.lv && payload.lv.length) parts.push(payload.lv.join(' + '));
   if (payload.md && payload.md.length) {

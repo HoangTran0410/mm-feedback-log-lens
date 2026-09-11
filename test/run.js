@@ -40,8 +40,11 @@ function installFakeDom() {
   // localStorage thật (trong bộ nhớ): các phép thử về nhớ trạng thái mục đóng/mở cần đọc lại được
   // đúng thứ vừa ghi, stub trả về null thì không kiểm được gì.
   const store = new Map();
+  // buildPermalink đọc thẳng `location` (biến toàn cục trong trình duyệt), không qua window.
+  global.location = { origin: 'https://adminapp.momocdn.net',
+    pathname: '/utilities/feedback/detail', search: '?autoId=33112319', hash: '' };
   global.window = { addEventListener: noop, removeEventListener: noop, innerHeight: 800, innerWidth: 1200,
-    location: { hash: '' },
+    location: global.location,
     localStorage: {
       getItem: (key) => (store.has(key) ? store.get(key) : null),
       setItem: (key, value) => store.set(key, String(value)),
@@ -70,6 +73,7 @@ function loadLens() {
     'canZoomFurther,minimapBounds,pickJourneyLabel,findDuplicateBlock,entryMatches,compileFilter,' +
     'SECTION_SEARCH_MIN_ROWS,buildEnvironment,buildTicketSummary,journeySurfaceName,' +
     'PANEL_CSS,detachLens,serializeFilter,applyFilterPayload,describeTemplatePayload,' +
+    'buildPermalink,applyPermalinkFromHash,PERMALINK_PREFIX,setMatches,resetTabUiState,' +
     'renderTraceFailSection,isBadHttpCall,setTimeWindowPreset,isWindowPresetActive,' +
     'formatWindowLabel,retargetTimeWindow,extractDurations,renderCorrelationList};';
   const wired = src.replace(/\n\}\)\(\);\s*$/, '\n' + exportLine + '\n})();\n');
@@ -1035,6 +1039,119 @@ check('mau bo loc va permalink mang duoc "bo khoi lap"', () => {
   L.applyFilterPayload({ lv: ['ERROR'] });
   eq(L.lensState.filter.skipDuplicate, false, 'ap mau khac phai tat, khong duoc giu lai');
   L.lensState.filter.levels = new Set();
+});
+
+/* --------------------------------------------- permalink: link phải mang đúng thứ đang thấy */
+
+// Mở link giống hệt lúc trang vừa tải: bộ lọc về mặc định rồi mới đọc hash.
+function openPermalink(link) {
+  const filter = L.lensState.filter;
+  filter.levels = new Set();
+  filter.modules = new Set();
+  filter.text = '';
+  filter.session = null;
+  filter.skipDuplicate = false;
+  filter.timeFrom = null;
+  filter.timeTo = null;
+  filter.windowPreset = null;
+  filter.hideOthers = true;
+  L.lensState.matches = [];
+  L.lensState.matchPos = -1;
+  L.lensState.mapZoom = null;
+  L.resetTabUiState();
+  global.location.hash = link.slice(link.indexOf(L.PERMALINK_PREFIX));
+  const applied = L.applyPermalinkFromHash();
+  global.location.hash = '';
+  return applied;
+}
+
+// Bug thật đo được: chip "Ẩn dòng không khớp" tắt được (data-act="tglHide") nhưng serializeFilter không
+// ghi nó, còn applyFilterPayload thì gán cứng true. Người gửi thấy CẢ log với panel tính theo ERROR,
+// người nhận mở đúng link đó thấy bảng log bị xén còn mấy chục dòng.
+check('permalink mang duoc chip "An dong khong khop" dang tat', () => {
+  L.lensState.filter.levels = new Set(['ERROR']);
+  L.lensState.filter.hideOthers = false;
+  L.applyFilter(false);
+  const link = L.buildPermalink();
+  eq(L.lensState.isFiltering, false, 'tat chip thi khong duoc an dong nao');
+  openPermalink(link);
+  eq(L.lensState.filter.hideOthers, false, 'phia nhan phai giu nguyen trang thai chip');
+  eq(L.lensState.isFiltering, false, 'bang log phia nhan cung khong duoc bi xen');
+  ok(L.lensState.filter.levels.has('ERROR'), 'dieu kien loc van phai con');
+  L.lensState.filter.levels = new Set();
+  L.lensState.filter.hideOthers = true;
+  L.applyFilter(false);
+});
+
+// Bug thật: applyPermalinkFromHash đặt matches thành ĐÚNG MỘT dòng, nên thanh dưới ghi "1/1" và phím
+// n/p chết — trong khi người gửi đang duyệt cả tập dòng khớp.
+check('mo permalink van duyet duoc ca tap dong khop, dung o dong duoc tro', () => {
+  L.lensState.filter.levels = new Set(['ERROR']);
+  L.lensState.filter.hideOthers = true;
+  const result = L.applyFilter(true);
+  ok(result.visible.length >= 3, 'fixture phai co du dong ERROR de duyet');
+  L.setMatches(result.visible, 'dòng khớp bộ lọc', 2); // người gửi đã bấm n hai lần
+  const soKhop = L.lensState.matches.length;
+  const dongDangDung = L.lensState.data.entries[L.lensState.matches[2]].lineNo;
+  const link = L.buildPermalink();
+  openPermalink(link);
+  eq(L.lensState.matches.length, soKhop, 'phai giu nguyen ca danh sach khop, khong co ve 1');
+  eq(L.lensState.matchPos, 2, 'phai dung dung o dong ma link tro toi');
+  eq(L.lensState.data.entries[L.lensState.matches[L.lensState.matchPos]].lineNo, dongDangDung,
+    'dong dang duyet phai la dong cua nguoi gui');
+  L.lensState.filter.levels = new Set();
+  L.applyFilter(false);
+});
+
+// Bug thật: nhánh Math.abs(to - lastTs) < 1000 đoán khoảng KÉO TAY thành preset "N cuối". Hậu quả không
+// chỉ là nhãn khác nhau — windowPreset khác null thì retargetTimeWindow() tự tính lại cửa sổ khi sang
+// log khác, tức người nhận được một hành vi mà người gửi không hề chọn.
+check('khoang keo tay ket thuc gan cuoi log khong bi doan thanh preset', () => {
+  const filter = L.lensState.filter;
+  filter.windowPreset = null;
+  filter.timeFrom = data.lastTs - 40000;
+  filter.timeTo = data.lastTs - 500; // kéo tay, hụt 500ms so với cuối log
+  L.applyFilter(false);
+  const nhanNguoiGui = L.formatWindowLabel();
+  const link = L.buildPermalink();
+  openPermalink(link);
+  eq(L.lensState.filter.windowPreset, null, 'keo tay thi khong duoc thanh preset');
+  eq(L.lensState.filter.timeTo, data.lastTs - 500, 'moc cuoi phai giu nguyen, khong keo ve lastTs');
+  eq(L.formatWindowLabel(), nhanNguoiGui, 'nhan hai ben phai giong nhau');
+  filter.timeFrom = null;
+  filter.timeTo = null;
+  L.applyFilter(false);
+});
+
+// Link ghi "tab Vấn đề" nhưng không ghi ĐANG XEM LÁT NÀO của tab đó: người gửi lọc còn 3 nhóm, người
+// nhận mở ra thấy cả danh sách. Cùng loại với việc để sót ô tìm khi đổi feedback, chỉ ngược chiều.
+check('permalink mang trang thai trong tab, nguong khoang lang va vung phong to minimap', () => {
+  L.tabUiState.issueQuery = 'timeout';
+  L.tabUiState.issueLevel = 'ERROR';
+  L.tabUiState.httpOnlyBad = true;
+  L.tabUiState.tlKinds = new Set(['jr-tap']);
+  L.lensState.gapThresholdMs = 5000;
+  L.lensState.mapZoom = { from: data.firstTs + 1000, to: data.firstTs + 9000 };
+  const link = L.buildPermalink();
+  openPermalink(link);
+  eq(L.tabUiState.issueQuery, 'timeout', 'o tim nhom loi phai sang duoc phia nhan');
+  eq(L.tabUiState.issueLevel, 'ERROR', 'chip muc do trong tab phai sang duoc');
+  eq(L.tabUiState.httpOnlyBad, true, 'chip chi-call-hong phai sang duoc');
+  eq(Array.from(L.tabUiState.tlKinds).join(','), 'jr-tap', 'chip loai moc phai sang duoc');
+  eq(L.lensState.gapThresholdMs, 5000, 'nguong khoang lang phai sang duoc');
+  ok(L.lensState.mapZoom && L.lensState.mapZoom.from === data.firstTs + 1000,
+    'vung phong to minimap phai sang duoc');
+  // Link KHÔNG mang gì thì phía nhận phải về mặc định, không giữ lại của link trước.
+  L.resetTabUiState();
+  L.lensState.mapZoom = null;
+  L.lensState.gapThresholdMs = 2000;
+  const linkTrong = L.buildPermalink();
+  L.tabUiState.issueQuery = 'con sot lai';
+  L.lensState.mapZoom = { from: data.firstTs, to: data.firstTs + 1000 };
+  openPermalink(linkTrong);
+  eq(L.tabUiState.issueQuery, '', 'link sau khong mang thi phai don sach');
+  eq(L.lensState.mapZoom, null, 'link sau khong mang thi khong duoc giu vung phong to');
+  scan();
 });
 
 // Bug thật: setTimeWindowPreset kẹp timeFrom về firstTs, còn isWindowPresetActive lại suy ngược
