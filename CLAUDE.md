@@ -428,6 +428,31 @@ Panel từng bị rối vì mấy thói quen dưới đây, sửa rồi thì gi�
 - **Hướng dẫn dài để trong `title`, không để giữa form.** Cách dùng minimap nằm ở tooltip của minimap,
   trong form chỉ còn một dòng ngắn.
 - **Chip hết dòng khớp thì làm mờ (`.fll-chip.dim`), không xoá.** Vẫn bấm được để nới rộng.
+- **Đọc xuyên qua panel: KHÔNG đặt `opacity` lên chính `.fll-panel`.** Panel rộng 480px đè lên đuôi của
+  những dòng log dài, nên trong lúc chuột ở trên bảng log thì nó mờ đi (`.fll-xray`). Nhưng `opacity`
+  gộp cả cây con thành MỘT lớp — con không bao giờ sáng hơn cha, mà minimap lại đúng là thứ cần nhìn rõ
+  lúc đó. Cách làm: nền panel chuyển sang màu **có alpha** (`background:rgba(...)`, bỏ luôn bóng mờ 70px
+  vì vùng tối quanh panel cũng che chữ), rồi mờ **từng đứa con** và chừa `.fll-map` cùng `.fll-maplbl`
+  ra. Có phép thử đọc thẳng `PANEL_CSS` để bắt ai đó gom lại thành `opacity` trên panel.
+- **Mốc bật xuyên thấu là "chuột đang trên bảng log", không phải "chuột rời khỏi panel".** Chuột nằm
+  ngoài panel gần như suốt thời gian, lấy mốc đó thì mờ là trạng thái mặc định và panel nhấp nháy mỗi
+  lần chuột đi ngang.
+- **Rê chuột trên bảng log chỉ vị trí dòng đó lên minimap.** Dùng lại `updateMinimapCursor()` sẵn có,
+  không vẽ mũi tên SVG: `.fll-panel` có `overflow:hidden` nên đường kẻ từ trang vào panel bị cắt ngay
+  mép, muốn vẽ thật thì phải bê cả lớp `.fll-aim` ra ngoài `#fll-root`. Mà mũi tên trong panel có giá
+  trị vì một hàng đại diện cho NHIỀU dòng (nhóm lỗi 22 dòng → 22 vạch); một dòng log trên trang chỉ ứng
+  với đúng một điểm, nên cái vạch đã nói đủ.
+  Dòng không có giờ riêng thì lấy `windowTs` (giờ thừa hưởng của dòng trên nó) — không thì rê vào giữa
+  một stack trace là vạch tắt ngóm. Tra `phần tử → entry` bằng `WeakMap` dựng lại mỗi lần quét.
+
+  Đo trên trang demo (1431 dòng, Chrome, có ép tính lại style+layout ngay trong phép đo): bật lớp xuyên
+  thấu **1.69ms** (max 2.90), tắt **1.67ms**; quét chuột qua 300 dòng hết **28.6ms** — tức **0.095ms
+  mỗi dòng**, và **0.097ms** khi KHÔNG bật xuyên thấu, tức phần xuyên thấu không thêm chi phí cho mỗi
+  dòng. **CHƯA XÁC MINH** trên trang admin thật (10k dòng): chi phí duy nhất chưa đo được là raster lại
+  dải log nằm dưới panel khi panel hết đục.
+
+  *Bẫy khi đo:* tab chạy nền thì **transition không chạy**, `getComputedStyle` trả về giá trị ĐẦU của
+  thuộc tính đang chuyển — đo ra "CSS không ăn" trong khi rule vẫn đúng. Tắt `transition` rồi mới đọc.
 - **"Có khoảng đang chọn trên minimap" phải hỏi `getVisibleTimeRange()`, đừng hỏi `timeFrom/timeTo`.**
   Lọc theo **phiên app** cũng thu khoảng đang xem về đúng phiên đó (hàm trên cắt theo `startTs/endTs`
   của phiên) mà không đụng tới hai trường kia. Hậu quả của việc hỏi nhầm: minimap vẫn tô mờ hai bên

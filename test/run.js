@@ -75,7 +75,7 @@ function loadLens() {
     'PANEL_CSS,detachLens,serializeFilter,applyFilterPayload,describeTemplatePayload,' +
     'buildPermalink,applyPermalinkFromHash,PERMALINK_PREFIX,setMatches,resetTabUiState,' +
     'hasSelectedTimeRange,hasAnyTimeRange,getVisibleTimeRange,buildSessions,sessionLabel,' +
-    'updateMinimapRange,renderSessionChipRow,' +
+    'updateMinimapRange,renderSessionChipRow,indexRowElements,handlePageRowHover,handlePageLeave,' +
     'renderTraceFailSection,isBadHttpCall,setTimeWindowPreset,isWindowPresetActive,' +
     'formatWindowLabel,retargetTimeWindow,extractDurations,renderCorrelationList};';
   const wired = src.replace(/\n\}\)\(\);\s*$/, '\n' + exportLine + '\n})();\n');
@@ -1516,6 +1516,64 @@ check('token trong header khong duoc lot ra panel hay ticket', () => {
   ['BI-MAT-KHONG-DUOC-LO', 'KHOA-PHIEN-KHONG-DUOC-LO', 'CHU-KY-KHONG-DUOC-LO'].forEach((bimat) => {
     ok(html.indexOf(bimat) < 0, 'lo mat: ' + bimat);
   });
+});
+
+// Rê chuột trên bảng log của trang: panel mờ đi để đọc xuyên qua, minimap chỉ đúng vị trí dòng đó.
+// Hai dòng cuối cố ý KHÔNG có timestamp — dòng tiếp nối của stack trace phải thừa hưởng giờ của dòng
+// trên nó, nếu không thì rê vào giữa stack trace là vạch trên minimap tắt ngóm.
+rows = [
+  '2026-01-02 10:00:00:010 GMT+07:00 INFO    [Module: GiaLapDb] MomoDatabase init OK',
+  '2026-01-02 10:00:05:010 GMT+07:00 ERROR   [Module: ViDemo] khong tai duoc so du',
+  '    at vn.momo.demo.Vi.taiSoDu(Vi.kt:42)',
+].map(makeRow);
+scan();
+
+const lopGia = () => {
+  const co = new Set();
+  return { add: (c) => co.add(c), remove: (c) => co.delete(c), contains: (c) => co.has(c),
+    toggle: (c, bat) => (bat ? co.add(c) : co.delete(c)) };
+};
+
+check('re chuot tren bang log: panel mo di, minimap chi dung dong do', () => {
+  const data = L.lensState.data;
+  L.indexRowElements(data);
+  eq(L.lensState.rowEntries.get(data.entries[1].el), data.entries[1], 'tra duoc phan tu -> entry');
+
+  L.lensState.el.panel = { classList: lopGia() };
+  L.lensState.el.cursor = { style: {} };
+  L.lensState.el.mapText = { textContent: '', classList: lopGia() };
+  const reVao = (index) => L.handlePageRowHover({ target: { closest: () => data.entries[index].el } });
+
+  reVao(1);
+  ok(L.lensState.el.panel.classList.contains('fll-xray'), 'panel phai mo di de doc xuyen qua');
+  ok(L.lensState.el.mapText.textContent.indexOf('dòng ' + data.entries[1].lineNo) >= 0,
+    'nhan minimap phai ghi so dong dang re: ' + L.lensState.el.mapText.textContent);
+  ok(L.lensState.el.cursor.style.opacity !== '0', 'vach tren minimap phai hien');
+
+  // Dòng tiếp nối không có giờ riêng: phải dùng giờ thừa hưởng, không được tắt vạch.
+  reVao(2);
+  eq(data.entries[2].ts, null, 'dong nay dung la khong co timestamp');
+  ok(L.lensState.el.cursor.style.opacity !== '0', 'van phai hien vach nho windowTs');
+  ok(L.lensState.el.mapText.textContent.indexOf('10:00:05') >= 0,
+    'gio hien ra la gio thua huong tu dong tren: ' + L.lensState.el.mapText.textContent);
+
+  L.handlePageLeave();
+  ok(!L.lensState.el.panel.classList.contains('fll-xray'), 'roi bang log thi panel sang lai');
+  eq(L.lensState.el.cursor.style.opacity, '0', 'va vach tat di');
+  L.lensState.el = {};
+});
+
+// Cái bẫy của cách làm này: opacity gộp cả cây con thành MỘT lớp, con không bao giờ sáng hơn cha. Đặt
+// opacity lên chính .fll-panel là minimap mờ theo — mà minimap đúng là thứ cần nhìn rõ lúc đó.
+check('xuyen thau khong duoc dat opacity len chinh panel', () => {
+  const css = L.PANEL_CSS;
+  const at = css.indexOf('.fll-panel.fll-xray{');
+  ok(at >= 0, 'phai co rule xuyen thau');
+  const rule = css.slice(at, css.indexOf('}', at));
+  ok(rule.indexOf('opacity') < 0, 'rule cua chinh panel khong duoc co opacity, phai dung nen co alpha');
+  ok(rule.indexOf('background:rgba') >= 0, 'nen phai co alpha thi moi nhin xuyen qua duoc');
+  ok(css.indexOf('.fll-panel.fll-xray > *:not(.fll-map):not(.fll-maplbl){opacity:') >= 0,
+    'mo tung dua con va chua minimap cung nhan cua no ra');
 });
 
 // log rỗng

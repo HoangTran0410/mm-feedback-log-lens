@@ -82,6 +82,7 @@ function disposeSelf(shouldRestorePage) {
   pageWatcher = null;
   // Timer còn treo sẽ chạy trên panel đã bị gỡ, phải dọn.
   clearInputTimers();
+  detachPageHover();
   if (lensState.el.root) lensState.el.root.remove();
   if (shouldRestorePage) {
     document.querySelectorAll('.fll-filtering, .fll-dropping, .fll-drop, .fll-hit')
@@ -121,6 +122,10 @@ function scanLog() {
   data.gapThresholdLabel = lensState.gapThresholdMs / 1000 + 's';
   lensState.data = data;
   lensState.view = data;
+  // Dựng lại chỉ mục "phần tử dòng -> entry" và gắn lại listener: quét lại nghĩa là DOM cũ có thể đã
+  // bị trang thay hết, chỉ mục cũ trỏ vào node đã gỡ.
+  indexRowElements(data);
+  attachPageHover(data.container);
   // Kết quả lọc cũ trỏ tới mảng entries cũ (và DOM cũ), phải bỏ đi để lần vẽ tab sau tính lại.
   lensState.lastFilterResult = null;
   lensState.forcedVisibleIndices.clear();
@@ -253,6 +258,7 @@ function closeLens() {
 // feedback mới hiện ra thiếu mà người dùng không biết. Riêng danh sách tắt tiếng thì giữ.
 function detachLens() {
   clearInputTimers();
+  detachPageHover();
   if (lensState.el.root) lensState.el.root.remove();
   // Trả bảng log về nguyên trạng TRƯỚC khi bỏ data: SPA có thể dùng lại chính container đó cho feedback
   // kế tiếp. Còn sót .fll-filtering/.fll-keep thì feedback mới chỉ hiện vài chục dòng trong khi panel

@@ -38,6 +38,16 @@ const PANEL_CSS = [
   'animation:fll-in .18s cubic-bezier(.2,.9,.3,1)}',
   '@keyframes fll-in{from{opacity:0;transform:translateX(16px) scale(.99)}to{opacity:1;transform:none}}',
 
+  /* Đọc xuyên qua panel trong lúc chuột đang ở trên bảng log. KHÔNG đặt opacity lên chính .fll-panel:
+     opacity gộp cả cây con thành một lớp nên con không bao giờ sáng hơn cha — minimap sẽ mờ theo, mà
+     minimap lại đúng là thứ cần nhìn rõ lúc đó. Nền chuyển sang màu có alpha, rồi mờ từng đứa con và
+     chừa minimap (.fll-map) cùng nhãn của nó (.fll-maplbl) ra.
+     Bỏ luôn bóng mờ 70px: để lại thì vùng tối quanh panel vẫn che chữ của bảng log. */
+  '.fll-panel{transition:background .14s,box-shadow .14s,border-color .14s}',
+  '.fll-panel > *{transition:opacity .14s}',
+  '.fll-panel.fll-xray{background:rgba(22,20,29,.10);box-shadow:none;border-color:rgba(255,255,255,.05)}',
+  '.fll-panel.fll-xray > *:not(.fll-map):not(.fll-maplbl){opacity:.10}',
+
   /* ---------- hai tay nắm thay đổi kích thước ---------- */
   /* Trong lúc kéo: bỏ bóng mờ bán kính 70px (thứ tốn nhất để vẽ lại mỗi khung hình),
      báo trước cho trình duyệt chuẩn bị lớp riêng, và tắt hover bên trong cho khỏi tính vô ích. */
